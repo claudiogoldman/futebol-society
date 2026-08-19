@@ -9,8 +9,8 @@ import { supabase } from '../lib/supabaseClient';
 
 // ---------- helpers ----------
 
-const POSITION_LABELS = { goleiro: 'Goleiro', zagueiro: 'Zagueiro', meio: 'Meio', atacante: 'Atacante' };
-const POSITION_ORDER = ['goleiro', 'zagueiro', 'meio', 'atacante'];
+const POSITION_LABELS = { goleiro: 'Goleiro', fixo: 'Fixo', libero: 'Líbero', meio: 'Meio', ala_esquerdo: 'Ala Esquerdo', ala_direito: 'Ala Direito', pivo: 'Pivô' };
+const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];
 
 function isGoleiro(p) {
   return Array.isArray(p.positions) && p.positions.includes('goleiro');
