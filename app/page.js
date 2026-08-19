@@ -17,33 +17,20 @@ function isGoleiro(p) {
   return Array.isArray(p.positions) && p.positions.includes('goleiro');
 }
 
-function calcAge(birthDate) {
-  if (!birthDate) return null;
-  const b = new Date(birthDate + 'T00:00:00');
-  if (Number.isNaN(b.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - b.getFullYear();
-  const m = today.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
-  return age;
-}
-
 // combines weight + age deviation from a "typical" player into one number,
 // used only to break near-ties in the rating balance so the draw doesn't
 // accidentally stack every heavy/young player on the same side.
 function physicalScore(p) {
   let score = 0;
   if (p.weight_kg) score += (p.weight_kg - 75) / 10;
-  const age = calcAge(p.birth_date);
-  if (age != null) score += (age - 30) / 10;
+  if (p.age) score += (p.age - 30) / 10;
   return score;
 }
 
 function playerMeta(p) {
   const bits = [];
   if (Array.isArray(p.positions) && p.positions.length > 0) bits.push(p.positions.map((pos) => POSITION_LABELS[pos] || pos).join(' / '));
-  const age = calcAge(p.birth_date);
-  if (age != null) bits.push(`${age} anos`);
+  if (p.age) bits.push(`${p.age} anos`);
   if (p.weight_kg) bits.push(`${p.weight_kg}kg`);
   return bits.join(' · ');
 }
@@ -305,15 +292,13 @@ function EvaluationSection({ game, myId, onSaveRatings }) {
 function MyProfileCard({ me, onUpdate }) {
   const positions = Array.isArray(me.positions) ? me.positions : [];
   const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
-  const [birthDraft, setBirthDraft] = useState(me.birth_date || '');
+  const [ageDraft, setAgeDraft] = useState(me.age || '');
   const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
 
   const togglePosition = (pos) => {
     const next = positions.includes(pos) ? positions.filter((p) => p !== pos) : [...positions, pos];
     onUpdate({ positions: next });
   };
-
-  const age = calcAge(me.birth_date);
 
   return (
     <div className="sf-player-card sf-player-card-me sf-me-card">
@@ -344,12 +329,12 @@ function MyProfileCard({ me, onUpdate }) {
           />
         </div>
         <div className="sf-physical-field">
-          <label className="sf-field-label">Nascimento{age != null ? ` (${age} anos)` : ''}</label>
+          <label className="sf-field-label">Idade</label>
           <input
-            type="date" className="sf-input"
-            value={birthDraft}
-            onChange={(e) => setBirthDraft(e.target.value)}
-            onBlur={() => onUpdate({ birth_date: birthDraft || null })}
+            type="number" min="10" max="100" className="sf-input" placeholder="ex: 34"
+            value={ageDraft}
+            onChange={(e) => setAgeDraft(e.target.value)}
+            onBlur={() => onUpdate({ age: ageDraft ? parseInt(ageDraft, 10) : null })}
           />
         </div>
       </div>
