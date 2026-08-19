@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
   Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
-  Handshake, Shield
+  Handshake, Shield, MessageCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -306,6 +306,7 @@ function MyProfileCard({ me, onUpdate }) {
   const positions = Array.isArray(me.positions) ? me.positions : [];
   const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
   const [birthDraft, setBirthDraft] = useState(me.birth_date || '');
+  const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
 
   const togglePosition = (pos) => {
     const next = positions.includes(pos) ? positions.filter((p) => p !== pos) : [...positions, pos];
@@ -352,6 +353,13 @@ function MyProfileCard({ me, onUpdate }) {
           />
         </div>
       </div>
+      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp (opcional — permite que te cobrem o rateio direto no seu zap)</div>
+      <input
+        type="tel" className="sf-input" placeholder="5511999999999 (DDI+DDD+número, só números)"
+        value={phoneDraft}
+        onChange={(e) => setPhoneDraft(e.target.value.replace(/[^\d]/g, ''))}
+        onBlur={() => onUpdate({ phone: phoneDraft || null })}
+      />
     </div>
   );
 }
@@ -386,6 +394,10 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
   };
   const bumpAssist = (id, delta) => {
     setAssists((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
+  };
+  const chargeWhatsApp = (p) => {
+    const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu! 🙏`;
+    window.open(`https://wa.me/${p.phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   return (
@@ -482,15 +494,22 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
             <div className="sf-paid-list">
               {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
+                const paid = !!game.payments?.[p.id];
                 return (
-                  <button
-                    key={p.id}
-                    className={`sf-paid-chip ${game.payments?.[p.id] ? 'sf-paid-on' : ''} ${exempt ? 'sf-paid-exempt' : ''}`}
-                    disabled={exempt}
-                    onClick={() => !exempt && onTogglePaid(game.id, p.id, !game.payments?.[p.id])}
-                  >
-                    {exempt ? 'Isento · ' : (game.payments?.[p.id] ? <Check size={12} /> : null)} {p.name}
-                  </button>
+                  <div key={p.id} className="sf-paid-item">
+                    <button
+                      className={`sf-paid-chip ${paid ? 'sf-paid-on' : ''} ${exempt ? 'sf-paid-exempt' : ''}`}
+                      disabled={exempt}
+                      onClick={() => !exempt && onTogglePaid(game.id, p.id, !paid)}
+                    >
+                      {exempt ? 'Isento · ' : (paid ? <Check size={12} /> : null)} {p.name}
+                    </button>
+                    {!exempt && !paid && p.phone && (
+                      <button className="sf-charge-btn" title={`Cobrar ${p.name} no WhatsApp`} onClick={() => chargeWhatsApp(p)}>
+                        <MessageCircle size={13} />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1045,6 +1064,8 @@ const CSS = `
   .sf-input-inline { font-family: 'JetBrains Mono', monospace; background: var(--pitch-dark); border: 1px solid var(--floodlight); color: var(--chalk); border-radius: 6px; padding: 4px 8px; width: 90px; text-align: right; }
 
   .sf-paid-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .sf-paid-item { display: flex; align-items: center; gap: 4px; }
+  .sf-charge-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #25D366; border: none; color: #0B2417; cursor: pointer; flex-shrink: 0; }
   .sf-paid-chip { font-size: 11px; padding: 6px 10px; border-radius: 20px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .sf-paid-on { background: rgba(79,195,247,0.15); border-color: var(--team-b); color: var(--team-b); }
 
