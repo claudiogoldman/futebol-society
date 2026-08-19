@@ -205,6 +205,18 @@ function generatePixCode({ key, receiverName, city, amount, txid }) {
   return payload + crc16(payload);
 }
 
+// identifies which kind of Pix key was entered, just to label it clearly in the UI
+function pixKeyType(key) {
+  if (!key) return null;
+  const k = key.trim();
+  if (/^\d{11}$/.test(k)) return 'CPF';
+  if (/^\d{14}$/.test(k)) return 'CNPJ';
+  if (/^\+?\d{10,13}$/.test(k) && !/^\d{11}$/.test(k)) return 'Telefone';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(k)) return 'E-mail';
+  if (/^[0-9a-fA-F-]{32,36}$/.test(k)) return 'Chave aleatória';
+  return 'Chave Pix';
+}
+
 
 
 function StarRating({ value, onChange, size = 16, readOnly = false }) {
@@ -575,6 +587,11 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
             {pixCode ? (
               <div className="sf-pix-box">
                 <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {organizer.name}</div>
+                <div className="sf-pix-key-row">
+                  <span className="sf-pix-key-type">{pixKeyType(organizer.pix_key)}</span>
+                  <span className="sf-pix-key-value">{organizer.pix_key}</span>
+                </div>
+                <div className="sf-muted-sm" style={{ margin: '8px 0 4px' }}>Código copia-e-cola (com o valor {money(rateio)} já incluído):</div>
                 <div className="sf-pix-code">{pixCode}</div>
                 <button className="sf-btn-primary sf-btn-pix" onClick={copyPix}>
                   {pixCopied ? <><Check size={16} /> Copiado!</> : <>Copiar código Pix ({money(rateio)})</>}
@@ -1166,6 +1183,9 @@ const CSS = `
   .sf-charge-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #25D366; border: none; color: #0B2417; cursor: pointer; flex-shrink: 0; }
 
   .sf-pix-box { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .sf-pix-key-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sf-pix-key-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pitch-dark); background: #32BCAD; border-radius: 5px; padding: 3px 7px; }
+  .sf-pix-key-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--chalk); word-break: break-all; }
   .sf-pix-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; word-break: break-all; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--chalk-dim); max-height: 70px; overflow-y: auto; margin-bottom: 8px; }
   .sf-btn-pix { background: #32BCAD; color: #0B2417; }
 
