@@ -159,7 +159,53 @@ function money(n) {
   return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// ---------- small UI pieces ----------
+// ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------
+
+function crc16(payload) {
+  let crc = 0xffff;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+      crc &= 0xffff;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function tlv(id, value) {
+  const len = value.length.toString().padStart(2, '0');
+  return `${id}${len}${value}`;
+}
+
+// strip accents / non-ascii and clamp length — required by the BR Code spec
+function pixSanitize(str, maxLen) {
+  const clean = (str || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9 ]/g, '')
+    .trim();
+  return (clean || 'NA').slice(0, maxLen);
+}
+
+function generatePixCode({ key, receiverName, city, amount, txid }) {
+  if (!key) return null;
+  const merchantAccount = tlv('00', 'br.gov.bcb.pix') + tlv('01', key.trim());
+  const additionalData = tlv('05', pixSanitize(txid || '***', 25));
+  let payload =
+    tlv('00', '01') +
+    tlv('26', merchantAccount) +
+    tlv('52', '0000') +
+    tlv('53', '986') +
+    (amount > 0 ? tlv('54', amount.toFixed(2)) : '') +
+    tlv('58', 'BR') +
+    tlv('59', pixSanitize(receiverName, 25)) +
+    tlv('60', pixSanitize(city || 'BRASIL', 15)) +
+    tlv('62', additionalData);
+  payload += '6304';
+  return payload + crc16(payload);
+}
+
+
 
 function StarRating({ value, onChange, size = 16, readOnly = false }) {
   return (
@@ -294,6 +340,7 @@ function MyProfileCard({ me, onUpdate }) {
   const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
   const [ageDraft, setAgeDraft] = useState(me.age || '');
   const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
+  const [pixDraft, setPixDraft] = useState(me.pix_key || '');
 
   const togglePosition = (pos) => {
     const next = positions.includes(pos) ? positions.filter((p) => p !== pos) : [...positions, pos];
@@ -345,13 +392,20 @@ function MyProfileCard({ me, onUpdate }) {
         onChange={(e) => setPhoneDraft(e.target.value.replace(/[^\d]/g, ''))}
         onBlur={() => onUpdate({ phone: phoneDraft || null })}
       />
+      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Chave Pix (aparece pro grupo se você for organizar uma partida)</div>
+      <input
+        type="text" className="sf-input" placeholder="CPF, e-mail, telefone ou chave aleatória"
+        value={pixDraft}
+        onChange={(e) => setPixDraft(e.target.value)}
+        onBlur={() => onUpdate({ pix_key: pixDraft.trim() || null })}
+      />
     </div>
   );
 }
 
 
 
-function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -373,6 +427,12 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
   const destaques = useMemo(() => computeGameDestaques(game), [game]);
   const iAmConfirmed = game.confirmed.includes(myId);
   const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
+  const canManage = isAdmin || myId === game.createdBy;
+  const organizer = roster.find((p) => p.id === game.createdBy);
+  const pixCode = organizer?.pix_key
+    ? generatePixCode({ key: organizer.pix_key, receiverName: organizer.name, city: game.local, amount: rateio, txid: game.id.slice(0, 8) })
+    : null;
+  const [pixCopied, setPixCopied] = useState(false);
 
   const bumpGoal = (id, delta) => {
     setScorers((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
@@ -384,6 +444,9 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
     const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu! 🙏`;
     window.open(`https://wa.me/${p.phone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
+  const copyPix = async () => {
+    try { await navigator.clipboard.writeText(pixCode); setPixCopied(true); setTimeout(() => setPixCopied(false), 2000); } catch {}
+  };
 
   return (
     <div className="sf-detail">
@@ -393,7 +456,7 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
           <div className="sf-eyebrow">{formatDatePtBr(game.date)}</div>
           <div className="sf-h2">{game.local || 'Local a definir'}</div>
         </div>
-        <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>
+        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}
       </div>
 
       <section className="sf-card">
@@ -429,13 +492,17 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
 
       <section className="sf-card">
         <div className="sf-card-title"><Shuffle size={16} /> Times</div>
-        {activePlayers.length < 2 ? (
+        {!hasTeams && !canManage ? (
+          <div className="sf-muted">O organizador ainda não sorteou os times.</div>
+        ) : activePlayers.length < 2 && !hasTeams ? (
           <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
         ) : (
           <>
-            <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
-              <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
-            </button>
+            {canManage && (
+              <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
+                <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
+              </button>
+            )}
             {hasTeams && (
               <>
                 <PitchView teamA={game.teamA} teamB={game.teamB} />
@@ -453,7 +520,9 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
         <div className="sf-card-title"><Wallet size={16} /> Rateio</div>
         <div className="sf-cost-row">
           <span className="sf-muted">Custo da quadra</span>
-          {editingCost ? (
+          {!canManage ? (
+            <span className="sf-mono-value" style={{ cursor: 'default' }}>{money(game.cost || 0)}</span>
+          ) : editingCost ? (
             <input
               autoFocus type="number" className="sf-input-inline" value={costDraft}
               onChange={(e) => setCostDraft(e.target.value)}
@@ -469,10 +538,14 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
           <>
             <div className="sf-cost-row">
               <span className="sf-muted">Goleiro paga a quadra?</span>
-              <div className="sf-gk-toggle">
-                <button className={gkPays ? 'sf-gk-toggle-on' : ''} onClick={() => onSetGkPays(game.id, true)}>Sim</button>
-                <button className={!gkPays ? 'sf-gk-toggle-on' : ''} onClick={() => onSetGkPays(game.id, false)}>Não</button>
-              </div>
+              {canManage ? (
+                <div className="sf-gk-toggle">
+                  <button className={gkPays ? 'sf-gk-toggle-on' : ''} onClick={() => onSetGkPays(game.id, true)}>Sim</button>
+                  <button className={!gkPays ? 'sf-gk-toggle-on' : ''} onClick={() => onSetGkPays(game.id, false)}>Não</button>
+                </div>
+              ) : (
+                <span className="sf-mono-value">{gkPays ? 'Sim' : 'Não'}</span>
+              )}
             </div>
             <div className="sf-cost-row"><span className="sf-muted">Valor por pessoa</span><span className="sf-mono-value">{money(rateio)}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Arrecadado</span><span className="sf-mono-value">{paidCount}/{payingPlayers.length} pagaram</span></div>
@@ -480,12 +553,13 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
               {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
                 const paid = !!game.payments?.[p.id];
+                const canTogglePaid = !exempt && (canManage || p.id === myId);
                 return (
                   <div key={p.id} className="sf-paid-item">
                     <button
                       className={`sf-paid-chip ${paid ? 'sf-paid-on' : ''} ${exempt ? 'sf-paid-exempt' : ''}`}
-                      disabled={exempt}
-                      onClick={() => !exempt && onTogglePaid(game.id, p.id, !paid)}
+                      disabled={!canTogglePaid}
+                      onClick={() => canTogglePaid && onTogglePaid(game.id, p.id, !paid)}
                     >
                       {exempt ? 'Isento · ' : (paid ? <Check size={12} /> : null)} {p.name}
                     </button>
@@ -498,11 +572,24 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
                 );
               })}
             </div>
+            {pixCode ? (
+              <div className="sf-pix-box">
+                <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {organizer.name}</div>
+                <div className="sf-pix-code">{pixCode}</div>
+                <button className="sf-btn-primary sf-btn-pix" onClick={copyPix}>
+                  {pixCopied ? <><Check size={16} /> Copiado!</> : <>Copiar código Pix ({money(rateio)})</>}
+                </button>
+              </div>
+            ) : organizer && organizer.id === myId ? (
+              <div className="sf-muted-sm" style={{ marginTop: 10 }}>
+                Cadastre sua chave Pix na aba Elenco pra receber o rateio direto por aqui.
+              </div>
+            ) : null}
           </>
         )}
       </section>
 
-      {hasTeams && (
+      {hasTeams && canManage && (
         <section className="sf-card">
           <div className="sf-card-title"><Trophy size={16} /> Resultado</div>
           <div className="sf-score-row">
@@ -539,6 +626,17 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
           <button className="sf-btn-primary" onClick={() => onSaveResult(game.id, scoreA, scoreB, scorers, assists, allPlayers.map((p) => p.id))}>
             <Check size={16} /> Salvar resultado
           </button>
+        </section>
+      )}
+
+      {hasTeams && !canManage && game.result && (
+        <section className="sf-card">
+          <div className="sf-card-title"><Trophy size={16} /> Resultado</div>
+          <div className="sf-score-row">
+            <div className="sf-score-box"><span className="sf-dot sf-dot-a" /> Time A<span className="sf-mono-value" style={{ fontSize: 22 }}>{game.result.scoreA}</span></div>
+            <span className="sf-score-x">x</span>
+            <div className="sf-score-box"><span className="sf-dot sf-dot-b" /> Time B<span className="sf-mono-value" style={{ fontSize: 22 }}>{game.result.scoreB}</span></div>
+          </div>
         </section>
       )}
 
@@ -654,6 +752,7 @@ function MainApp({ session }) {
       });
       return {
         id: g.id, date: g.date, local: g.local, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
+        createdBy: g.created_by,
         maxPlayers: g.max_players || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
@@ -739,6 +838,11 @@ function MainApp({ session }) {
 
   const updateMyProfile = async (fields) => {
     await supabase.from('profiles').update(fields).eq('id', myId);
+    loadAll();
+  };
+
+  const toggleAdmin = async (userId, isAdmin) => {
+    await supabase.from('profiles').update({ is_admin: isAdmin }).eq('id', userId);
     loadAll();
   };
 
@@ -828,10 +932,12 @@ function MainApp({ session }) {
             game={selectedGame}
             roster={profiles}
             myId={myId}
+            isAdmin={!!me?.is_admin}
             onBack={() => setSelectedGameId(null)}
             onToggleMyRSVP={toggleMyRSVP}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
+            onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
             onTogglePaid={togglePaid}
             onSaveResult={saveResult}
@@ -857,14 +963,21 @@ function MainApp({ session }) {
                       <div className="sf-h3">
                         {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
                         {p.name}
+                        {p.is_admin && <span className="sf-admin-tag" title="Admin">ADMIN</span>}
                       </div>
                       <StarRating value={p.rating} readOnly onChange={() => {}} />
                       {playerMeta(p) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(p)}</div>}
                     </div>
+                    {me?.is_admin && (
+                      <button className="sf-admin-toggle" onClick={() => toggleAdmin(p.id, !p.is_admin)}>
+                        {p.is_admin ? 'Remover admin' : 'Tornar admin'}
+                      </button>
+                    )}
                   </div>
                 ))}
                 <p className="sf-muted-sm sf-roster-hint">
                   O elenco é formado por quem já entrou no app com a conta Google. Manda o link pra galera se cadastrar.
+                  {me?.is_admin ? ' Você é admin: pode editar partidas de qualquer organizador e indicar outros admins.' : ''}
                 </p>
               </>
             )}
@@ -1051,6 +1164,13 @@ const CSS = `
   .sf-paid-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .sf-paid-item { display: flex; align-items: center; gap: 4px; }
   .sf-charge-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #25D366; border: none; color: #0B2417; cursor: pointer; flex-shrink: 0; }
+
+  .sf-pix-box { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .sf-pix-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; word-break: break-all; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--chalk-dim); max-height: 70px; overflow-y: auto; margin-bottom: 8px; }
+  .sf-btn-pix { background: #32BCAD; color: #0B2417; }
+
+  .sf-admin-tag { font-size: 9px; font-weight: 700; color: var(--pitch-dark); background: var(--floodlight); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: middle; }
+  .sf-admin-toggle { font-size: 10px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); border-radius: 8px; padding: 6px 8px; cursor: pointer; white-space: nowrap; }
   .sf-paid-chip { font-size: 11px; padding: 6px 10px; border-radius: 20px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .sf-paid-on { background: rgba(79,195,247,0.15); border-color: var(--team-b); color: var(--team-b); }
 
