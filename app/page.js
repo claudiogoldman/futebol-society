@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
-  Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand
+  Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
+  Handshake, Shield
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -16,30 +17,62 @@ function isGoleiro(p) {
   return Array.isArray(p.positions) && p.positions.includes('goleiro');
 }
 
+function calcAge(birthDate) {
+  if (!birthDate) return null;
+  const b = new Date(birthDate + 'T00:00:00');
+  if (Number.isNaN(b.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age;
+}
+
+// combines weight + age deviation from a "typical" player into one number,
+// used only to break near-ties in the rating balance so the draw doesn't
+// accidentally stack every heavy/young player on the same side.
+function physicalScore(p) {
+  let score = 0;
+  if (p.weight_kg) score += (p.weight_kg - 75) / 10;
+  const age = calcAge(p.birth_date);
+  if (age != null) score += (age - 30) / 10;
+  return score;
+}
+
 function playerMeta(p) {
-  if (!Array.isArray(p.positions) || p.positions.length === 0) return '';
-  return p.positions.map((pos) => POSITION_LABELS[pos] || pos).join(' / ');
+  const bits = [];
+  if (Array.isArray(p.positions) && p.positions.length > 0) bits.push(p.positions.map((pos) => POSITION_LABELS[pos] || pos).join(' / '));
+  const age = calcAge(p.birth_date);
+  if (age != null) bits.push(`${age} anos`);
+  if (p.weight_kg) bits.push(`${p.weight_kg}kg`);
+  return bits.join(' · ');
 }
 
 // distributes goalkeepers one per team first (so the draw doesn't stack both GKs
-// on the same side), then balances everyone else by rating with a snake draft.
+// on the same side), then balances everyone else by rating with a snake draft;
+// weight/age only break near-ties so physical profile doesn't stack on one side.
 function drawTeams(confirmedPlayers) {
   const goleiros = confirmedPlayers.filter(isGoleiro);
   const linha = confirmedPlayers.filter((p) => !isGoleiro(p));
 
-  let teamA = [], teamB = [], sumA = 0, sumB = 0;
+  let teamA = [], teamB = [], sumA = 0, sumB = 0, physA = 0, physB = 0;
 
-  [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3)).forEach((p, i) => {
-    if (i % 2 === 0) { teamA.push(p); sumA += p.rating || 3; }
-    else { teamB.push(p); sumB += p.rating || 3; }
-  });
+  const place = (p) => {
+    const rating = p.rating || 3;
+    const phys = physicalScore(p);
+    const ratingGap = sumA - sumB;
+    const goToA = Math.abs(ratingGap) > 0.75 ? ratingGap <= 0 : physA <= physB;
+    if (goToA) { teamA.push(p); sumA += rating; physA += phys; }
+    else { teamB.push(p); sumB += rating; physB += phys; }
+  };
+
+  [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3)).forEach((p) => place(p));
 
   const noisy = linha.map((p) => ({ ...p, _r: (p.rating || 3) + Math.random() * 0.5 }));
   noisy.sort((a, b) => b._r - a._r);
   noisy.forEach((p) => {
     const { _r, ...clean } = p;
-    if (sumA <= sumB) { teamA.push(clean); sumA += clean.rating || 3; }
-    else { teamB.push(clean); sumB += clean.rating || 3; }
+    place(clean);
   });
   return { teamA, teamB };
 }
@@ -57,6 +90,9 @@ function computeGameDestaques(game) {
   if (!game.result) return null;
   const all = [...(game.teamA || []), ...(game.teamB || [])];
   const scorers = game.result.scorers || {};
+  const assists = game.assists || {};
+  const idsA = (game.teamA || []).map((p) => p.id);
+  const idsB = (game.teamB || []).map((p) => p.id);
 
   let mvp = null, mvpAvg = -1, mvpVotes = 0;
   all.forEach((p) => {
@@ -73,14 +109,27 @@ function computeGameDestaques(game) {
     if (gl > maxGoals) { maxGoals = gl; artilheiro = p; }
   });
 
-  return { mvp, mvpAvg, mvpVotes, artilheiro, maxGoals };
+  let passador = null, maxAssists = 0;
+  all.forEach((p) => {
+    const as = assists[p.id] || 0;
+    if (as > maxAssists) { maxAssists = as; passador = p; }
+  });
+
+  // muro: goalkeeper on the team that conceded the fewest goals
+  let muro = null, muroConceded = null;
+  const gkA = (game.teamA || []).find(isGoleiro);
+  const gkB = (game.teamB || []).find(isGoleiro);
+  if (gkA) { muro = gkA; muroConceded = game.result.scoreB; }
+  if (gkB && (muroConceded == null || game.result.scoreA < muroConceded)) { muro = gkB; muroConceded = game.result.scoreA; }
+
+  return { mvp, mvpAvg, mvpVotes, artilheiro, maxGoals, passador, maxAssists, muro, muroConceded };
 }
 
 function computeRanking(profiles, games) {
   const stats = {};
-  profiles.forEach((p) => { stats[p.id] = { id: p.id, name: p.name, jogos: 0, vit: 0, emp: 0, der: 0, gols: 0, pontos: 0, notaSum: 0, notaCount: 0, mvps: 0 }; });
-  games.forEach((g) => {
-    if (!g.result) return;
+  profiles.forEach((p) => { stats[p.id] = { id: p.id, name: p.name, jogos: 0, vit: 0, emp: 0, der: 0, gols: 0, assistencias: 0, pontos: 0, notaSum: 0, notaCount: 0, mvps: 0, muros: 0 }; });
+  const finalizadas = games.filter((g) => g.result);
+  finalizadas.forEach((g) => {
     const { scoreA, scoreB } = g.result;
     const idsA = (g.teamA || []).map((p) => p.id);
     const idsB = (g.teamB || []).map((p) => p.id);
@@ -93,6 +142,7 @@ function computeRanking(profiles, games) {
       else { stats[id].der += 1; }
     });
     Object.entries(g.scorers || {}).forEach(([id, n]) => { if (stats[id] && n) stats[id].gols += n; });
+    Object.entries(g.assists || {}).forEach(([id, n]) => { if (stats[id] && n) stats[id].assistencias += n; });
     Object.values(g.ratings || {}).forEach((raterMap) => {
       Object.entries(raterMap || {}).forEach(([id, score]) => {
         if (stats[id] && score != null) { stats[id].notaSum += score; stats[id].notaCount += 1; }
@@ -100,9 +150,15 @@ function computeRanking(profiles, games) {
     });
     const destaques = computeGameDestaques(g);
     if (destaques?.mvp && stats[destaques.mvp.id]) stats[destaques.mvp.id].mvps += 1;
+    if (destaques?.muro && stats[destaques.muro.id]) stats[destaques.muro.id].muros += 1;
   });
+  const totalFinalizadas = finalizadas.length;
   return Object.values(stats)
-    .map((s) => ({ ...s, nota: s.notaCount > 0 ? s.notaSum / s.notaCount : null }))
+    .map((s) => ({
+      ...s,
+      nota: s.notaCount > 0 ? s.notaSum / s.notaCount : null,
+      presencaPct: totalFinalizadas > 0 ? Math.round((s.jogos / totalFinalizadas) * 100) : null,
+    }))
     .sort((a, b) => b.pontos - a.pontos || b.gols - a.gols || b.vit - a.vit);
 }
 
@@ -248,11 +304,15 @@ function EvaluationSection({ game, myId, onSaveRatings }) {
 
 function MyProfileCard({ me, onUpdate }) {
   const positions = Array.isArray(me.positions) ? me.positions : [];
+  const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
+  const [birthDraft, setBirthDraft] = useState(me.birth_date || '');
 
   const togglePosition = (pos) => {
     const next = positions.includes(pos) ? positions.filter((p) => p !== pos) : [...positions, pos];
     onUpdate({ positions: next });
   };
+
+  const age = calcAge(me.birth_date);
 
   return (
     <div className="sf-player-card sf-player-card-me sf-me-card">
@@ -271,6 +331,27 @@ function MyProfileCard({ me, onUpdate }) {
           </button>
         ))}
       </div>
+      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>peso e idade (opcional — ajuda no sorteio a não empilhar só pesados ou só jovens de um lado)</div>
+      <div className="sf-physical-row">
+        <div className="sf-physical-field">
+          <label className="sf-field-label">Peso (kg)</label>
+          <input
+            type="number" min="30" max="200" className="sf-input" placeholder="ex: 78"
+            value={weightDraft}
+            onChange={(e) => setWeightDraft(e.target.value)}
+            onBlur={() => onUpdate({ weight_kg: weightDraft ? parseFloat(weightDraft) : null })}
+          />
+        </div>
+        <div className="sf-physical-field">
+          <label className="sf-field-label">Nascimento{age != null ? ` (${age} anos)` : ''}</label>
+          <input
+            type="date" className="sf-input"
+            value={birthDraft}
+            onChange={(e) => setBirthDraft(e.target.value)}
+            onBlur={() => onUpdate({ birth_date: birthDraft || null })}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -284,18 +365,27 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
   const [editingCost, setEditingCost] = useState(false);
   const [costDraft, setCostDraft] = useState(game.cost || 0);
 
-  const confirmedPlayers = roster.filter((p) => game.confirmed.includes(p.id));
+  const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
+  // preserve RSVP order (first-come, first-served) so the waitlist is well defined
+  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const maxPlayers = game.maxPlayers || null;
+  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
+  const waitlistPlayers = maxPlayers ? confirmedPlayers.slice(maxPlayers) : [];
   const gkPays = game.goalkeeperPays !== false;
-  const payingPlayers = gkPays ? confirmedPlayers : confirmedPlayers.filter((p) => !isGoleiro(p));
+  const payingPlayers = gkPays ? activePlayers : activePlayers.filter((p) => !isGoleiro(p));
   const rateio = payingPlayers.length > 0 ? (game.cost || 0) / payingPlayers.length : 0;
   const paidCount = payingPlayers.filter((p) => game.payments?.[p.id]).length;
   const hasTeams = game.teamA && game.teamA.length > 0;
   const allPlayers = hasTeams ? [...game.teamA, ...game.teamB] : [];
   const destaques = useMemo(() => computeGameDestaques(game), [game]);
   const iAmConfirmed = game.confirmed.includes(myId);
+  const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
 
   const bumpGoal = (id, delta) => {
     setScorers((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
+  };
+  const bumpAssist = (id, delta) => {
+    setAssists((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
   };
 
   return (
@@ -310,20 +400,29 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
       </div>
 
       <section className="sf-card">
-        <div className="sf-card-title"><Users size={16} /> Confirmados ({confirmedPlayers.length}/{roster.length})</div>
+        <div className="sf-card-title">
+          <Users size={16} /> Confirmados ({activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''})
+        </div>
         <button className={`sf-btn-primary ${iAmConfirmed ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
-          {iAmConfirmed ? <><Check size={16} /> Você tá confirmado</> : 'Confirmar minha presença'}
+          {iAmConfirmed
+            ? (myWaitlistPos >= 0 ? <><Check size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : <><Check size={16} /> Você tá confirmado</>)
+            : 'Confirmar minha presença'}
         </button>
+        {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
+          <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
+        )}
         <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
           {roster.map((p) => {
             const on = game.confirmed.includes(p.id);
+            const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);
             return (
-              <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
-                <span className="sf-rsvp-check">{on ? <Check size={14} /> : null}</span>
+              <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''} ${onWaitlist ? 'sf-rsvp-waitlist' : ''}`}>
+                <span className="sf-rsvp-check">{on && !onWaitlist ? <Check size={14} /> : null}</span>
                 <span className="sf-rsvp-name">
                   {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
                   {p.name}{p.id === myId ? ' (você)' : ''}
                 </span>
+                {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
                 <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
               </div>
             );
@@ -333,11 +432,11 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
 
       <section className="sf-card">
         <div className="sf-card-title"><Shuffle size={16} /> Times</div>
-        {confirmedPlayers.length < 2 ? (
+        {activePlayers.length < 2 ? (
           <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
         ) : (
           <>
-            <button className="sf-btn-primary" onClick={() => onDraw(game.id, confirmedPlayers)}>
+            <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
               <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
             </button>
             {hasTeams && (
@@ -369,7 +468,7 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
             </button>
           )}
         </div>
-        {confirmedPlayers.length > 0 && (
+        {activePlayers.length > 0 && (
           <>
             <div className="sf-cost-row">
               <span className="sf-muted">Goleiro paga a quadra?</span>
@@ -381,7 +480,7 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
             <div className="sf-cost-row"><span className="sf-muted">Valor por pessoa</span><span className="sf-mono-value">{money(rateio)}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Arrecadado</span><span className="sf-mono-value">{paidCount}/{payingPlayers.length} pagaram</span></div>
             <div className="sf-paid-list">
-              {confirmedPlayers.map((p) => {
+              {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
                 return (
                   <button
@@ -413,26 +512,33 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
               <input type="number" min="0" className="sf-score-input" value={scoreB} onChange={(e) => setScoreB(parseInt(e.target.value) || 0)} />
             </div>
           </div>
-          <div className="sf-card-subtitle">Gols (opcional)</div>
+          <div className="sf-card-subtitle">Gols e assistências (opcional)</div>
           <div className="sf-scorers-list">
             {allPlayers.map((p) => (
               <div key={p.id} className="sf-scorer-row">
                 <span>{p.name}</span>
-                <div className="sf-scorer-controls">
-                  <button className="sf-mini-btn" onClick={() => bumpGoal(p.id, -1)}>-</button>
-                  <span className="sf-mono-value">{scorers[p.id] || 0}</span>
-                  <button className="sf-mini-btn" onClick={() => bumpGoal(p.id, 1)}>+</button>
+                <div className="sf-scorer-controls-group">
+                  <div className="sf-scorer-controls" title="Gols">
+                    <button className="sf-mini-btn" onClick={() => bumpGoal(p.id, -1)}>-</button>
+                    <span className="sf-mono-value">⚽{scorers[p.id] || 0}</span>
+                    <button className="sf-mini-btn" onClick={() => bumpGoal(p.id, 1)}>+</button>
+                  </div>
+                  <div className="sf-scorer-controls" title="Assistências">
+                    <button className="sf-mini-btn" onClick={() => bumpAssist(p.id, -1)}>-</button>
+                    <span className="sf-mono-value">🎯{assists[p.id] || 0}</span>
+                    <button className="sf-mini-btn" onClick={() => bumpAssist(p.id, 1)}>+</button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <button className="sf-btn-primary" onClick={() => onSaveResult(game.id, scoreA, scoreB, scorers, allPlayers.map((p) => p.id))}>
+          <button className="sf-btn-primary" onClick={() => onSaveResult(game.id, scoreA, scoreB, scorers, assists, allPlayers.map((p) => p.id))}>
             <Check size={16} /> Salvar resultado
           </button>
         </section>
       )}
 
-      {game.result && destaques && (destaques.mvp || destaques.artilheiro) && (
+      {game.result && destaques && (destaques.mvp || destaques.artilheiro || destaques.passador || destaques.muro) && (
         <section className="sf-card sf-destaques-card">
           <div className="sf-card-title"><Award size={16} /> Destaques da rodada</div>
           <div className="sf-destaques-grid">
@@ -456,6 +562,26 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
                 </div>
               </div>
             )}
+            {destaques.passador && (
+              <div className="sf-destaque-item">
+                <Handshake size={20} color="#4FC3F7" />
+                <div>
+                  <div className="sf-destaque-label">Passador</div>
+                  <div className="sf-destaque-name">{destaques.passador.name}</div>
+                  <div className="sf-muted-sm">{destaques.maxAssists} {destaques.maxAssists === 1 ? 'assistência' : 'assistências'}</div>
+                </div>
+              </div>
+            )}
+            {destaques.muro && (
+              <div className="sf-destaque-item">
+                <Shield size={20} color="#8FB39C" />
+                <div>
+                  <div className="sf-destaque-label">Muro</div>
+                  <div className="sf-destaque-name">{destaques.muro.name}</div>
+                  <div className="sf-muted-sm">{destaques.muroConceded} {destaques.muroConceded === 1 ? 'gol sofrido' : 'gols sofridos'}</div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -464,7 +590,7 @@ function GameDetail({ game, roster, myId, onBack, onToggleMyRSVP, onSetCost, onS
         <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
       )}
 
-      <button className="sf-btn-whatsapp" onClick={() => onShare(game, confirmedPlayers, rateio)}>
+      <button className="sf-btn-whatsapp" onClick={() => onShare(game, activePlayers, waitlistPlayers, rateio)}>
         <Share2 size={16} /> Compartilhar no WhatsApp
       </button>
     </div>
@@ -484,6 +610,7 @@ function MainApp({ session }) {
   const [showNewGame, setShowNewGame] = useState(false);
   const [newDate, setNewDate] = useState('');
   const [newLocal, setNewLocal] = useState('');
+  const [newMaxPlayers, setNewMaxPlayers] = useState('');
 
   const me = profiles.find((p) => p.id === myId);
 
@@ -500,14 +627,22 @@ function MainApp({ session }) {
     const profs = profilesRes.data || [];
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
     const assembled = (gamesRes.data || []).map((g) => {
-      const confirmed = (confRes.data || []).filter((c) => c.game_id === g.id).map((c) => c.user_id);
+      // ordered by confirmed_at so the waitlist (anyone past max_players) is well defined
+      const confirmed = (confRes.data || [])
+        .filter((c) => c.game_id === g.id)
+        .sort((a, b) => new Date(a.confirmed_at) - new Date(b.confirmed_at))
+        .map((c) => c.user_id);
       const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);
       const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);
       const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);
       const payments = {};
       (paysRes.data || []).filter((p) => p.game_id === g.id).forEach((p) => { payments[p.user_id] = p.paid; });
       const scorers = {};
-      (goalsRes.data || []).filter((gl) => gl.game_id === g.id).forEach((gl) => { scorers[gl.user_id] = gl.goals; });
+      const assists = {};
+      (goalsRes.data || []).filter((gl) => gl.game_id === g.id).forEach((gl) => {
+        scorers[gl.user_id] = gl.goals;
+        assists[gl.user_id] = gl.assists || 0;
+      });
       const ratings = {};
       (ratingsRes.data || []).filter((r) => r.game_id === g.id).forEach((r) => {
         ratings[r.rater_id] = ratings[r.rater_id] || {};
@@ -515,7 +650,8 @@ function MainApp({ session }) {
       });
       return {
         id: g.id, date: g.date, local: g.local, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
-        confirmed, teamA, teamB, payments, scorers, ratings,
+        maxPlayers: g.max_players || null,
+        confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
     });
@@ -546,6 +682,11 @@ function MainApp({ session }) {
     loadAll();
   };
 
+  const setMaxPlayers = async (gameId, maxPlayers) => {
+    await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
+    loadAll();
+  };
+
   const handleDraw = async (gameId, confirmedPlayers) => {
     const { teamA, teamB } = drawTeams(confirmedPlayers);
     await supabase.from('game_teams').delete().eq('game_id', gameId);
@@ -562,9 +703,9 @@ function MainApp({ session }) {
     loadAll();
   };
 
-  const saveResult = async (gameId, scoreA, scoreB, scorers, playerIds) => {
+  const saveResult = async (gameId, scoreA, scoreB, scorers, assists, playerIds) => {
     await supabase.from('games').update({ score_a: scoreA, score_b: scoreB }).eq('id', gameId);
-    const rows = playerIds.map((id) => ({ game_id: gameId, user_id: id, goals: scorers[id] || 0 }));
+    const rows = playerIds.map((id) => ({ game_id: gameId, user_id: id, goals: scorers[id] || 0, assists: assists[id] || 0 }));
     if (rows.length) await supabase.from('goals').upsert(rows);
     loadAll();
   };
@@ -579,8 +720,9 @@ function MainApp({ session }) {
 
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
-    const { data } = await supabase.from('games').insert({ date, local: newLocal.trim(), created_by: myId }).select().single();
-    setNewDate(''); setNewLocal(''); setShowNewGame(false);
+    const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
+    const { data } = await supabase.from('games').insert({ date, local: newLocal.trim(), created_by: myId, max_players: maxPlayers }).select().single();
+    setNewDate(''); setNewLocal(''); setNewMaxPlayers(''); setShowNewGame(false);
     await loadAll();
     if (data) setSelectedGameId(data.id);
   };
@@ -596,11 +738,15 @@ function MainApp({ session }) {
     loadAll();
   };
 
-  const shareWhatsApp = (game, confirmedPlayers, rateio) => {
+  const shareWhatsApp = (game, activePlayers, waitlistPlayers, rateio) => {
     let msg = `⚽ *Futebol Society* — ${formatDatePtBr(game.date)}\n`;
     if (game.local) msg += `📍 ${game.local}\n`;
-    msg += `\n✅ Confirmados (${confirmedPlayers.length}):\n`;
-    msg += confirmedPlayers.map((p) => `• ${p.name}`).join('\n') || '—';
+    msg += `\n✅ Confirmados (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
+    msg += activePlayers.map((p) => `• ${p.name}`).join('\n') || '—';
+    if (waitlistPlayers && waitlistPlayers.length > 0) {
+      msg += `\n\n⏳ Lista de espera:\n`;
+      msg += waitlistPlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
+    }
     if (game.teamA && game.teamA.length > 0) {
       msg += `\n\n🔴 Time A: ${game.teamA.map((p) => p.name).join(', ')}`;
       msg += `\n🔵 Time B: ${game.teamB.map((p) => p.name).join(', ')}`;
@@ -611,6 +757,8 @@ function MainApp({ session }) {
       const destaques = computeGameDestaques(game);
       if (destaques?.mvp) msg += `\n🏆 MVP: ${destaques.mvp.name}`;
       if (destaques?.artilheiro) msg += `\n🎯 Artilheiro: ${destaques.artilheiro.name} (${destaques.maxGoals})`;
+      if (destaques?.passador) msg += `\n🤝 Passador: ${destaques.passador.name} (${destaques.maxAssists})`;
+      if (destaques?.muro) msg += `\n🧤 Muro: ${destaques.muro.name} (${destaques.muroConceded} sofridos)`;
     }
     msg += `\n\nEntre no app: ${window.location.origin}\n\nBora! 🙌`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
@@ -656,7 +804,10 @@ function MainApp({ session }) {
                   <div className="sf-game-card-date">{formatDatePtBr(g.date)}</div>
                   <div className="sf-game-card-info">
                     <div className="sf-h3">{g.local || 'Local a definir'}</div>
-                    <div className="sf-muted-sm"><Users size={12} /> {g.confirmed.length} confirmados</div>
+                    <div className="sf-muted-sm">
+                      <Users size={12} /> {Math.min(g.confirmed.length, g.maxPlayers || Infinity)}{g.maxPlayers ? `/${g.maxPlayers}` : ''} confirmados
+                      {g.maxPlayers && g.confirmed.length > g.maxPlayers ? ` · ${g.confirmed.length - g.maxPlayers} na espera` : ''}
+                    </div>
                   </div>
                   <div className={`sf-badge ${g.result ? 'sf-badge-done' : ''}`}>{status}</div>
                 </button>
@@ -718,7 +869,7 @@ function MainApp({ session }) {
               <div className="sf-ranking-table">
                 <div className="sf-ranking-header">
                   <span className="sf-rk-name">Jogador</span>
-                  <span>J</span><span>V</span><span>G</span><span>Nota</span><span>Pts</span>
+                  <span>J</span><span>V</span><span>G/A</span><span>Nota</span><span>Freq</span><span>Pts</span>
                 </div>
                 {ranking.length === 0 && <div className="sf-empty"><Trophy size={32} color="#5C7A67" /><p>Finalize partidas para gerar o ranking.</p></div>}
                 {ranking.map((r, i) => (
@@ -728,8 +879,9 @@ function MainApp({ session }) {
                     </span>
                     <span className="sf-mono-value">{r.jogos}</span>
                     <span className="sf-mono-value">{r.vit}</span>
-                    <span className="sf-mono-value">{r.gols}</span>
+                    <span className="sf-mono-value">{r.gols}/{r.assistencias}</span>
                     <span className="sf-mono-value">{r.nota != null ? r.nota.toFixed(1) : '—'}</span>
+                    <span className="sf-mono-value">{r.presencaPct != null ? `${r.presencaPct}%` : '—'}</span>
                     <span className="sf-mono-value sf-rk-pts">{r.pontos}</span>
                   </div>
                 ))}
@@ -756,6 +908,8 @@ function MainApp({ session }) {
             <input type="date" className="sf-input" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             <label className="sf-field-label">Local</label>
             <input className="sf-input" placeholder="Quadra / arena" value={newLocal} onChange={(e) => setNewLocal(e.target.value)} />
+            <label className="sf-field-label">Limite de vagas (opcional)</label>
+            <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />
             <div className="sf-modal-actions">
               <button className="sf-btn-ghost" onClick={() => setShowNewGame(false)}>Cancelar</button>
               <button className="sf-btn-primary" onClick={createGame}>Criar</button>
@@ -873,6 +1027,8 @@ const CSS = `
   .sf-rsvp-row { display: flex; align-items: center; gap: 10px; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--chalk); text-align: left; }
   .sf-rsvp-on { border-color: var(--floodlight); background: rgba(255,197,61,0.08); }
   .sf-rsvp-me { border-color: var(--team-b); }
+  .sf-rsvp-waitlist { opacity: 0.75; border-style: dashed; }
+  .sf-waitlist-tag { font-size: 10px; color: var(--floodlight); background: rgba(255,197,61,0.12); border-radius: 10px; padding: 2px 7px; margin-right: 6px; white-space: nowrap; }
   .sf-rsvp-check { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--chalk-dim); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sf-rsvp-on .sf-rsvp-check { background: var(--floodlight); border-color: var(--floodlight); color: var(--pitch-dark); }
   .sf-rsvp-name { flex: 1; font-size: 13px; }
@@ -899,7 +1055,8 @@ const CSS = `
 
   .sf-scorers-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
   .sf-scorer-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; }
-  .sf-scorer-controls { display: flex; align-items: center; gap: 10px; }
+  .sf-scorer-controls-group { display: flex; align-items: center; gap: 14px; }
+  .sf-scorer-controls { display: flex; align-items: center; gap: 8px; }
   .sf-mini-btn { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--pitch-dark); color: var(--chalk); cursor: pointer; }
 
   .sf-subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -912,6 +1069,9 @@ const CSS = `
   .sf-me-tag { font-size: 10px; color: var(--floodlight); text-transform: uppercase; letter-spacing: 0.5px; }
 
   .sf-position-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sf-physical-row { display: flex; gap: 10px; }
+  .sf-physical-field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .sf-physical-field .sf-input { width: 100%; box-sizing: border-box; }
   .sf-pos-pill { font-size: 12px; padding: 7px 12px; border-radius: 20px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .sf-pos-pill-on { background: var(--floodlight); color: var(--pitch-dark); border-color: var(--floodlight); font-weight: 700; }
   .sf-pos-pill-gk.sf-pos-pill-on { background: #FFC53D; }
@@ -925,7 +1085,7 @@ const CSS = `
   .sf-paid-exempt { opacity: 0.6; cursor: default; font-style: italic; }
 
   .sf-ranking-table { background: var(--pitch-mid); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .sf-ranking-header, .sf-ranking-row { display: grid; grid-template-columns: 1fr 24px 24px 24px 40px 34px; align-items: center; padding: 10px 12px; gap: 4px; font-size: 12px; }
+  .sf-ranking-header, .sf-ranking-row { display: grid; grid-template-columns: 1fr 20px 20px 34px 32px 30px 30px; align-items: center; padding: 10px 8px; gap: 3px; font-size: 11px; }
   .sf-ranking-header { color: var(--chalk-dim); text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; border-bottom: 1px solid var(--line); }
   .sf-ranking-row { border-bottom: 1px solid var(--line); }
   .sf-ranking-row:last-child { border-bottom: none; }
