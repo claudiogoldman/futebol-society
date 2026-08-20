@@ -441,9 +441,12 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const [editingCost, setEditingCost] = useState(false);
   const [costDraft, setCostDraft] = useState(game.cost || 0);
   const [editingPix, setEditingPix] = useState(false);
+  const [editingMaxPlayers, setEditingMaxPlayers] = useState(false);
+  const [maxPlayersDraft, setMaxPlayersDraft] = useState('');
   const [pixDraft, setPixDraft] = useState(game.pixKey || '');
   const [pixReceiverDraft, setPixReceiverDraft] = useState('');
   const [pixCityDraft, setPixCityDraft] = useState('');
+  const [pixOwnerDraft, setPixOwnerDraft] = useState('');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   // preserve RSVP order (first-come, first-served) so the waitlist is well defined
@@ -501,6 +504,24 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
         <div className="sf-card-title">
           <Users size={16} /> Confirmados ({activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''})
         </div>
+        {canManage && (
+          <div className="sf-cost-row" style={{ marginBottom: 8 }}>
+            <span className="sf-muted">Limite de vagas</span>
+            {editingMaxPlayers ? (
+              <input
+                autoFocus type="number" min="1" className="sf-input-inline"
+                placeholder="Sem limite"
+                value={maxPlayersDraft}
+                onChange={(e) => setMaxPlayersDraft(e.target.value)}
+                onBlur={() => { onSetMaxPlayers(game.id, maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null); setEditingMaxPlayers(false); }}
+              />
+            ) : (
+              <button className="sf-mono-value" onClick={() => { setMaxPlayersDraft(maxPlayers || ''); setEditingMaxPlayers(true); }}>
+                {maxPlayers ? `${maxPlayers} vagas · editar` : 'sem limite · definir'}
+              </button>
+            )}
+          </div>
+        )}
         <button className={`sf-btn-primary ${iAmConfirmed ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
           {iAmConfirmed
             ? (myWaitlistPos >= 0 ? <><Check size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : <><Check size={16} /> Você tá confirmado</>)
@@ -591,7 +612,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
               {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
                 const paid = !!game.payments?.[p.id];
-                const canTogglePaid = !exempt && (canManage || p.id === myId);
+                const canTogglePaid = !exempt && (canManage || p.id === myId || myId === game.pixOwnerId);
                 return (
                   <div key={p.id} className="sf-paid-item">
                     <button
@@ -647,12 +668,25 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
                         value={pixCityDraft}
                         onChange={(e) => setPixCityDraft(e.target.value)}
                       />
+                      <label className="sf-field-label">Quem confere os pagamentos (dono da chave Pix)</label>
+                      <select className="sf-input" value={pixOwnerDraft} onChange={(e) => setPixOwnerDraft(e.target.value)}>
+                        <option value="">Só eu (organizador) e admins</option>
+                        {roster.filter((p) => p.id !== game.createdBy).map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                      <div className="sf-muted-sm">Essa pessoa vai poder marcar quem pagou, além de você e de cada jogador marcar a si mesmo.</div>
                       <div className="sf-modal-actions">
                         <button className="sf-btn-ghost" onClick={() => setEditingPix(false)}>Cancelar</button>
                         <button
                           className="sf-btn-primary"
                           onClick={() => {
-                            onSetGamePixDetails(game.id, { pixKey: pixDraft.trim(), pixReceiverName: pixReceiverDraft.trim(), pixCity: pixCityDraft.trim() });
+                            onSetGamePixDetails(game.id, {
+                              pixKey: pixDraft.trim(),
+                              pixReceiverName: pixReceiverDraft.trim(),
+                              pixCity: pixCityDraft.trim(),
+                              pixOwnerId: pixOwnerDraft || null,
+                            });
                             setEditingPix(false);
                           }}
                         >
@@ -855,6 +889,7 @@ function MainApp({ session }) {
         createdBy: g.created_by,
         maxPlayers: g.max_players || null,
         pixKey: g.pix_key || null,
+        pixOwnerId: g.pix_owner_id || null,
         inviteToken: g.invite_token,
         pixReceiverName: g.pix_receiver_name || null,
         pixCity: g.pix_city || null,
@@ -911,11 +946,12 @@ function MainApp({ session }) {
     loadAll();
   };
 
-  const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity }) => {
+  const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId }) => {
     await supabase.from('games').update({
       pix_key: pixKey || null,
       pix_receiver_name: pixReceiverName || null,
       pix_city: pixCity || null,
+      pix_owner_id: pixOwnerId || null,
     }).eq('id', gameId);
     loadAll();
   };
