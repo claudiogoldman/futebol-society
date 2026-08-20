@@ -304,10 +304,14 @@ function PitchView({ teamA, teamB }) {
 
 function LoginScreen() {
   const signIn = () => {
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
-    });
+    // keep the invite link working across the OAuth round trip: stash it now,
+    // and also pass it through the redirect URL as a backup
+    const joinToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('join') : null;
+    if (joinToken && typeof window !== 'undefined') sessionStorage.setItem('sf_join_token', joinToken);
+    const redirectTo = typeof window !== 'undefined'
+      ? window.location.origin + (joinToken ? `/?join=${joinToken}` : '')
+      : undefined;
+    supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
   };
   return (
     <div className="sf-app sf-login">
@@ -851,6 +855,7 @@ function MainApp({ session }) {
         createdBy: g.created_by,
         maxPlayers: g.max_players || null,
         pixKey: g.pix_key || null,
+        inviteToken: g.invite_token,
         pixReceiverName: g.pix_receiver_name || null,
         pixCity: g.pix_city || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
@@ -863,6 +868,28 @@ function MainApp({ session }) {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // if we arrived via a per-match invite link (?join=token, or one stashed
+  // before the Google redirect), join that match and jump straight to it
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('join') || sessionStorage.getItem('sf_join_token');
+    if (!token) return;
+    sessionStorage.removeItem('sf_join_token');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('join');
+    window.history.replaceState({}, '', url.toString());
+    (async () => {
+      try {
+        const { data: gameId } = await supabase.rpc('join_game_by_token', { p_token: token });
+        await loadAll();
+        if (gameId) { setTab('partidas'); setSelectedGameId(gameId); }
+      } catch (e) {
+        console.error('invalid invite link', e);
+      }
+    })();
+  }, [loadAll]);
 
   const toggleMyRSVP = async (gameId) => {
     const g = games.find((x) => x.id === gameId);
@@ -976,7 +1003,7 @@ function MainApp({ session }) {
       if (destaques?.passador) msg += `\n🤝 Passador: ${destaques.passador.name} (${destaques.maxAssists})`;
       if (destaques?.muro) msg += `\n🧤 Muro: ${destaques.muro.name} (${destaques.muroConceded} sofridos)`;
     }
-    msg += `\n\nEntre no app: ${window.location.origin}\n\nBora! 🙌`;
+    msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
