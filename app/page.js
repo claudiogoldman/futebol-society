@@ -417,12 +417,14 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixKey, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
   const [editingCost, setEditingCost] = useState(false);
   const [costDraft, setCostDraft] = useState(game.cost || 0);
+  const [editingPix, setEditingPix] = useState(false);
+  const [pixDraft, setPixDraft] = useState(game.pixKey || '');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   // preserve RSVP order (first-come, first-served) so the waitlist is well defined
@@ -441,8 +443,11 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
   const canManage = isAdmin || myId === game.createdBy;
   const organizer = roster.find((p) => p.id === game.createdBy);
-  const pixCode = organizer?.pix_key
-    ? generatePixCode({ key: organizer.pix_key, receiverName: organizer.name, city: game.local, amount: rateio, txid: game.id.slice(0, 8) })
+  // pix key is a per-game setting (whoever is collecting for THAT match), falling
+  // back to the organizer's own saved key so it doesn't have to be retyped every time
+  const activePixKey = game.pixKey || organizer?.pix_key || null;
+  const pixCode = activePixKey
+    ? generatePixCode({ key: activePixKey, receiverName: organizer?.name || 'Society', city: game.local, amount: rateio, txid: game.id.slice(0, 8) })
     : null;
   const [pixCopied, setPixCopied] = useState(false);
 
@@ -584,24 +589,49 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
                 );
               })}
             </div>
-            {pixCode ? (
-              <div className="sf-pix-box">
-                <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {organizer.name}</div>
-                <div className="sf-pix-key-row">
-                  <span className="sf-pix-key-type">{pixKeyType(organizer.pix_key)}</span>
-                  <span className="sf-pix-key-value">{organizer.pix_key}</span>
-                </div>
-                <div className="sf-muted-sm" style={{ margin: '8px 0 4px' }}>Código copia-e-cola (com o valor {money(rateio)} já incluído):</div>
-                <div className="sf-pix-code">{pixCode}</div>
-                <button className="sf-btn-primary sf-btn-pix" onClick={copyPix}>
-                  {pixCopied ? <><Check size={16} /> Copiado!</> : <>Copiar código Pix ({money(rateio)})</>}
-                </button>
-              </div>
-            ) : organizer && organizer.id === myId ? (
-              <div className="sf-muted-sm" style={{ marginTop: 10 }}>
-                Cadastre sua chave Pix na aba Elenco pra receber o rateio direto por aqui.
-              </div>
-            ) : null}
+            <div className="sf-pix-box">
+              {canManage && (
+                <>
+                  <div className="sf-cost-row">
+                    <span className="sf-muted">Chave Pix desta partida</span>
+                    {editingPix ? (
+                      <input
+                        autoFocus type="text" className="sf-input-inline" style={{ width: 160 }}
+                        placeholder={organizer?.pix_key || 'CPF, e-mail, telefone...'}
+                        value={pixDraft}
+                        onChange={(e) => setPixDraft(e.target.value)}
+                        onBlur={() => { onSetGamePixKey(game.id, pixDraft.trim()); setEditingPix(false); }}
+                      />
+                    ) : (
+                      <button className="sf-mono-value" onClick={() => { setPixDraft(game.pixKey || ''); setEditingPix(true); }}>
+                        {game.pixKey ? 'editar' : (organizer?.pix_key ? 'usar a do perfil (editar)' : 'definir')}
+                      </button>
+                    )}
+                  </div>
+                  {!game.pixKey && organizer?.pix_key && (
+                    <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Usando a chave Pix salva no seu perfil por padrão.</div>
+                  )}
+                </>
+              )}
+              {pixCode ? (
+                <>
+                  <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {organizer?.name}</div>
+                  <div className="sf-pix-key-row">
+                    <span className="sf-pix-key-type">{pixKeyType(activePixKey)}</span>
+                    <span className="sf-pix-key-value">{activePixKey}</span>
+                  </div>
+                  <div className="sf-muted-sm" style={{ margin: '8px 0 4px' }}>Código copia-e-cola (com o valor {money(rateio)} já incluído):</div>
+                  <div className="sf-pix-code">{pixCode}</div>
+                  <button className="sf-btn-primary sf-btn-pix" onClick={copyPix}>
+                    {pixCopied ? <><Check size={16} /> Copiado!</> : <>Copiar código Pix ({money(rateio)})</>}
+                  </button>
+                </>
+              ) : canManage ? (
+                <div className="sf-muted-sm">Defina uma chave Pix acima pra gerar o código de pagamento.</div>
+              ) : (
+                <div className="sf-muted-sm">O organizador ainda não configurou uma chave Pix pra essa partida.</div>
+              )}
+            </div>
           </>
         )}
       </section>
@@ -771,6 +801,7 @@ function MainApp({ session }) {
         id: g.id, date: g.date, local: g.local, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
         createdBy: g.created_by,
         maxPlayers: g.max_players || null,
+        pixKey: g.pix_key || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
@@ -799,6 +830,11 @@ function MainApp({ session }) {
 
   const setGkPays = async (gameId, goalkeeper_pays) => {
     await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
+    loadAll();
+  };
+
+  const setGamePixKey = async (gameId, pixKey) => {
+    await supabase.from('games').update({ pix_key: pixKey || null }).eq('id', gameId);
     loadAll();
   };
 
@@ -954,6 +990,7 @@ function MainApp({ session }) {
             onToggleMyRSVP={toggleMyRSVP}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
+            onSetGamePixKey={setGamePixKey}
             onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
             onTogglePaid={togglePaid}
