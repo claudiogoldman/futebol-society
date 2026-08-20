@@ -209,12 +209,24 @@ function generatePixCode({ key, receiverName, city, amount, txid }) {
 function pixKeyType(key) {
   if (!key) return null;
   const k = key.trim();
+  if (/^\+55\d{10,11}$/.test(k)) return 'Telefone';
   if (/^\d{11}$/.test(k)) return 'CPF';
   if (/^\d{14}$/.test(k)) return 'CNPJ';
-  if (/^\+?\d{10,13}$/.test(k) && !/^\d{11}$/.test(k)) return 'Telefone';
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(k)) return 'E-mail';
   if (/^[0-9a-fA-F-]{32,36}$/.test(k)) return 'Chave aleatória';
   return 'Chave Pix';
+}
+
+// a bare 11-digit number is ambiguous between CPF and a Brazilian phone
+// (both have 11 digits) — phone keys are only valid with the +55 country code,
+// so we warn instead of guessing wrong.
+function pixKeyWarning(key) {
+  if (!key) return null;
+  const k = key.trim();
+  if (/^\d{10,11}$/.test(k)) {
+    return 'Se isso for um telefone, precisa começar com +55 (ex: +5551999998888) — só números o Pix não reconhece como telefone.';
+  }
+  return null;
 }
 
 
@@ -406,11 +418,12 @@ function MyProfileCard({ me, onUpdate }) {
       />
       <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Chave Pix (aparece pro grupo se você for organizar uma partida)</div>
       <input
-        type="text" className="sf-input" placeholder="CPF, e-mail, telefone ou chave aleatória"
+        type="text" className="sf-input" placeholder="CPF, CNPJ, e-mail, +55DDDnúmero ou chave aleatória"
         value={pixDraft}
         onChange={(e) => setPixDraft(e.target.value)}
         onBlur={() => onUpdate({ pix_key: pixDraft.trim() || null })}
       />
+      {pixKeyWarning(pixDraft) && <div className="sf-pix-warning">⚠️ {pixKeyWarning(pixDraft)}</div>}
     </div>
   );
 }
@@ -597,7 +610,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
                     {editingPix ? (
                       <input
                         autoFocus type="text" className="sf-input-inline" style={{ width: 160 }}
-                        placeholder={organizer?.pix_key || 'CPF, e-mail, telefone...'}
+                        placeholder={organizer?.pix_key || 'CPF, e-mail, +55...'}
                         value={pixDraft}
                         onChange={(e) => setPixDraft(e.target.value)}
                         onBlur={() => { onSetGamePixKey(game.id, pixDraft.trim()); setEditingPix(false); }}
@@ -608,6 +621,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
                       </button>
                     )}
                   </div>
+                  {editingPix && pixKeyWarning(pixDraft) && <div className="sf-pix-warning">⚠️ {pixKeyWarning(pixDraft)}</div>}
                   {!game.pixKey && organizer?.pix_key && (
                     <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Usando a chave Pix salva no seu perfil por padrão.</div>
                   )}
@@ -1223,6 +1237,7 @@ const CSS = `
   .sf-pix-key-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sf-pix-key-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pitch-dark); background: #32BCAD; border-radius: 5px; padding: 3px 7px; }
   .sf-pix-key-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--chalk); word-break: break-all; }
+  .sf-pix-warning { font-size: 11px; color: var(--floodlight); background: rgba(255,197,61,0.1); border-radius: 8px; padding: 8px 10px; margin-top: 6px; line-height: 1.4; }
   .sf-pix-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; word-break: break-all; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--chalk-dim); max-height: 70px; overflow-y: auto; margin-bottom: 8px; }
   .sf-btn-pix { background: #32BCAD; color: #0B2417; }
 
