@@ -430,7 +430,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixKey, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -438,6 +438,8 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const [costDraft, setCostDraft] = useState(game.cost || 0);
   const [editingPix, setEditingPix] = useState(false);
   const [pixDraft, setPixDraft] = useState(game.pixKey || '');
+  const [pixReceiverDraft, setPixReceiverDraft] = useState('');
+  const [pixCityDraft, setPixCityDraft] = useState('');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   // preserve RSVP order (first-come, first-served) so the waitlist is well defined
@@ -456,11 +458,13 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
   const canManage = isAdmin || myId === game.createdBy;
   const organizer = roster.find((p) => p.id === game.createdBy);
-  // pix key is a per-game setting (whoever is collecting for THAT match), falling
-  // back to the organizer's own saved key so it doesn't have to be retyped every time
+  // pix key/receiver/city are per-game settings (whoever is collecting for THAT
+  // match may differ from the organizer), falling back to sensible defaults
   const activePixKey = game.pixKey || organizer?.pix_key || null;
+  const activePixReceiver = game.pixReceiverName || organizer?.name || 'Organizador';
+  const activePixCity = game.pixCity || '';
   const pixCode = activePixKey
-    ? generatePixCode({ key: activePixKey, receiverName: organizer?.name || 'Society', city: game.local, amount: rateio, txid: game.id.slice(0, 8) })
+    ? generatePixCode({ key: activePixKey, receiverName: activePixReceiver, city: activePixCity, amount: rateio, txid: game.id.slice(0, 8) })
     : null;
   const [pixCopied, setPixCopied] = useState(false);
 
@@ -605,31 +609,62 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
             <div className="sf-pix-box">
               {canManage && (
                 <>
-                  <div className="sf-cost-row">
-                    <span className="sf-muted">Chave Pix desta partida</span>
-                    {editingPix ? (
+                  {!editingPix && (
+                    <button
+                      className="sf-btn-ghost sf-pix-edit-toggle"
+                      onClick={() => {
+                        setPixDraft(game.pixKey || '');
+                        setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');
+                        setPixCityDraft(game.pixCity || '');
+                        setEditingPix(true);
+                      }}
+                    >
+                      {activePixKey ? 'Editar dados do Pix desta partida' : 'Configurar Pix pra essa partida'}
+                    </button>
+                  )}
+                  {editingPix && (
+                    <div className="sf-pix-form">
+                      <label className="sf-field-label">Chave Pix</label>
                       <input
-                        autoFocus type="text" className="sf-input-inline" style={{ width: 160 }}
-                        placeholder={organizer?.pix_key || 'CPF, e-mail, +55...'}
+                        autoFocus type="text" className="sf-input" placeholder="CPF, CNPJ, e-mail, +55DDDnúmero..."
                         value={pixDraft}
                         onChange={(e) => setPixDraft(e.target.value)}
-                        onBlur={() => { onSetGamePixKey(game.id, pixDraft.trim()); setEditingPix(false); }}
                       />
-                    ) : (
-                      <button className="sf-mono-value" onClick={() => { setPixDraft(game.pixKey || ''); setEditingPix(true); }}>
-                        {game.pixKey ? 'editar' : (organizer?.pix_key ? 'usar a do perfil (editar)' : 'definir')}
-                      </button>
-                    )}
-                  </div>
-                  {editingPix && pixKeyWarning(pixDraft) && <div className="sf-pix-warning">⚠️ {pixKeyWarning(pixDraft)}</div>}
-                  {!game.pixKey && organizer?.pix_key && (
-                    <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Usando a chave Pix salva no seu perfil por padrão.</div>
+                      {pixKeyWarning(pixDraft) && <div className="sf-pix-warning">⚠️ {pixKeyWarning(pixDraft)}</div>}
+                      <label className="sf-field-label">Nome de quem recebe</label>
+                      <input
+                        type="text" className="sf-input" placeholder={organizer?.name || 'Nome do recebedor'}
+                        value={pixReceiverDraft}
+                        onChange={(e) => setPixReceiverDraft(e.target.value)}
+                      />
+                      <label className="sf-field-label">Cidade (não é o local do jogo — é a cidade de quem recebe)</label>
+                      <input
+                        type="text" className="sf-input" placeholder="ex: Porto Alegre"
+                        value={pixCityDraft}
+                        onChange={(e) => setPixCityDraft(e.target.value)}
+                      />
+                      <div className="sf-modal-actions">
+                        <button className="sf-btn-ghost" onClick={() => setEditingPix(false)}>Cancelar</button>
+                        <button
+                          className="sf-btn-primary"
+                          onClick={() => {
+                            onSetGamePixDetails(game.id, { pixKey: pixDraft.trim(), pixReceiverName: pixReceiverDraft.trim(), pixCity: pixCityDraft.trim() });
+                            setEditingPix(false);
+                          }}
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {!editingPix && !game.pixKey && organizer?.pix_key && (
+                    <div className="sf-muted-sm" style={{ margin: '6px 0' }}>Usando a chave Pix salva no seu perfil por padrão.</div>
                   )}
                 </>
               )}
-              {pixCode ? (
+              {!editingPix && pixCode ? (
                 <>
-                  <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {organizer?.name}</div>
+                  <div className="sf-card-subtitle" style={{ margin: '10px 0 6px' }}>Pagar via Pix pra {activePixReceiver}</div>
                   <div className="sf-pix-key-row">
                     <span className="sf-pix-key-type">{pixKeyType(activePixKey)}</span>
                     <span className="sf-pix-key-value">{activePixKey}</span>
@@ -640,11 +675,11 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
                     {pixCopied ? <><Check size={16} /> Copiado!</> : <>Copiar código Pix ({money(rateio)})</>}
                   </button>
                 </>
-              ) : canManage ? (
-                <div className="sf-muted-sm">Defina uma chave Pix acima pra gerar o código de pagamento.</div>
-              ) : (
+              ) : !editingPix && canManage ? (
+                <div className="sf-muted-sm">Configure a chave Pix acima pra gerar o código de pagamento.</div>
+              ) : !editingPix ? (
                 <div className="sf-muted-sm">O organizador ainda não configurou uma chave Pix pra essa partida.</div>
-              )}
+              ) : null}
             </div>
           </>
         )}
@@ -816,6 +851,8 @@ function MainApp({ session }) {
         createdBy: g.created_by,
         maxPlayers: g.max_players || null,
         pixKey: g.pix_key || null,
+        pixReceiverName: g.pix_receiver_name || null,
+        pixCity: g.pix_city || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
@@ -847,8 +884,12 @@ function MainApp({ session }) {
     loadAll();
   };
 
-  const setGamePixKey = async (gameId, pixKey) => {
-    await supabase.from('games').update({ pix_key: pixKey || null }).eq('id', gameId);
+  const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity }) => {
+    await supabase.from('games').update({
+      pix_key: pixKey || null,
+      pix_receiver_name: pixReceiverName || null,
+      pix_city: pixCity || null,
+    }).eq('id', gameId);
     loadAll();
   };
 
@@ -1004,7 +1045,7 @@ function MainApp({ session }) {
             onToggleMyRSVP={toggleMyRSVP}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
-            onSetGamePixKey={setGamePixKey}
+            onSetGamePixDetails={setGamePixDetails}
             onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
             onTogglePaid={togglePaid}
@@ -1238,6 +1279,9 @@ const CSS = `
   .sf-pix-key-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--pitch-dark); background: #32BCAD; border-radius: 5px; padding: 3px 7px; }
   .sf-pix-key-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--chalk); word-break: break-all; }
   .sf-pix-warning { font-size: 11px; color: var(--floodlight); background: rgba(255,197,61,0.1); border-radius: 8px; padding: 8px 10px; margin-top: 6px; line-height: 1.4; }
+  .sf-pix-edit-toggle { width: 100%; text-align: center; margin-bottom: 8px; }
+  .sf-pix-form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+  .sf-pix-form .sf-field-label { margin-top: 8px; }
   .sf-pix-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; word-break: break-all; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 10px; color: var(--chalk-dim); max-height: 70px; overflow-y: auto; margin-bottom: 8px; }
   .sf-btn-pix { background: #32BCAD; color: #0B2417; }
 
