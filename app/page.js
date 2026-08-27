@@ -954,6 +954,7 @@ function MainApp({ session }) {
   const [subTab, setSubTab] = useState('elenco');
   const [selectedGameId, setSelectedGameId] = useState(null);
   const [showNewGame, setShowNewGame] = useState(false);
+  const [viewingCardPlayer, setViewingCardPlayer] = useState(null);
   const [newDate, setNewDate] = useState('');
   const [newLocal, setNewLocal] = useState('');
   const [newMaxPlayers, setNewMaxPlayers] = useState('');
@@ -1241,7 +1242,9 @@ function MainApp({ session }) {
                 {me && <MyProfileCard me={me} onUpdate={updateMyProfile} />}
                 {profiles.filter((p) => p.id !== myId).map((p) => (
                   <div key={p.id} className="sf-player-card">
-                    <PlayerCard player={p} compact />
+                    <button className="sf-pcard-trigger" onClick={() => setViewingCardPlayer(p)}>
+                      <PlayerCard player={p} compact />
+                    </button>
                     <div className="sf-player-card-info">
                       <div className="sf-h3">
                         {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
@@ -1314,6 +1317,18 @@ function MainApp({ session }) {
               <button className="sf-btn-ghost" onClick={() => setShowNewGame(false)}>Cancelar</button>
               <button className="sf-btn-primary" onClick={createGame}>Criar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {viewingCardPlayer && (
+        <div className="sf-modal-backdrop" onClick={() => setViewingCardPlayer(null)}>
+          <div className="sf-modal sf-card-modal" onClick={(e) => e.stopPropagation()}>
+            <PlayerCard player={viewingCardPlayer} />
+            <div className="sf-h3" style={{ marginTop: 14 }}>{viewingCardPlayer.name}</div>
+            {playerMeta(viewingCardPlayer) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(viewingCardPlayer)}</div>}
+            <StarRating value={viewingCardPlayer.rating} readOnly size={18} onChange={() => {}} />
+            <button className="sf-btn-ghost" style={{ marginTop: 14 }} onClick={() => setViewingCardPlayer(null)}>Fechar</button>
           </div>
         </div>
       )}
@@ -1562,4 +1577,6 @@ const CSS = `
   .sf-attr-field input { width: 36px; background: none; border: none; color: var(--chalk); font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right; }
 
   .sf-player-card-info { flex: 1; min-width: 0; }
+  .sf-pcard-trigger { background: none; border: none; padding: 0; cursor: pointer; flex-shrink: 0; }
+  .sf-card-modal { align-items: center; text-align: center; }
 `;
