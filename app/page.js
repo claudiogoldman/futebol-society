@@ -29,7 +29,8 @@ function physicalScore(p) {
 
 function playerMeta(p) {
   const bits = [];
-  if (Array.isArray(p.positions) && p.positions.length > 0) bits.push(p.positions.map((pos) => POSITION_LABELS[pos] || pos).join(' / '));
+  const knownPositions = Array.isArray(p.positions) ? p.positions.filter((pos) => POSITION_LABELS[pos]) : [];
+  if (knownPositions.length > 0) bits.push(knownPositions.map((pos) => POSITION_LABELS[pos]).join(' / '));
   if (p.age) bits.push(`${p.age} anos`);
   if (p.weight_kg) bits.push(`${p.weight_kg}kg`);
   return bits.join(' · ');
@@ -45,8 +46,10 @@ function computeOVR(p) {
 }
 
 function primaryPositionAbbrev(p) {
-  const pos = Array.isArray(p.positions) && p.positions[0];
-  return pos ? (POSITION_ABBREV[pos] || 'LIN') : 'LIN';
+  // skip stale/unknown values (e.g. leftovers from an older position system)
+  // instead of silently falling back to LIN on the first entry
+  const known = Array.isArray(p.positions) ? p.positions.find((pos) => POSITION_ABBREV[pos]) : null;
+  return known ? POSITION_ABBREV[known] : 'LIN';
 }
 
 function cardTier(ovr) {
