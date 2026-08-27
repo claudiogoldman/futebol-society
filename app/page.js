@@ -1087,6 +1087,7 @@ function MainApp({ session }) {
   const [groupMembers, setGroupMembers] = useState([]);
   const [tab, setTab] = useState('partidas');
   const [subTab, setSubTab] = useState('elenco');
+  const [partidasFilter, setPartidasFilter] = useState('proximas');
   const [selectedGameId, setSelectedGameId] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showNewGame, setShowNewGame] = useState(false);
@@ -1374,7 +1375,10 @@ function MainApp({ session }) {
   };
 
   const ranking = useMemo(() => computeRanking(profiles, games), [profiles, games]);
-  const sortedGames = useMemo(() => [...games].sort((a, b) => (a.date < b.date ? 1 : -1)), [games]);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const upcomingGames = useMemo(() => [...games].filter((g) => g.date >= todayIso).sort((a, b) => (a.date > b.date ? 1 : -1)), [games, todayIso]);
+  const pastGames = useMemo(() => [...games].filter((g) => g.date < todayIso).sort((a, b) => (a.date < b.date ? 1 : -1)), [games, todayIso]);
+  const sortedGames = partidasFilter === 'passadas' ? pastGames : upcomingGames;
   const selectedGame = games.find((g) => g.id === selectedGameId);
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
@@ -1404,10 +1408,18 @@ function MainApp({ session }) {
       <main className="sf-main">
         {tab === 'partidas' && !selectedGame && (
           <div className="sf-list-view">
+            <div className="sf-subtabs">
+              <button className={`sf-subtab ${partidasFilter === 'proximas' ? 'sf-subtab-on' : ''}`} onClick={() => setPartidasFilter('proximas')}>Próximas</button>
+              <button className={`sf-subtab ${partidasFilter === 'passadas' ? 'sf-subtab-on' : ''}`} onClick={() => setPartidasFilter('passadas')}>Passadas</button>
+            </div>
             {sortedGames.length === 0 && (
-              <div className="sf-empty"><CalendarDays size={32} color="#5C7A67" /><p>Nenhuma partida marcada ainda.</p></div>
+              <div className="sf-empty">
+                <CalendarDays size={32} color="#5C7A67" />
+                <p>{partidasFilter === 'passadas' ? 'Nenhuma partida passada ainda.' : 'Nenhuma partida marcada ainda.'}</p>
+              </div>
             )}
             {sortedGames.map((g) => {
+              const gGroup = groups.find((gr) => gr.id === g.groupId);
               const status = g.result ? 'Finalizada' : (g.teamA?.length ? 'Times prontos' : 'Sorteio pendente');
               return (
                 <button key={g.id} className="sf-game-card" onClick={() => setSelectedGameId(g.id)}>
@@ -1417,6 +1429,7 @@ function MainApp({ session }) {
                     <div className="sf-muted-sm">
                       <Users size={12} /> {Math.min(g.confirmed.length, g.maxPlayers || Infinity)}{g.maxPlayers ? `/${g.maxPlayers}` : ''} confirmados
                       {g.maxPlayers && g.confirmed.length > g.maxPlayers ? ` · ${g.confirmed.length - g.maxPlayers} na espera` : ''}
+                      {gGroup ? ` · ${gGroup.name}` : ''}
                     </div>
                   </div>
                   <div className={`sf-badge ${g.result ? 'sf-badge-done' : ''}`}>{status}</div>
@@ -1571,7 +1584,28 @@ function MainApp({ session }) {
         <div className="sf-modal-backdrop" onClick={() => { setShowNewGame(false); setNewGameGroupId(null); }}>
           <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sf-modal-title">Nova partida</div>
-            {newGameGroupId && <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Vinculada ao grupo — data e local já vieram do padrão dele, pode ajustar.</div>}
+            {groups.length > 0 && (
+              <>
+                <label className="sf-field-label">Grupo (opcional)</label>
+                <select
+                  className="sf-input"
+                  value={newGameGroupId || ''}
+                  onChange={(e) => {
+                    const gid = e.target.value || null;
+                    setNewGameGroupId(gid);
+                    const g = groups.find((gr) => gr.id === gid);
+                    if (g) {
+                      if (!newLocal) setNewLocal(g.defaultLocal || '');
+                      if (!newDate) setNewDate(nextDateForWeekday(g.defaultDayOfWeek));
+                      if (!newMaxPlayers && g.defaultMaxPlayers) setNewMaxPlayers(String(g.defaultMaxPlayers));
+                    }
+                  }}
+                >
+                  <option value="">Nenhum grupo</option>
+                  {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </>
+            )}
             <label className="sf-field-label">Data</label>
             <input type="date" className="sf-input" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             <label className="sf-field-label">Local</label>
