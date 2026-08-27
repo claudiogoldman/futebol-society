@@ -12,18 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
-      - name: Scan hydration risk expressions
+      - name: Inspect render boundaries and hydration risks
         shell: bash
         run: |
           set +e
-          echo '=== Hydration risk expressions ==='
-          grep -nE 'Math\.random|Date\.now|new Date\(|toLocale|window\.|document\.|localStorage|sessionStorage|navigator\.|crypto\.randomUUID|Intl\.' app/page.js
-          echo '=== Context around root render date ==='
-          sed -n '1360,1400p' app/page.js
-          echo '=== Context around root component ==='
-          sed -n '1080,1200p' app/page.js
-          echo '=== Context around auth component ==='
-          sed -n '1640,1710p' app/page.js
-          echo '=== End scan ==='
+          echo '=== Component declarations ==='
+          grep -nE '^function |^export default function ' app/page.js
+          echo '=== Login and auth area ==='
+          grep -n -B2 -A35 'function LoginScreen' app/page.js
+          echo '=== Main render nondeterminism ==='
+          sed -n '1368,1395p' app/page.js
+          echo '=== Browser globals outside effects/callbacks candidates ==='
+          grep -nE 'Math\.random|new Date\(\)|Date\.now|toLocale|window\.|document\.|sessionStorage|navigator\.' app/page.js
           exit 0
