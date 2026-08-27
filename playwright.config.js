@@ -2,7 +2,7 @@ const { defineConfig, devices } = require('@playwright/test');
 
 const productionUrl =
   process.env.PLAYWRIGHT_TEST_BASE_URL ||
-  'https://futebol-society-app-git-main-cfgoldman.vercel.app';
+  'https://futebol-society-app.vercel.app';
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
