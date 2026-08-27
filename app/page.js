@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
   Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
-  Handshake, Shield, MessageCircle, Camera, UserRound
+  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -204,6 +204,18 @@ function formatDatePtBr(iso) {
   return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
 
+const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+// next upcoming date (yyyy-mm-dd) that falls on the given weekday (0=Sun..6=Sat)
+function nextDateForWeekday(weekday) {
+  if (weekday == null) return '';
+  const today = new Date();
+  const diff = (weekday - today.getDay() + 7) % 7 || 7;
+  const d = new Date(today);
+  d.setDate(today.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
 function money(n) {
   return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -355,11 +367,13 @@ function LoginScreen() {
   const signIn = () => {
     // keep the invite link working across the OAuth round trip: stash it now,
     // and also pass it through the redirect URL as a backup
-    const joinToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('join') : null;
+    const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const joinToken = search ? search.get('join') : null;
+    const joinGroupToken = search ? search.get('joinGroup') : null;
     if (joinToken && typeof window !== 'undefined') sessionStorage.setItem('sf_join_token', joinToken);
-    const redirectTo = typeof window !== 'undefined'
-      ? window.location.origin + (joinToken ? `/?join=${joinToken}` : '')
-      : undefined;
+    if (joinGroupToken && typeof window !== 'undefined') sessionStorage.setItem('sf_join_group_token', joinGroupToken);
+    const qs = joinToken ? `/?join=${joinToken}` : (joinGroupToken ? `/?joinGroup=${joinGroupToken}` : '');
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin + qs : undefined;
     supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
   };
   return (
@@ -943,6 +957,122 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   );
 }
 
+// ---------- group detail ----------
+
+function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onShare, onNewGame, onOpenGame, onLeave, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState(group.name);
+  const [localDraft, setLocalDraft] = useState(group.defaultLocal);
+  const [dayDraft, setDayDraft] = useState(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
+  const [timeDraft, setTimeDraft] = useState(group.defaultTime);
+  const [maxPlayersDraft, setMaxPlayersDraft] = useState(group.defaultMaxPlayers || '');
+  const [costDraft, setCostDraft] = useState(group.defaultCost || '');
+
+  const isOwner = myId === group.createdBy;
+  const upcoming = [...games].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const save = () => {
+    onSetDefaults(group.id, {
+      name: nameDraft.trim() || group.name,
+      default_local: localDraft.trim() || null,
+      default_day_of_week: dayDraft !== '' ? parseInt(dayDraft, 10) : null,
+      default_time: timeDraft || null,
+      default_max_players: maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null,
+      default_cost: costDraft ? parseFloat(costDraft) : null,
+    });
+    setEditing(false);
+  };
+
+  return (
+    <div className="sf-detail">
+      <div className="sf-detail-topbar">
+        <button className="sf-icon-btn" onClick={onBack}><ChevronLeft size={20} /></button>
+        <div>
+          <div className="sf-eyebrow">Grupo</div>
+          <div className="sf-h2">{group.name}</div>
+        </div>
+        {isOwner && (
+          <button className="sf-icon-btn sf-danger" onClick={() => { if (confirm('Apagar esse grupo? As partidas vinculadas não somem, só perdem o vínculo.')) onDelete(group.id); }}>
+            <Trash2 size={18} />
+          </button>
+        )}
+      </div>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><Layers size={16} /> Padrões do grupo</div>
+        {!editing ? (
+          <>
+            <div className="sf-cost-row"><span className="sf-muted">Local</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultLocal || '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Dia</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultDayOfWeek != null ? WEEKDAY_LABELS[group.defaultDayOfWeek] : '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Horário</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultTime || '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Vagas</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultMaxPlayers || 'sem limite'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Custo da quadra</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultCost ? money(group.defaultCost) : '—'}</span></div>
+            {isOwner && <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setEditing(true)}>Editar padrões</button>}
+          </>
+        ) : (
+          <>
+            <label className="sf-field-label">Nome do grupo</label>
+            <input className="sf-input" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
+            <label className="sf-field-label">Local padrão</label>
+            <input className="sf-input" value={localDraft} onChange={(e) => setLocalDraft(e.target.value)} />
+            <label className="sf-field-label">Dia padrão</label>
+            <select className="sf-input" value={dayDraft} onChange={(e) => setDayDraft(e.target.value)}>
+              <option value="">Sem dia fixo</option>
+              {WEEKDAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+            </select>
+            <label className="sf-field-label">Horário padrão</label>
+            <input type="time" className="sf-input" value={timeDraft} onChange={(e) => setTimeDraft(e.target.value)} />
+            <label className="sf-field-label">Vagas padrão</label>
+            <input type="number" min="1" className="sf-input" value={maxPlayersDraft} onChange={(e) => setMaxPlayersDraft(e.target.value)} />
+            <label className="sf-field-label">Custo padrão da quadra</label>
+            <input type="number" min="0" className="sf-input" value={costDraft} onChange={(e) => setCostDraft(e.target.value)} />
+            <div className="sf-modal-actions">
+              <button className="sf-btn-ghost" onClick={() => setEditing(false)}>Cancelar</button>
+              <button className="sf-btn-primary" onClick={save}>Salvar</button>
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><Users size={16} /> Membros ({members.length})</div>
+        <div className="sf-rsvp-list">
+          {members.map((m) => (
+            <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
+              <span className="sf-rsvp-name">{m.name}{m.id === myId ? ' (você)' : ''}{m.id === group.createdBy ? ' · dono' : ''}</span>
+            </div>
+          ))}
+        </div>
+        <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
+          <Share2 size={16} /> Convidar pro grupo (WhatsApp)
+        </button>
+        {!isOwner && (
+          <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => { if (confirm('Sair desse grupo?')) onLeave(group.id); }}>
+            Sair do grupo
+          </button>
+        )}
+      </section>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><CalendarDays size={16} /> Partidas do grupo</div>
+        {upcoming.length === 0 && <div className="sf-muted">Nenhuma partida criada nesse grupo ainda.</div>}
+        {upcoming.map((g) => (
+          <button key={g.id} className="sf-game-card" style={{ marginBottom: 8 }} onClick={() => onOpenGame(g.id)}>
+            <div className="sf-game-card-date">{formatDatePtBr(g.date)}</div>
+            <div className="sf-game-card-info">
+              <div className="sf-h3">{g.local || 'Local a definir'}</div>
+              <div className="sf-muted-sm"><Users size={12} /> {g.confirmed.length} confirmados</div>
+            </div>
+          </button>
+        ))}
+        <button className="sf-btn-primary" onClick={() => onNewGame(group)}>
+          <Plus size={18} /> Nova partida (já com os padrões do grupo)
+        </button>
+      </section>
+    </div>
+  );
+}
+
 // ---------- main app (authenticated) ----------
 
 function MainApp({ session }) {
@@ -950,19 +1080,30 @@ function MainApp({ session }) {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState([]);
   const [games, setGames] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [groupMembers, setGroupMembers] = useState([]);
   const [tab, setTab] = useState('partidas');
   const [subTab, setSubTab] = useState('elenco');
   const [selectedGameId, setSelectedGameId] = useState(null);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [showNewGame, setShowNewGame] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
   const [viewingCardPlayer, setViewingCardPlayer] = useState(null);
   const [newDate, setNewDate] = useState('');
   const [newLocal, setNewLocal] = useState('');
   const [newMaxPlayers, setNewMaxPlayers] = useState('');
+  const [newGameGroupId, setNewGameGroupId] = useState(null);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupLocal, setNewGroupLocal] = useState('');
+  const [newGroupDay, setNewGroupDay] = useState('6');
+  const [newGroupTime, setNewGroupTime] = useState('');
+  const [newGroupMaxPlayers, setNewGroupMaxPlayers] = useState('');
+  const [newGroupCost, setNewGroupCost] = useState('');
 
   const me = profiles.find((p) => p.id === myId);
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
@@ -970,6 +1111,8 @@ function MainApp({ session }) {
       supabase.from('payments').select('*'),
       supabase.from('goals').select('*'),
       supabase.from('ratings').select('*'),
+      supabase.from('groups').select('*').order('name'),
+      supabase.from('group_members').select('*'),
     ]);
     const profs = profilesRes.data || [];
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
@@ -1004,12 +1147,20 @@ function MainApp({ session }) {
         inviteToken: g.invite_token,
         pixReceiverName: g.pix_receiver_name || null,
         pixCity: g.pix_city || null,
+        groupId: g.group_id || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
     });
     setProfiles(profs);
     setGames(assembled);
+    setGroups((groupsRes.data || []).map((g) => ({
+      id: g.id, name: g.name, createdBy: g.created_by, inviteToken: g.invite_token,
+      defaultLocal: g.default_local || '', defaultDayOfWeek: g.default_day_of_week,
+      defaultTime: g.default_time || '', defaultMaxPlayers: g.default_max_players || null,
+      defaultCost: g.default_cost != null ? Number(g.default_cost) : null,
+    })));
+    setGroupMembers(groupMembersRes.data || []);
     setLoading(false);
   }, []);
 
@@ -1021,16 +1172,25 @@ function MainApp({ session }) {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const token = params.get('join') || sessionStorage.getItem('sf_join_token');
-    if (!token) return;
+    const groupToken = params.get('joinGroup') || sessionStorage.getItem('sf_join_group_token');
+    if (!token && !groupToken) return;
     sessionStorage.removeItem('sf_join_token');
+    sessionStorage.removeItem('sf_join_group_token');
     const url = new URL(window.location.href);
     url.searchParams.delete('join');
+    url.searchParams.delete('joinGroup');
     window.history.replaceState({}, '', url.toString());
     (async () => {
       try {
-        const { data: gameId } = await supabase.rpc('join_game_by_token', { p_token: token });
-        await loadAll();
-        if (gameId) { setTab('partidas'); setSelectedGameId(gameId); }
+        if (token) {
+          const { data: gameId } = await supabase.rpc('join_game_by_token', { p_token: token });
+          await loadAll();
+          if (gameId) { setTab('partidas'); setSelectedGameId(gameId); }
+        } else if (groupToken) {
+          const { data: groupId } = await supabase.rpc('join_group_by_token', { p_token: groupToken });
+          await loadAll();
+          if (groupId) { setTab('grupos'); setSelectedGroupId(groupId); }
+        }
       } catch (e) {
         console.error('invalid invite link', e);
       }
@@ -1106,15 +1266,61 @@ function MainApp({ session }) {
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
     const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
-    const { data } = await supabase.from('games').insert({ date, local: newLocal.trim(), created_by: myId, max_players: maxPlayers }).select().single();
-    setNewDate(''); setNewLocal(''); setNewMaxPlayers(''); setShowNewGame(false);
+    const { data } = await supabase.from('games').insert({
+      date, local: newLocal.trim(), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
+    }).select().single();
+    setNewDate(''); setNewLocal(''); setNewMaxPlayers(''); setNewGameGroupId(null); setShowNewGame(false);
     await loadAll();
     if (data) setSelectedGameId(data.id);
+  };
+
+  // opens the "nova partida" modal pre-filled with a group's own defaults
+  const openNewGameForGroup = (group) => {
+    setNewGameGroupId(group.id);
+    setNewDate(nextDateForWeekday(group.defaultDayOfWeek));
+    setNewLocal(group.defaultLocal || '');
+    setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
+    setShowNewGame(true);
   };
 
   const deleteGame = async (gameId) => {
     await supabase.from('games').delete().eq('id', gameId);
     setSelectedGameId(null);
+    loadAll();
+  };
+
+  const createGroup = async () => {
+    if (!newGroupName.trim()) return;
+    const { data } = await supabase.from('groups').insert({
+      name: newGroupName.trim(),
+      created_by: myId,
+      default_local: newGroupLocal.trim() || null,
+      default_day_of_week: newGroupDay !== '' ? parseInt(newGroupDay, 10) : null,
+      default_time: newGroupTime || null,
+      default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,
+      default_cost: newGroupCost ? parseFloat(newGroupCost) : null,
+    }).select().single();
+    if (data) await supabase.from('group_members').insert({ group_id: data.id, user_id: myId });
+    setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');
+    setShowNewGroup(false);
+    await loadAll();
+    if (data) setSelectedGroupId(data.id);
+  };
+
+  const setGroupDefaults = async (groupId, fields) => {
+    await supabase.from('groups').update(fields).eq('id', groupId);
+    loadAll();
+  };
+
+  const leaveGroup = async (groupId) => {
+    await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', myId);
+    setSelectedGroupId(null);
+    loadAll();
+  };
+
+  const deleteGroup = async (groupId) => {
+    await supabase.from('groups').delete().eq('id', groupId);
+    setSelectedGroupId(null);
     loadAll();
   };
 
@@ -1154,9 +1360,15 @@ function MainApp({ session }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const shareGroupWhatsApp = (group) => {
+    let msg = `⚽ *${group.name}*\n\nEntra no grupo pra ver e confirmar presença nos jogos:\n${window.location.origin}/?joinGroup=${group.inviteToken}\n\nBora! 🙌`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
   const ranking = useMemo(() => computeRanking(profiles, games), [profiles, games]);
   const sortedGames = useMemo(() => [...games].sort((a, b) => (a.date < b.date ? 1 : -1)), [games]);
   const selectedGame = games.find((g) => g.id === selectedGameId);
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
 
   if (loading) {
     return (
@@ -1230,6 +1442,47 @@ function MainApp({ session }) {
           />
         )}
 
+        {tab === 'grupos' && !selectedGroup && (
+          <div className="sf-list-view">
+            {groups.length === 0 && (
+              <div className="sf-empty"><Layers size={32} color="#5C7A67" /><p>Você ainda não participa de nenhum grupo.</p></div>
+            )}
+            {groups.map((g) => {
+              const memberCount = groupMembers.filter((m) => m.group_id === g.id).length;
+              return (
+                <button key={g.id} className="sf-game-card" onClick={() => setSelectedGroupId(g.id)}>
+                  <div className="sf-game-card-info">
+                    <div className="sf-h3">{g.name}</div>
+                    <div className="sf-muted-sm">
+                      <Users size={12} /> {memberCount} {memberCount === 1 ? 'membro' : 'membros'}
+                      {g.defaultDayOfWeek != null ? ` · ${WEEKDAY_LABELS[g.defaultDayOfWeek]}` : ''}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            <button className="sf-btn-primary sf-fixed-add" onClick={() => setShowNewGroup(true)}>
+              <Plus size={18} /> Criar grupo
+            </button>
+          </div>
+        )}
+
+        {tab === 'grupos' && selectedGroup && (
+          <GroupDetail
+            group={selectedGroup}
+            games={games.filter((g) => g.groupId === selectedGroup.id)}
+            members={groupMembers.filter((m) => m.group_id === selectedGroup.id).map((m) => profiles.find((p) => p.id === m.user_id)).filter(Boolean)}
+            myId={myId}
+            onBack={() => setSelectedGroupId(null)}
+            onSetDefaults={setGroupDefaults}
+            onShare={shareGroupWhatsApp}
+            onNewGame={openNewGameForGroup}
+            onOpenGame={(id) => { setTab('partidas'); setSelectedGameId(id); }}
+            onLeave={leaveGroup}
+            onDelete={deleteGroup}
+          />
+        )}
+
         {tab === 'elenco' && (
           <div className="sf-list-view">
             <div className="sf-subtabs">
@@ -1298,15 +1551,19 @@ function MainApp({ session }) {
         <button className={`sf-tab ${tab === 'partidas' ? 'sf-tab-on' : ''}`} onClick={() => setTab('partidas')}>
           <CalendarDays size={20} /><span>Partidas</span>
         </button>
+        <button className={`sf-tab ${tab === 'grupos' ? 'sf-tab-on' : ''}`} onClick={() => { setTab('grupos'); setSelectedGameId(null); }}>
+          <Layers size={20} /><span>Grupos</span>
+        </button>
         <button className={`sf-tab ${tab === 'elenco' ? 'sf-tab-on' : ''}`} onClick={() => { setTab('elenco'); setSelectedGameId(null); }}>
           <Users size={20} /><span>Elenco</span>
         </button>
       </nav>
 
       {showNewGame && (
-        <div className="sf-modal-backdrop" onClick={() => setShowNewGame(false)}>
+        <div className="sf-modal-backdrop" onClick={() => { setShowNewGame(false); setNewGameGroupId(null); }}>
           <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sf-modal-title">Nova partida</div>
+            {newGameGroupId && <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Vinculada ao grupo — data e local já vieram do padrão dele, pode ajustar.</div>}
             <label className="sf-field-label">Data</label>
             <input type="date" className="sf-input" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
             <label className="sf-field-label">Local</label>
@@ -1314,8 +1571,34 @@ function MainApp({ session }) {
             <label className="sf-field-label">Limite de vagas (opcional)</label>
             <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />
             <div className="sf-modal-actions">
-              <button className="sf-btn-ghost" onClick={() => setShowNewGame(false)}>Cancelar</button>
+              <button className="sf-btn-ghost" onClick={() => { setShowNewGame(false); setNewGameGroupId(null); }}>Cancelar</button>
               <button className="sf-btn-primary" onClick={createGame}>Criar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewGroup && (
+        <div className="sf-modal-backdrop" onClick={() => setShowNewGroup(false)}>
+          <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sf-modal-title">Criar grupo</div>
+            <label className="sf-field-label">Nome do grupo</label>
+            <input className="sf-input" placeholder="ex: Bola com os camarada" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
+            <label className="sf-field-label">Local padrão</label>
+            <input className="sf-input" placeholder="Quadra / arena" value={newGroupLocal} onChange={(e) => setNewGroupLocal(e.target.value)} />
+            <label className="sf-field-label">Dia padrão</label>
+            <select className="sf-input" value={newGroupDay} onChange={(e) => setNewGroupDay(e.target.value)}>
+              {WEEKDAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+            </select>
+            <label className="sf-field-label">Horário padrão (opcional)</label>
+            <input type="time" className="sf-input" value={newGroupTime} onChange={(e) => setNewGroupTime(e.target.value)} />
+            <label className="sf-field-label">Vagas padrão (opcional)</label>
+            <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newGroupMaxPlayers} onChange={(e) => setNewGroupMaxPlayers(e.target.value)} />
+            <label className="sf-field-label">Custo padrão da quadra (opcional)</label>
+            <input type="number" min="0" className="sf-input" placeholder="ex: 170" value={newGroupCost} onChange={(e) => setNewGroupCost(e.target.value)} />
+            <div className="sf-modal-actions">
+              <button className="sf-btn-ghost" onClick={() => setShowNewGroup(false)}>Cancelar</button>
+              <button className="sf-btn-primary" onClick={createGroup}>Criar</button>
             </div>
           </div>
         </div>
