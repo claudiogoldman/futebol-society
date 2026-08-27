@@ -1269,9 +1269,10 @@ function MainApp({ session }) {
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
     const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
-    const { data } = await supabase.from('games').insert({
+    const { data, error } = await supabase.from('games').insert({
       date, local: newLocal.trim(), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
     }).select().single();
+    if (error) { alert('Não deu pra criar a partida: ' + error.message); return; }
     setNewDate(''); setNewLocal(''); setNewMaxPlayers(''); setNewGameGroupId(null); setShowNewGame(false);
     await loadAll();
     if (data) setSelectedGameId(data.id);
@@ -1294,7 +1295,7 @@ function MainApp({ session }) {
 
   const createGroup = async () => {
     if (!newGroupName.trim()) return;
-    const { data } = await supabase.from('groups').insert({
+    const { data, error } = await supabase.from('groups').insert({
       name: newGroupName.trim(),
       created_by: myId,
       default_local: newGroupLocal.trim() || null,
@@ -1303,7 +1304,11 @@ function MainApp({ session }) {
       default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,
       default_cost: newGroupCost ? parseFloat(newGroupCost) : null,
     }).select().single();
-    if (data) await supabase.from('group_members').insert({ group_id: data.id, user_id: myId });
+    if (error) { alert('Não deu pra criar o grupo: ' + error.message); return; }
+    if (data) {
+      const { error: memberError } = await supabase.from('group_members').insert({ group_id: data.id, user_id: myId });
+      if (memberError) console.error('failed to add self as member', memberError);
+    }
     setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');
     setShowNewGroup(false);
     await loadAll();
