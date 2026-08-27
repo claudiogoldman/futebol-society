@@ -1,0 +1,32 @@
+name: Hydration Static Scan
+
+on:
+  push:
+    branches: [debug/hydration-scan]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scan hydration risk expressions
+        shell: bash
+        run: |
+          set +e
+          echo '=== Hydration risk expressions ==='
+          grep -nE 'Math\.random|Date\.now|new Date\(|toLocale|window\.|document\.|localStorage|sessionStorage|navigator\.|crypto\.randomUUID|Intl\.' app/page.js
+          echo '=== End scan ==='
+          exit 0
+
+      - name: Scan initial state declarations
+        shell: bash
+        run: |
+          set +e
+          echo '=== useState declarations ==='
+          grep -n 'useState' app/page.js | head -200
+          echo '=== End state scan ==='
+          exit 0
