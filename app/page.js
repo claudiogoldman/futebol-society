@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
   Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
-  Handshake, Shield, MessageCircle
+  Handshake, Shield, MessageCircle, Camera, UserRound
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -33,6 +33,55 @@ function playerMeta(p) {
   if (p.age) bits.push(`${p.age} anos`);
   if (p.weight_kg) bits.push(`${p.weight_kg}kg`);
   return bits.join(' · ');
+}
+
+// ---------- player card (ATA/DEF/FOR/HAB rating card) ----------
+
+const POSITION_ABBREV = { goleiro: 'GOL', fixo: 'FIX', libero: 'LIB', meio: 'MEI', ala_esquerdo: 'ALE', ala_direito: 'ALD', pivo: 'PIV' };
+
+function computeOVR(p) {
+  const vals = [p.attr_ata, p.attr_def, p.attr_for, p.attr_hab].map((v) => (v == null ? 50 : v));
+  return Math.round(vals.reduce((a, b) => a + b, 0) / 4);
+}
+
+function primaryPositionAbbrev(p) {
+  const pos = Array.isArray(p.positions) && p.positions[0];
+  return pos ? (POSITION_ABBREV[pos] || 'LIN') : 'LIN';
+}
+
+function cardTier(ovr) {
+  if (ovr >= 80) return { grad: 'linear-gradient(160deg, #0B2417 0%, #1E4A2E 45%, #FFC53D 100%)', label: 'Lenda', text: '#EDF6EE', accent: '#FFC53D' };
+  if (ovr >= 65) return { grad: 'linear-gradient(160deg, #8A6412 0%, #FFC53D 55%, #FFE9B0 100%)', label: 'Ouro', text: '#0B2417', accent: '#0B2417' };
+  if (ovr >= 50) return { grad: 'linear-gradient(160deg, #5A636B 0%, #C7CDD3 55%, #EEF1F3 100%)', label: 'Prata', text: '#0B2417', accent: '#0B2417' };
+  return { grad: 'linear-gradient(160deg, #4A2E18 0%, #8B5E3C 55%, #C89B6E 100%)', label: 'Bronze', text: '#EDF6EE', accent: '#EDF6EE' };
+}
+
+function PlayerCard({ player, compact }) {
+  const ovr = computeOVR(player);
+  const tier = cardTier(ovr);
+  const pos = primaryPositionAbbrev(player);
+  const firstName = (player.name || '?').trim().split(' ')[0];
+  return (
+    <div className={`sf-pcard ${compact ? 'sf-pcard-compact' : ''}`} style={{ background: tier.grad, color: tier.text }}>
+      <div className="sf-pcard-top">
+        <div className="sf-pcard-ovr">{ovr}</div>
+        <div className="sf-pcard-pos">{pos}</div>
+      </div>
+      <div className="sf-pcard-photo">
+        {player.avatar_url ? <img src={player.avatar_url} alt="" /> : <UserRound size={compact ? 26 : 46} color={tier.accent} />}
+      </div>
+      <div className="sf-pcard-name">{firstName}</div>
+      {!compact && (
+        <div className="sf-pcard-stats">
+          <div><span>{player.attr_ata ?? 50}</span><label>ATA</label></div>
+          <div><span>{player.attr_def ?? 50}</span><label>DEF</label></div>
+          <div><span>{player.attr_for ?? 50}</span><label>FOR</label></div>
+          <div><span>{player.attr_hab ?? 50}</span><label>HAB</label></div>
+        </div>
+      )}
+      <div className="sf-pcard-brand">SOCIETY</div>
+    </div>
+  );
 }
 
 // distributes goalkeepers one per team first (so the draw doesn't stack both GKs
@@ -369,14 +418,73 @@ function MyProfileCard({ me, onUpdate }) {
   const [ageDraft, setAgeDraft] = useState(me.age || '');
   const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
   const [pixDraft, setPixDraft] = useState(me.pix_key || '');
+  const [ataDraft, setAtaDraft] = useState(me.attr_ata ?? 50);
+  const [defDraft, setDefDraft] = useState(me.attr_def ?? 50);
+  const [forDraft, setForDraft] = useState(me.attr_for ?? 50);
+  const [habDraft, setHabDraft] = useState(me.attr_hab ?? 50);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const togglePosition = (pos) => {
     const next = positions.includes(pos) ? positions.filter((p) => p !== pos) : [...positions, pos];
     onUpdate({ positions: next });
   };
 
+  const handlePhotoPick = () => fileInputRef.current?.click();
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${me.id}/avatar.${ext}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, cacheControl: '3600' });
+      if (!error) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+        onUpdate({ avatar_url: `${data.publicUrl}?t=${Date.now()}` });
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const saveAttr = (field, value) => {
+    const clamped = Math.max(1, Math.min(99, parseInt(value, 10) || 50));
+    onUpdate({ [field]: clamped });
+  };
+
   return (
     <div className="sf-player-card sf-player-card-me sf-me-card">
+      <div className="sf-pcard-preview-row">
+        <PlayerCard player={{ ...me, attr_ata: ataDraft, attr_def: defDraft, attr_for: forDraft, attr_hab: habDraft }} />
+        <div className="sf-pcard-photo-edit">
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
+          <button className="sf-btn-ghost sf-pcard-photo-btn" onClick={handlePhotoPick} disabled={uploading}>
+            <Camera size={14} /> {uploading ? 'Enviando...' : 'Trocar foto'}
+          </button>
+          <div className="sf-muted-sm" style={{ marginTop: 8 }}>Atributos do card (1-99)</div>
+          <div className="sf-attr-grid">
+            <div className="sf-attr-field">
+              <label>ATA</label>
+              <input type="number" min="1" max="99" value={ataDraft} onChange={(e) => setAtaDraft(e.target.value)} onBlur={() => saveAttr('attr_ata', ataDraft)} />
+            </div>
+            <div className="sf-attr-field">
+              <label>DEF</label>
+              <input type="number" min="1" max="99" value={defDraft} onChange={(e) => setDefDraft(e.target.value)} onBlur={() => saveAttr('attr_def', defDraft)} />
+            </div>
+            <div className="sf-attr-field">
+              <label>FOR</label>
+              <input type="number" min="1" max="99" value={forDraft} onChange={(e) => setForDraft(e.target.value)} onBlur={() => saveAttr('attr_for', forDraft)} />
+            </div>
+            <div className="sf-attr-field">
+              <label>HAB</label>
+              <input type="number" min="1" max="99" value={habDraft} onChange={(e) => setHabDraft(e.target.value)} onBlur={() => saveAttr('attr_hab', habDraft)} />
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="sf-h3">{me.name} <span className="sf-me-tag">você</span></div>
       <div className="sf-muted-sm" style={{ margin: '8px 0 4px' }}>seu nível (autoavaliação)</div>
       <StarRating value={me.rating} onChange={(rating) => onUpdate({ rating })} size={20} />
@@ -1133,7 +1241,8 @@ function MainApp({ session }) {
                 {me && <MyProfileCard me={me} onUpdate={updateMyProfile} />}
                 {profiles.filter((p) => p.id !== myId).map((p) => (
                   <div key={p.id} className="sf-player-card">
-                    <div>
+                    <PlayerCard player={p} compact />
+                    <div className="sf-player-card-info">
                       <div className="sf-h3">
                         {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
                         {p.name}
@@ -1141,12 +1250,12 @@ function MainApp({ session }) {
                       </div>
                       <StarRating value={p.rating} readOnly onChange={() => {}} />
                       {playerMeta(p) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(p)}</div>}
+                      {me?.is_admin && (
+                        <button className="sf-admin-toggle" onClick={() => toggleAdmin(p.id, !p.is_admin)}>
+                          {p.is_admin ? 'Remover admin' : 'Tornar admin'}
+                        </button>
+                      )}
                     </div>
-                    {me?.is_admin && (
-                      <button className="sf-admin-toggle" onClick={() => toggleAdmin(p.id, !p.is_admin)}>
-                        {p.is_admin ? 'Remover admin' : 'Tornar admin'}
-                      </button>
-                    )}
                   </div>
                 ))}
                 <p className="sf-muted-sm sf-roster-hint">
@@ -1370,7 +1479,7 @@ const CSS = `
   .sf-subtab { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch-mid); color: var(--chalk-dim); font-size: 13px; cursor: pointer; }
   .sf-subtab-on { background: var(--floodlight); color: var(--pitch-dark); font-weight: 700; border-color: var(--floodlight); }
 
-  .sf-player-card { display: flex; justify-content: space-between; align-items: center; background: var(--pitch-mid); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+  .sf-player-card { display: flex; gap: 12px; align-items: flex-start; background: var(--pitch-mid); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
   .sf-me-card { display: block; }
   .sf-player-card-me { border-color: var(--floodlight); background: rgba(255,197,61,0.06); }
   .sf-me-tag { font-size: 10px; color: var(--floodlight); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1415,4 +1524,42 @@ const CSS = `
   .sf-field-label { font-size: 11px; color: var(--chalk-dim); margin-top: 6px; }
   .sf-input { background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk); border-radius: 8px; padding: 11px 12px; font-size: 14px; font-family: 'Inter', sans-serif; }
   .sf-modal-actions { display: flex; gap: 10px; margin-top: 14px; }
+
+  /* player card (FIFA-style, own palette) */
+  .sf-pcard {
+    width: 140px; min-width: 140px; height: 196px; border-radius: 14px; position: relative;
+    display: flex; flex-direction: column; align-items: center; padding: 10px 8px 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.35); font-family: 'Oswald', sans-serif;
+  }
+  .sf-pcard-compact { width: 64px; min-width: 64px; height: 90px; border-radius: 8px; padding: 5px 4px 4px; box-shadow: 0 3px 8px rgba(0,0,0,0.3); }
+  .sf-pcard-top { position: absolute; top: 10px; left: 10px; text-align: center; line-height: 1; }
+  .sf-pcard-compact .sf-pcard-top { top: 4px; left: 4px; }
+  .sf-pcard-ovr { font-size: 22px; font-weight: 700; }
+  .sf-pcard-compact .sf-pcard-ovr { font-size: 13px; }
+  .sf-pcard-pos { font-size: 10px; font-weight: 600; opacity: 0.85; margin-top: 1px; }
+  .sf-pcard-compact .sf-pcard-pos { font-size: 6px; }
+  .sf-pcard-photo {
+    width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,0.15);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    margin-top: 26px; border: 2px solid rgba(255,255,255,0.4); flex-shrink: 0;
+  }
+  .sf-pcard-compact .sf-pcard-photo { width: 30px; height: 30px; margin-top: 12px; border-width: 1px; }
+  .sf-pcard-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .sf-pcard-name { font-size: 13px; font-weight: 700; text-transform: uppercase; margin-top: 8px; text-align: center; line-height: 1.1; }
+  .sf-pcard-compact .sf-pcard-name { font-size: 8px; margin-top: 4px; }
+  .sf-pcard-stats { display: flex; gap: 8px; margin-top: 10px; }
+  .sf-pcard-stats > div { display: flex; flex-direction: column; align-items: center; }
+  .sf-pcard-stats span { font-size: 13px; font-weight: 700; }
+  .sf-pcard-stats label { font-size: 8px; opacity: 0.8; letter-spacing: 0.5px; }
+  .sf-pcard-brand { position: absolute; bottom: 6px; font-size: 8px; letter-spacing: 1.5px; opacity: 0.75; font-weight: 600; }
+
+  .sf-pcard-preview-row { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .sf-pcard-photo-edit { flex: 1; min-width: 0; }
+  .sf-pcard-photo-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; padding: 9px; }
+  .sf-attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+  .sf-attr-field { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  .sf-attr-field label { font-size: 10px; color: var(--chalk-dim); font-weight: 700; }
+  .sf-attr-field input { width: 36px; background: none; border: none; color: var(--chalk); font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right; }
+
+  .sf-player-card-info { flex: 1; min-width: 0; }
 `;
