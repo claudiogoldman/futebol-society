@@ -463,7 +463,9 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const destaques = useMemo(() => computeGameDestaques(game), [game]);
   const iAmConfirmed = game.confirmed.includes(myId);
   const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
-  const canManage = isAdmin || myId === game.createdBy;
+  // editing is creator-only, with no admin override — admins can still SEE
+  // every match (that's handled server-side via RLS visibility), just not edit it
+  const canManage = myId === game.createdBy;
   const organizer = roster.find((p) => p.id === game.createdBy);
   // pix key/receiver/city are per-game settings (whoever is collecting for THAT
   // match may differ from the organizer), falling back to sensible defaults
