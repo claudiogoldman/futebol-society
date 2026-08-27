@@ -381,7 +381,7 @@ function LoginScreen() {
   };
   return (
     <div className="sf-app sf-login">
-      <style>{CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="sf-login-box">
         <div className="sf-wordmark">SOCIETY<span className="sf-wordmark-dot">.</span></div>
         <div className="sf-tagline">seu futebol, organizado</div>
@@ -1385,7 +1385,7 @@ function MainApp({ session }) {
   if (loading) {
     return (
       <div className="sf-app sf-loading">
-        <style>{CSS}</style>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
         <Loader2 className="sf-spin" size={28} />
       </div>
     );
@@ -1393,7 +1393,7 @@ function MainApp({ session }) {
 
   return (
     <div className="sf-app">
-      <style>{CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       <header className="sf-header">
         <div className="sf-header-row">
@@ -1675,7 +1675,7 @@ export default function Home() {
   if (session === undefined) {
     return (
       <div className="sf-app sf-loading">
-        <style>{CSS}</style>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
         <Loader2 className="sf-spin" size={28} />
       </div>
     );
