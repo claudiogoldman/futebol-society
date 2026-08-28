@@ -610,7 +610,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   };
   const chargeWhatsApp = (p) => {
     const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu! 🙏`;
-    window.open(`https://wa.me/${p.phone}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send/?phone=${p.phone}&text=${encodeURIComponent(msg)}`, '_blank');
   };
   const copyPix = async () => {
     try { await navigator.clipboard.writeText(pixCode); setPixCopied(true); setTimeout(() => setPixCopied(false), 2000); } catch {}
@@ -1450,12 +1450,12 @@ function MainApp({ session }) {
       if (destaques?.muro) msg += `\n🧤 Muro: ${destaques.muro.name} (${destaques.muroConceded} sofridos)`;
     }
     msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const shareGroupWhatsApp = (group) => {
     let msg = `⚽ *${group.name}*\n\nEntra no grupo pra ver e confirmar presença nos jogos:\n${window.location.origin}/?joinGroup=${group.inviteToken}\n\nBora! 🙌`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const ranking = useMemo(() => computeRanking(profiles, games), [profiles, games]);
