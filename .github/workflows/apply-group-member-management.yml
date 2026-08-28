@@ -6,7 +6,7 @@ permissions:
   contents: write
 jobs:
   apply:
-    if: github.event.head_commit.message == 'feat: add group member removal management script'
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,13 +18,15 @@ jobs:
           node-version: 20
       - name: Apply UI changes
         run: node scripts/apply-group-member-management.js
-      - name: Remove temporary script
-        run: rm scripts/apply-group-member-management.js
+      - name: Remove temporary files
+        run: |
+          rm scripts/apply-group-member-management.js
+          rm .github/workflows/apply-group-member-management.yml
       - name: Commit applied UI and remove workflow
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/page.js .github/workflows/apply-group-member-management.yml
-          git add -u scripts/apply-group-member-management.js
+          git add app/page.js
+          git add -u scripts/apply-group-member-management.js .github/workflows/apply-group-member-management.yml
           git commit -m "feat: allow group admins to remove members"
           git push origin main
