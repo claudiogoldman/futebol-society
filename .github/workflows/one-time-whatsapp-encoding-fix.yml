@@ -1,0 +1,40 @@
+name: One-time WhatsApp encoding fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Patch WhatsApp messages
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.js')
+          s = p.read_text(encoding='utf-8')
+          old1 = "const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu! 🙏`;"
+          new1 = "const msg = `Fala ${p.name}! Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu!`;"
+          old2 = "let msg = `⚽ *${group.name}*\\n\\nEntra no grupo pra ver e confirmar presença nos jogos:\\n${window.location.origin}/?joinGroup=${group.inviteToken}\\n\\nBora! 🙌`;"
+          new2 = "let msg = `*${group.name}*\\n\\nEntra no grupo pra ver e confirmar presença nos jogos:\\n${window.location.origin}/?joinGroup=${group.inviteToken}\\n\\nBora!`;"
+          if old1 not in s or old2 not in s:
+              raise SystemExit('Expected WhatsApp message patterns not found; no changes made.')
+          s = s.replace(old1, new1).replace(old2, new2)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Verify build
+        run: |
+          npm install
+          npm run build
+      - name: Commit and remove one-time workflow
+        run: |
+          rm -f .github/workflows/one-time-whatsapp-encoding-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/page.js .github/workflows/one-time-whatsapp-encoding-fix.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: prevent replacement characters in WhatsApp messages'
+          git push
