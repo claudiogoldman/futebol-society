@@ -18,6 +18,7 @@ module.exports = defineConfig({
   ],
   use: {
     baseURL: productionUrl,
+    storageState: process.env.PLAYWRIGHT_AUTH_STATE || undefined,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
