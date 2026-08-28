@@ -4,6 +4,12 @@ import re
 path = Path('app/page.js')
 text = path.read_text(encoding='utf-8')
 
+# The audit workflow can run on every main push. If the source is already
+# patched, leave it untouched so the workflow remains safe and repeatable.
+if '// Draws balanced teams while keeping positional coverage when possible.' in text and 'const baseSlots = [' in text:
+    print('Pitch draw audit patch already present')
+    raise SystemExit(0)
+
 new_draw = r'''// Draws balanced teams while keeping positional coverage when possible.
 // Positions are preferences only: a player can be assigned to another slot when
 // needed to complete both teams. Players without positions are distributed by
@@ -154,4 +160,3 @@ if n2 != 1:
 
 path.write_text(text3, encoding='utf-8')
 print('Patched app/page.js successfully')
-# audit trigger
