@@ -1731,15 +1731,31 @@ function MainApp({ session }) {
                   className="sf-input"
                   value={newGameGroupId || ''}
                   onChange={(e) => {
-                    const gid = e.target.value || null;
-                    setNewGameGroupId(gid);
-                    const g = groups.find((gr) => gr.id === gid);
-                    if (g) {
-                      if (!newLocal) setNewLocal(g.defaultLocal || '');
-                      if (!newDate) setNewDate(nextDateForWeekday(g.defaultDayOfWeek));
-                      if (!newMaxPlayers && g.defaultMaxPlayers) setNewMaxPlayers(String(g.defaultMaxPlayers));
-                    }
-                  }}
+          const gid = e.target.value || null;
+          setNewGameGroupId(gid);
+          const g = groups.find((gr) => gr.id === gid);
+          if (g) {
+            // Selecting a group must inherit every group default.
+            // The fields remain editable for this specific game.
+            setNewDate(nextDateForWeekday(g.defaultDayOfWeek));
+            setNewLocal(g.defaultLocal || '');
+            setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '');
+            setNewGameCost(g.defaultCost != null ? String(g.defaultCost) : '');
+            setNewGameGoalkeeperPays(g.defaultGoalkeeperPays !== false);
+            setNewGamePixKey(g.defaultPixKey || '');
+            setNewGamePixReceiverName(g.defaultPixReceiverName || '');
+            setNewGamePixCity(g.defaultPixCity || '');
+          } else {
+            setNewDate('');
+            setNewLocal('');
+            setNewMaxPlayers('');
+            setNewGameCost('');
+            setNewGameGoalkeeperPays(true);
+            setNewGamePixKey('');
+            setNewGamePixReceiverName('');
+            setNewGamePixCity('');
+          }
+        }}
                 >
                   <option value="">Nenhum grupo</option>
                   {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
