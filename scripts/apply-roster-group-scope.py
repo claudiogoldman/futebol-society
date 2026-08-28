@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Keep the Elenco view scoped to groups the current player belongs to.
 path = Path('app/page.js')
 text = path.read_text(encoding='utf-8')
 
