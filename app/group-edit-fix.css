@@ -1,0 +1,15 @@
+/* Layout safety for inline form controls rendered outside modal flex containers. */
+.sf-app .sf-field-label {
+  display: block;
+}
+
+.sf-app .sf-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Keep the group defaults editor vertically structured on narrow screens. */
+.sf-detail .sf-card .sf-field-label + .sf-input {
+  margin-bottom: 10px;
+}
