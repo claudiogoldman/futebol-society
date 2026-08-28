@@ -1,3 +1,5 @@
+import './group-edit-fix.css';
+
 export const metadata = {
   title: 'Society - seu futebol, organizado',
   description: 'Organize as peladas do seu grupo: presenca, times, rateio e ranking.',
