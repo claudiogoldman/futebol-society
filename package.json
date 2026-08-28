@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "python3 scripts/finalize-remaining-ui.py",
+    "prebuild": "python3 scripts/finalize-remaining-ui.py && python3 scripts/fix-group-management-duplicate.py",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
