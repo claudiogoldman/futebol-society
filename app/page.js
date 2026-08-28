@@ -962,7 +962,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
 
 // ---------- group detail ----------
 
-function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onShare, onNewGame, onOpenGame, onLeave, onDelete }) {
+function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember }) {
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
   const [localDraft, setLocalDraft] = useState(group.defaultLocal);
@@ -1102,7 +1102,19 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
-              <span className="sf-rsvp-name">{m.name}{m.id === myId ? ' (você)' : ''}{m.id === group.createdBy ? ' · dono' : ''}</span>
+              <span className="sf-rsvp-name">{m.name}{m.id === myId ? ' (você)' : ''}{m.id === group.createdBy ? ' · dono' : ''}{m.role === 'admin' && m.id !== group.createdBy ? ' · admin' : ''}</span>
+              {canManage && m.id !== group.createdBy && m.id !== myId && (
+                <button
+                  type="button"
+                  className="sf-admin-toggle"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => {
+                    if (confirm(`Remover ${m.name} deste grupo?`)) onRemoveMember(group.id, m.id);
+                  }}
+                >
+                  Remover
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -1406,9 +1418,16 @@ function MainApp({ session }) {
   };
 
   const leaveGroup = async (groupId) => {
-    await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', myId);
+    const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', myId);
+    if (error) { alert('Não foi possível sair do grupo: ' + error.message); return; }
     setSelectedGroupId(null);
-    loadAll();
+    await loadAll();
+  };
+
+  const removeGroupMember = async (groupId, userId) => {
+    const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
+    if (error) { alert('Não foi possível remover o membro: ' + error.message); return; }
+    await loadAll();
   };
 
   const deleteGroup = async (groupId) => {
@@ -1596,7 +1615,10 @@ function MainApp({ session }) {
           <GroupDetail
             group={selectedGroup}
             games={games.filter((g) => g.groupId === selectedGroup.id)}
-            members={groupMembers.filter((m) => m.group_id === selectedGroup.id).map((m) => profiles.find((p) => p.id === m.user_id)).filter(Boolean)}
+            members={groupMembers.filter((m) => m.group_id === selectedGroup.id).map((m) => {
+              const profile = profiles.find((p) => p.id === m.user_id);
+              return profile ? { ...profile, user_id: m.user_id, role: m.role || 'member', membershipId: m.id } : null;
+            }).filter(Boolean)}
             myId={myId}
             onBack={() => setSelectedGroupId(null)}
             onSetDefaults={setGroupDefaults}
@@ -1605,6 +1627,7 @@ function MainApp({ session }) {
             onOpenGame={(id) => { setTab('partidas'); setSelectedGameId(id); }}
             onLeave={leaveGroup}
             onDelete={deleteGroup}
+            onRemoveMember={removeGroupMember}
           />
         )}
 
