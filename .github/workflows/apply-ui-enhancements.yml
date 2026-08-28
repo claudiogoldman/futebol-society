@@ -7,6 +7,12 @@ on:
       - 'scripts/apply-ui-enhancements.py'
       - 'lib/nationality.js'
       - '.github/workflows/apply-ui-enhancements.yml'
+  pull_request:
+    paths:
+      - 'scripts/apply-ui-enhancements.py'
+      - 'lib/nationality.js'
+      - '.github/workflows/apply-ui-enhancements.yml'
+      - 'scripts/trigger-ui-enhancements'
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
