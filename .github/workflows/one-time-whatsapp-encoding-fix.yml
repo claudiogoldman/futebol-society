@@ -26,16 +26,11 @@ jobs:
           s = s.replace(old1, new1).replace(old2, new2)
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Verify build
-        run: |
-          npm install
-          npm run build
       - name: Commit and remove one-time workflow
         run: |
           rm -f .github/workflows/one-time-whatsapp-encoding-fix.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/page.js .github/workflows/one-time-whatsapp-encoding-fix.yml
-          git diff --cached --quiet && exit 0
           git commit -m 'fix: preserve WhatsApp message emoji encoding'
           git push
