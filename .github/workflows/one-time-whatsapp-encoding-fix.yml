@@ -1,5 +1,5 @@
 name: One-time WhatsApp encoding fix
-# One-time migration: patch production message encoding and remove this workflow.
+# One-time migration: use the full WhatsApp endpoint to preserve UTF-8 emoji in prefilled messages.
 on:
   push:
     branches: [main]
@@ -11,18 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Patch WhatsApp messages
+      - name: Patch WhatsApp links
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('app/page.js')
           s = p.read_text(encoding='utf-8')
-          old1 = "const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu! 🙏`;"
-          new1 = "const msg = `Fala ${p.name}! Só lembrando: falta ${money(rateio)} da quadra de ${formatDatePtBr(game.date)}${game.local ? ` (${game.local})` : ''}. Valeu!`;"
-          old2 = "let msg = `⚽ *${group.name}*\\n\\nEntra no grupo pra ver e confirmar presença nos jogos:\\n${window.location.origin}/?joinGroup=${group.inviteToken}\\n\\nBora! 🙌`;"
-          new2 = "let msg = `*${group.name}*\\n\\nEntra no grupo pra ver e confirmar presença nos jogos:\\n${window.location.origin}/?joinGroup=${group.inviteToken}\\n\\nBora!`;"
+          old1 = "window.open(`https://wa.me/${p.phone}?text=${encodeURIComponent(msg)}`, '_blank');"
+          new1 = "window.open(`https://api.whatsapp.com/send/?phone=${p.phone}&text=${encodeURIComponent(msg)}`, '_blank');"
+          old2 = "window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');"
+          new2 = "window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');"
           if old1 not in s or old2 not in s:
-              raise SystemExit('Expected WhatsApp message patterns not found; no changes made.')
+              raise SystemExit('Expected WhatsApp URL patterns not found; no changes made.')
           s = s.replace(old1, new1).replace(old2, new2)
           p.write_text(s, encoding='utf-8')
           PY
@@ -37,5 +37,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/page.js .github/workflows/one-time-whatsapp-encoding-fix.yml
           git diff --cached --quiet && exit 0
-          git commit -m 'fix: prevent replacement characters in WhatsApp messages'
+          git commit -m 'fix: preserve WhatsApp message emoji encoding'
           git push
