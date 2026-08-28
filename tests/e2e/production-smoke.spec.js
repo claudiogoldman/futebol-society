@@ -6,7 +6,8 @@ test.describe('Produção — smoke tests sem alteração de dados', () => {
 
     expect(response).not.toBeNull();
     expect(response.status()).toBeLessThan(400);
-    await expect(page).toHaveTitle(/Society - seu futebol, organizado/i);
+    // Production currently uses an em dash in the title.
+    await expect(page).toHaveTitle(/Futebol Society — seu futebol, organizado/i);
     await expect(page.locator('body')).not.toBeEmpty();
   });
 

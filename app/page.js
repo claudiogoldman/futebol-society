@@ -7,6 +7,7 @@ import {
   Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { NATIONALITIES, countryFlag } from '../lib/countries';
 
 // ---------- helpers ----------
 
@@ -73,7 +74,7 @@ function PlayerCard({ player, compact }) {
       <div className="sf-pcard-photo">
         {player.avatar_url ? <img src={player.avatar_url} alt="" /> : <UserRound size={compact ? 26 : 46} color={tier.accent} />}
       </div>
-      <div className="sf-pcard-name">{firstName}</div>
+      <div className="sf-pcard-name">{player.nationality_code ? <span aria-label={player.nationality_code} style={{ marginRight: 3 }}>{countryFlag(player.nationality_code)}</span> : null}{firstName}</div>
       {!compact && (
         <div className="sf-pcard-stats">
           <div><span>{player.attr_ata ?? 50}</span><label>ATA</label></div>
@@ -173,7 +174,7 @@ function computeGameDestaques(game) {
 
 function computeRanking(profiles, games) {
   const stats = {};
-  profiles.forEach((p) => { stats[p.id] = { id: p.id, name: p.name, jogos: 0, vit: 0, emp: 0, der: 0, gols: 0, assistencias: 0, pontos: 0, notaSum: 0, notaCount: 0, mvps: 0, muros: 0 }; });
+  profiles.forEach((p) => { stats[p.id] = { id: p.id, name: p.name, nationality_code: p.nationality_code || null, jogos: 0, vit: 0, emp: 0, der: 0, gols: 0, assistencias: 0, pontos: 0, notaSum: 0, notaCount: 0, mvps: 0, muros: 0 }; });
   const finalizadas = games.filter((g) => g.result);
   finalizadas.forEach((g) => {
     const { scoreA, scoreB } = g.result;
@@ -550,6 +551,15 @@ function MyProfileCard({ me, onUpdate }) {
         </div>
       </div>
       <div className="sf-h3">{me.name} <span className="sf-me-tag">você</span></div>
+      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Nacionalidade</div>
+      <select
+        className="sf-input"
+        value={me.nationality_code || ''}
+        onChange={(e) => onUpdate({ nationality_code: e.target.value || null })}
+      >
+        <option value="">Sem nacionalidade</option>
+        {NATIONALITIES.map(([code, name]) => <option key={code} value={code}>{countryFlag(code)} {name}</option>)}
+      </select>
       <div className="sf-muted-sm" style={{ margin: '8px 0 4px' }}>seu nível (autoavaliação)</div>
       <StarRating value={me.rating} onChange={(rating) => onUpdate({ rating })} size={20} />
       <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>posições que você joga</div>
@@ -1709,6 +1719,7 @@ function MainApp({ session }) {
                     <div className="sf-player-card-info">
                       <div className="sf-h3">
                         {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
+                        {p.nationality_code ? <span aria-label={p.nationality_code} style={{ marginRight: 5 }}>{countryFlag(p.nationality_code)}</span> : null}
                         {p.name}
                         {p.is_admin && <span className="sf-admin-tag" title="Admin">ADMIN</span>}
                       </div>
@@ -1739,7 +1750,7 @@ function MainApp({ session }) {
                 {ranking.map((r, i) => (
                   <div key={r.id} className="sf-ranking-row">
                     <span className="sf-rk-name">
-                      {i === 0 && r.pontos > 0 ? '🏆 ' : ''}{r.name}{r.mvps > 0 ? <span className="sf-mvp-tag"> ⭐×{r.mvps}</span> : ''}
+                      {i === 0 && r.pontos > 0 ? '🏆 ' : ''}{r.nationality_code ? <span aria-label={r.nationality_code} style={{ marginRight: 5 }}>{countryFlag(r.nationality_code)}</span> : null}{r.name}{r.mvps > 0 ? <span className="sf-mvp-tag"> ⭐×{r.mvps}</span> : ''}
                     </span>
                     <span className="sf-mono-value">{r.jogos}</span>
                     <span className="sf-mono-value">{r.vit}</span>
