@@ -231,6 +231,18 @@ function money(n) {
   return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function gameLocationQuery(game) {
+  if (game.locationLatitude != null && game.locationLongitude != null) return `${game.locationLatitude},${game.locationLongitude}`;
+  return [game.local, game.locationAddress, game.locationCity, game.locationState].filter(Boolean).join(', ');
+}
+
+function gameMapUrls(game) {
+  const query = gameLocationQuery(game);
+  if (!query) return { google: null, waze: null };
+  const encoded = encodeURIComponent(query);
+  return { google: `https://www.google.com/maps/dir/?api=1&destination=${encoded}`, waze: game.locationLatitude != null && game.locationLongitude != null ? `https://www.waze.com/ul?ll=${encoded}&navigate=yes` : `https://www.waze.com/ul?q=${encoded}&navigate=yes` };
+}
+
 // ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------
 
 function crc16(payload) {
@@ -616,7 +628,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -624,6 +636,13 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const [costDraft, setCostDraft] = useState(game.cost || 0);
   const [editingPix, setEditingPix] = useState(false);
   const [editingMaxPlayers, setEditingMaxPlayers] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [locationNameDraft, setLocationNameDraft] = useState(game.local || '');
+  const [locationAddressDraft, setLocationAddressDraft] = useState(game.locationAddress || '');
+  const [locationCityDraft, setLocationCityDraft] = useState(game.locationCity || '');
+  const [locationStateDraft, setLocationStateDraft] = useState(game.locationState || '');
+  const [locationLatitudeDraft, setLocationLatitudeDraft] = useState(game.locationLatitude ?? '');
+  const [locationLongitudeDraft, setLocationLongitudeDraft] = useState(game.locationLongitude ?? '');
   const [maxPlayersDraft, setMaxPlayersDraft] = useState('');
   const [pixDraft, setPixDraft] = useState(game.pixKey || '');
   const [pixReceiverDraft, setPixReceiverDraft] = useState('');
@@ -654,6 +673,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const activePixKey = game.pixKey || organizer?.pix_key || null;
   const activePixReceiver = game.pixReceiverName || organizer?.name || 'Organizador';
   const activePixCity = game.pixCity || '';
+  const mapUrls = gameMapUrls(game);
   const pixCode = activePixKey
     ? generatePixCode({ key: activePixKey, receiverName: activePixReceiver, city: activePixCity, amount: rateio, txid: game.id.slice(0, 8) })
     : null;
@@ -683,6 +703,30 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
         </div>
         {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}
       </div>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><Target size={16} /> Local da partida</div>
+        {!editingLocation ? <>
+          <div className="sf-cost-row"><span className="sf-muted">Nome</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{game.local || '—'}</span></div>
+          <div className="sf-cost-row"><span className="sf-muted">Endereço</span><span className="sf-mono-value" style={{ cursor: 'default', textAlign: 'right' }}>{game.locationAddress || '—'}</span></div>
+          <div className="sf-cost-row"><span className="sf-muted">Cidade/UF</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{game.locationCity || game.locationState ? `${game.locationCity || '—'}/${game.locationState || '—'}` : '—'}</span></div>
+          {game.locationLatitude != null && game.locationLongitude != null && <div className="sf-muted-sm" style={{ marginTop: 6 }}>Coordenadas: {game.locationLatitude}, {game.locationLongitude}</div>}
+          {(mapUrls.google || mapUrls.waze) && <div className="sf-modal-actions" style={{ marginTop: 10 }}>
+            {mapUrls.google && <a className="sf-btn-ghost" href={mapUrls.google} target="_blank" rel="noreferrer">Google Maps</a>}
+            {mapUrls.waze && <a className="sf-btn-ghost" href={mapUrls.waze} target="_blank" rel="noreferrer">Waze</a>}
+          </div>}
+          {canManage && <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => { setLocationNameDraft(game.local || ''); setLocationAddressDraft(game.locationAddress || ''); setLocationCityDraft(game.locationCity || ''); setLocationStateDraft(game.locationState || ''); setLocationLatitudeDraft(game.locationLatitude ?? ''); setLocationLongitudeDraft(game.locationLongitude ?? ''); setEditingLocation(true); }}>Editar local</button>}
+        </> : <>
+          <label className="sf-field-label">Nome do local</label><input className="sf-input" value={locationNameDraft} onChange={(e) => setLocationNameDraft(e.target.value)} placeholder="Quadra / arena" />
+          <label className="sf-field-label">Endereço</label><input className="sf-input" value={locationAddressDraft} onChange={(e) => setLocationAddressDraft(e.target.value)} placeholder="Rua, número, complemento" />
+          <label className="sf-field-label">Cidade</label><input className="sf-input" value={locationCityDraft} onChange={(e) => setLocationCityDraft(e.target.value)} />
+          <label className="sf-field-label">Estado/UF</label><input className="sf-input" maxLength="2" value={locationStateDraft} onChange={(e) => setLocationStateDraft(e.target.value.toUpperCase())} />
+          <label className="sf-field-label">Latitude (opcional)</label><input type="number" step="any" className="sf-input" value={locationLatitudeDraft} onChange={(e) => setLocationLatitudeDraft(e.target.value)} />
+          <label className="sf-field-label">Longitude (opcional)</label><input type="number" step="any" className="sf-input" value={locationLongitudeDraft} onChange={(e) => setLocationLongitudeDraft(e.target.value)} />
+          <div className="sf-muted-sm">Geocodificação automática não foi identificada na infraestrutura atual; as coordenadas podem ser informadas manualmente até que um provedor seja definido.</div>
+          <div className="sf-modal-actions"><button className="sf-btn-ghost" onClick={() => setEditingLocation(false)}>Cancelar</button><button className="sf-btn-primary" onClick={() => { onSetGameLocation(game.id, { local: locationNameDraft.trim() || null, locationAddress: locationAddressDraft.trim() || null, locationCity: locationCityDraft.trim() || null, locationState: locationStateDraft.trim() || null, locationLatitude: locationLatitudeDraft === '' ? null : Number(locationLatitudeDraft), locationLongitude: locationLongitudeDraft === '' ? null : Number(locationLongitudeDraft) }); setEditingLocation(false); }}>Salvar</button></div>
+        </>}
+      </section>
 
       <section className="sf-card">
         <div className="sf-card-title">
@@ -1225,6 +1269,11 @@ function MainApp({ session }) {
   const [viewingCardPlayer, setViewingCardPlayer] = useState(null);
   const [newDate, setNewDate] = useState('');
   const [newLocal, setNewLocal] = useState('');
+  const [newLocationAddress, setNewLocationAddress] = useState('');
+  const [newLocationCity, setNewLocationCity] = useState('');
+  const [newLocationState, setNewLocationState] = useState('');
+  const [newLocationLatitude, setNewLocationLatitude] = useState('');
+  const [newLocationLongitude, setNewLocationLongitude] = useState('');
   const [newMaxPlayers, setNewMaxPlayers] = useState('');
   const [newGameGroupId, setNewGameGroupId] = useState(null);
   const [newGameCost, setNewGameCost] = useState('');
@@ -1278,7 +1327,7 @@ function MainApp({ session }) {
         ratings[r.rater_id][r.rated_id] = r.score;
       });
       return {
-        id: g.id, date: g.date, local: g.local, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
+        id: g.id, date: g.date, local: g.local, locationAddress: g.location_address || null, locationCity: g.location_city || null, locationState: g.location_state || null, locationLatitude: g.location_latitude != null ? Number(g.location_latitude) : null, locationLongitude: g.location_longitude != null ? Number(g.location_longitude) : null, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
         createdBy: g.created_by,
         maxPlayers: g.max_players || null,
         pixKey: g.pix_key || null,
@@ -1372,6 +1421,11 @@ function MainApp({ session }) {
     loadAll();
   };
 
+  const setGameLocation = async (gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude }) => {
+    await supabase.from('games').update({ local: local || null, location_address: locationAddress, location_city: locationCity, location_state: locationState, location_latitude: locationLatitude, location_longitude: locationLongitude }).eq('id', gameId);
+    loadAll();
+  };
+
   const setMaxPlayers = async (gameId, maxPlayers) => {
     await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
     loadAll();
@@ -1412,7 +1466,7 @@ function MainApp({ session }) {
     const date = newDate || new Date().toISOString().slice(0, 10);
     const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
     const { data, error } = await supabase.from('games').insert({
-      date, local: newLocal.trim(), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
+      date, local: newLocal.trim(), location_address: newLocationAddress.trim() || null, location_city: newLocationCity.trim() || null, location_state: newLocationState.trim() || null, location_latitude: newLocationLatitude === '' ? null : Number(newLocationLatitude), location_longitude: newLocationLongitude === '' ? null : Number(newLocationLongitude), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
       cost: newGameCost === '' ? 0 : Number(newGameCost),
       goalkeeper_pays: newGameGoalkeeperPays,
       pix_key: newGamePixKey.trim() || null,
@@ -1420,7 +1474,7 @@ function MainApp({ session }) {
       pix_city: newGamePixCity.trim() || null,
     }).select().single();
     if (error) { alert('Não deu pra criar a partida: ' + error.message); return; }
-    setNewDate(''); setNewLocal(''); setNewMaxPlayers(''); setNewGameGroupId(null);
+    setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers(''); setNewGameGroupId(null);
     setNewGameCost(''); setNewGameGoalkeeperPays(true); setNewGamePixKey(''); setNewGamePixReceiverName(''); setNewGamePixCity('');
     setShowNewGame(false);
     await loadAll();
@@ -1633,6 +1687,7 @@ function MainApp({ session }) {
             onSetCost={setCost}
             onSetGkPays={setGkPays}
             onSetGamePixDetails={setGamePixDetails}
+            onSetGameLocation={setGameLocation}
             onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
             onTogglePaid={togglePaid}
@@ -1822,8 +1877,14 @@ function MainApp({ session }) {
             )}
             <label className="sf-field-label">Data</label>
             <input type="date" className="sf-input" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
-            <label className="sf-field-label">Local</label>
+            <label className="sf-field-label">Nome do local</label>
             <input className="sf-input" placeholder="Quadra / arena" value={newLocal} onChange={(e) => setNewLocal(e.target.value)} />
+            <label className="sf-field-label">Endereço</label><input className="sf-input" value={newLocationAddress} onChange={(e) => setNewLocationAddress(e.target.value)} placeholder="Rua, número, complemento" />
+            <label className="sf-field-label">Cidade</label><input className="sf-input" value={newLocationCity} onChange={(e) => setNewLocationCity(e.target.value)} />
+            <label className="sf-field-label">Estado/UF</label><input className="sf-input" maxLength="2" value={newLocationState} onChange={(e) => setNewLocationState(e.target.value.toUpperCase())} />
+            <label className="sf-field-label">Latitude (opcional)</label><input type="number" step="any" className="sf-input" value={newLocationLatitude} onChange={(e) => setNewLocationLatitude(e.target.value)} />
+            <label className="sf-field-label">Longitude (opcional)</label><input type="number" step="any" className="sf-input" value={newLocationLongitude} onChange={(e) => setNewLocationLongitude(e.target.value)} />
+            <div className="sf-muted-sm">Geocodificação automática não foi identificada na infraestrutura atual; coordenadas podem ser informadas manualmente.</div>
             <label className="sf-field-label">Limite de vagas (opcional)</label>
             <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />
             <label className="sf-field-label">Custo da quadra</label><input type="number" min="0" step="0.01" className="sf-input" value={newGameCost} onChange={(e) => setNewGameCost(e.target.value)} />
