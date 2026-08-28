@@ -1,0 +1,55 @@
+name: Authenticated Production E2E
+
+on:
+  workflow_dispatch:
+
+jobs:
+  authenticated-e2e:
+    name: Playwright — produção autenticada
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Restore authenticated Playwright state
+        shell: bash
+        env:
+          PLAYWRIGHT_AUTH_STATE_B64: ${{ secrets.PLAYWRIGHT_AUTH_STATE_B64 }}
+        run: |
+          test -n "$PLAYWRIGHT_AUTH_STATE_B64" || {
+            echo 'Missing required secret PLAYWRIGHT_AUTH_STATE_B64.'
+            exit 1
+          }
+          mkdir -p .auth
+          printf '%s' "$PLAYWRIGHT_AUTH_STATE_B64" | base64 --decode > .auth/state.json
+          node -e "const s=require('./.auth/state.json'); if(!s.cookies && !s.origins) process.exit(1)"
+
+      - name: Run authenticated production E2E
+        run: npx playwright test tests/e2e/authenticated-production.spec.js
+        env:
+          CI: 'true'
+          PLAYWRIGHT_TEST_BASE_URL: https://futebol-society-app.vercel.app
+          PLAYWRIGHT_AUTH_STATE: .auth/state.json
+
+      - name: Upload authenticated Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-authenticated-production-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
