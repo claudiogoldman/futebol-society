@@ -25,7 +25,7 @@ replace(`  const isOwner = myId === group.createdBy;`, `  const isOwner = myId =
     setAvatarUploading(true);
     try {
       const safeName = (file.name || 'grupo').replace(/[^a-zA-Z0-9._-]/g, '-');
-      const filePath = \`${group.id}/${myId}/${Date.now()}-${safeName}\`;
+      const filePath = group.id + '/' + myId + '/' + Date.now() + '-' + safeName;
       const { error } = await supabase.storage.from('group-images').upload(filePath, file, { upsert: false, contentType: file.type });
       if (error) throw error;
       const { data } = supabase.storage.from('group-images').getPublicUrl(filePath);
