@@ -1,0 +1,34 @@
+name: Apply nationality UI patch
+
+on:
+  push:
+    branches:
+      - fix/nationality-location
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Apply patch
+        run: python scripts/apply-nationality-flags.py
+
+      - name: Commit generated source and remove patcher
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm scripts/apply-nationality-flags.py .github/workflows/apply-nationality-location-patch.yml
+          git add app/page.js lib/countries.js
+          git diff --cached --quiet && exit 0 || true
+          git commit -m 'fix: render nationality flags in player surfaces'
+          git push origin HEAD:fix/nationality-location
