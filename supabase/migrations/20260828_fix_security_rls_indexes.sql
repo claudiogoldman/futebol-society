@@ -2,6 +2,9 @@
 -- Keep SECURITY DEFINER helpers callable only internally; RPC entry points
 -- remain available only to authenticated users where the frontend requires them.
 
+-- Prevent future public-schema functions from becoming API-callable by default.
+alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated;
+
 revoke execute on function public.is_game_member(uuid) from public, anon, authenticated;
 revoke execute on function public.is_group_admin(uuid) from public, anon, authenticated;
 revoke execute on function public.is_group_member(uuid) from public, anon, authenticated;
