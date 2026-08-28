@@ -1150,6 +1150,7 @@ function MainApp({ session }) {
   const [partidasFilter, setPartidasFilter] = useState('proximas');
   const [selectedGameId, setSelectedGameId] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [elencoGroupFilter, setElencoGroupFilter] = useState('all');
   const [showNewGame, setShowNewGame] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [viewingCardPlayer, setViewingCardPlayer] = useState(null);
@@ -1464,6 +1465,26 @@ function MainApp({ session }) {
   const sortedGames = partidasFilter === 'passadas' ? pastGames : upcomingGames;
   const selectedGame = games.find((g) => g.id === selectedGameId);
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
+  const myGroupIds = useMemo(() => {
+    const ids = new Set(groupMembers.filter((m) => m.user_id === myId).map((m) => m.group_id));
+    groups.filter((g) => g.createdBy === myId).forEach((g) => ids.add(g.id));
+    return ids;
+  }, [groupMembers, groups, myId]);
+  const elencoGroupOptions = useMemo(
+    () => groups.filter((g) => myGroupIds.has(g.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    [groups, myGroupIds]
+  );
+  const elencoProfiles = useMemo(() => {
+    const scopedGroupIds = elencoGroupFilter === 'all'
+      ? myGroupIds
+      : new Set(myGroupIds.has(elencoGroupFilter) ? [elencoGroupFilter] : []);
+    const memberIds = new Set(
+      groupMembers
+        .filter((m) => scopedGroupIds.has(m.group_id))
+        .map((m) => m.user_id)
+    );
+    return profiles.filter((p) => p.id !== myId && memberIds.has(p.id));
+  }, [profiles, groupMembers, myId, myGroupIds, elencoGroupFilter]);
 
   if (loading) {
     return (
@@ -1596,8 +1617,21 @@ function MainApp({ session }) {
 
             {subTab === 'elenco' && (
               <>
+                <div className="sf-roster-filter">
+                  <label className="sf-field-label">Grupo</label>
+                  <select
+                    className="sf-input"
+                    value={elencoGroupFilter}
+                    onChange={(e) => setElencoGroupFilter(e.target.value)}
+                  >
+                    <option value="all">Todos os meus grupos</option>
+                    {elencoGroupOptions.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
                 {me && <MyProfileCard me={me} onUpdate={updateMyProfile} />}
-                {profiles.filter((p) => p.id !== myId).map((p) => (
+                {elencoProfiles.map((p) => (
                   <div key={p.id} className="sf-player-card">
                     <button className="sf-pcard-trigger" onClick={() => setViewingCardPlayer(p)}>
                       <PlayerCard player={p} compact />
@@ -1619,7 +1653,7 @@ function MainApp({ session }) {
                   </div>
                 ))}
                 <p className="sf-muted-sm sf-roster-hint">
-                  O elenco é formado por quem já entrou no app com a conta Google. Manda o link pra galera se cadastrar.
+                  O elenco mostra somente jogadores dos grupos dos quais você participa. Use o filtro acima para ver um grupo específico.
                   {me?.is_admin ? ' Você é admin: pode editar partidas de qualquer organizador e indicar outros admins.' : ''}
                 </p>
               </>
@@ -1823,6 +1857,8 @@ const CSS = `
   .sf-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; color: var(--chalk-dim); text-align: center; font-size: 13px; }
 
   .sf-list-view { display: flex; flex-direction: column; gap: 10px; }
+  .sf-roster-filter { background: var(--pitch-mid); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .sf-roster-filter .sf-field-label { display: block; margin: 0 0 6px; }
 
   .sf-game-card { display: flex; align-items: center; gap: 12px; background: var(--pitch-mid); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; text-align: left; cursor: pointer; color: inherit; }
   .sf-game-card-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--floodlight); text-transform: uppercase; width: 44px; flex-shrink: 0; }
