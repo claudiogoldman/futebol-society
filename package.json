@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "python3 scripts/finalize-remaining-ui.py && python3 scripts/fix-group-management-duplicate.py && python3 scripts/fix-game-management-flows.py && python3 scripts/fix-final-qa.py && python3 scripts/apply-nationality-ranking-scope.py",
+    "prebuild": "python3 scripts/finalize-remaining-ui.py && python3 scripts/fix-group-management-duplicate.py && python3 scripts/fix-game-management-flows.py && python3 scripts/fix-final-qa.py && python3 scripts/apply-nationality-ranking-scope.py && python3 scripts/finalize-current-audit.py",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
