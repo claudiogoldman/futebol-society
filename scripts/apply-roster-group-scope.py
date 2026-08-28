@@ -4,6 +4,10 @@ from pathlib import Path
 path = Path('app/page.js')
 text = path.read_text(encoding='utf-8')
 
+if 'const [elencoGroupFilter, setElencoGroupFilter]' in text:
+    print('Roster group scope already applied.')
+    raise SystemExit(0)
+
 old = "const [selectedGroupId, setSelectedGroupId] = useState(null);"
 new = old + "\n  const [elencoGroupFilter, setElencoGroupFilter] = useState('all');"
 if old not in text:
