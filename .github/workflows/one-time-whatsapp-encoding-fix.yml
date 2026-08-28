@@ -1,4 +1,5 @@
 name: One-time WhatsApp encoding fix
+# One-time migration: patch production message encoding and remove this workflow.
 on:
   push:
     branches: [main]
