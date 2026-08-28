@@ -1,0 +1,19 @@
+{
+  "name": "Futebol Society — seu futebol, organizado",
+  "short_name": "Society",
+  "description": "Organize suas partidas de futebol society, presença, times, rateio e ranking.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B2417",
+  "theme_color": "#0B2417",
+  "icons": [
+    {
+      "src": "/icons/society.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
