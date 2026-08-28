@@ -87,25 +87,32 @@ function PlayerCard({ player, compact }) {
   );
 }
 
-// distributes goalkeepers one per team first (so the draw doesn't stack both GKs
-// on the same side), then balances everyone else by rating with a snake draft;
-// weight/age only break near-ties so physical profile doesn't stack on one side.
+// Draws balanced teams while keeping positional coverage when possible.
+// Positions are preferences only: a player can be assigned to another slot when
+// needed to complete both teams. Players without positions are distributed by
+// the normal rating balance and receive fallback positions in the pitch view.
 function drawTeams(confirmedPlayers) {
-  const goleiros = confirmedPlayers.filter(isGoleiro);
-  const linha = confirmedPlayers.filter((p) => !isGoleiro(p));
-
+  const players = [...confirmedPlayers];
+  const goleiros = players.filter(isGoleiro);
+  const linha = players.filter((p) => !isGoleiro(p));
   let teamA = [], teamB = [], sumA = 0, sumB = 0, physA = 0, physB = 0;
 
-  const place = (p) => {
+  const place = (p, preferredTeam = null) => {
     const rating = p.rating || 3;
     const phys = physicalScore(p);
-    const ratingGap = sumA - sumB;
-    const goToA = Math.abs(ratingGap) > 0.75 ? ratingGap <= 0 : physA <= physB;
-    if (goToA) { teamA.push(p); sumA += rating; physA += phys; }
+    let toA;
+    if (preferredTeam === 'A') toA = true;
+    else if (preferredTeam === 'B') toA = false;
+    else {
+      const ratingGap = sumA - sumB;
+      toA = Math.abs(ratingGap) > 0.75 ? ratingGap <= 0 : physA <= physB;
+    }
+    if (toA) { teamA.push(p); sumA += rating; physA += phys; }
     else { teamB.push(p); sumB += rating; physB += phys; }
   };
 
-  [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3)).forEach((p) => place(p));
+  const sortedGks = [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3));
+  sortedGks.forEach((p, i) => place(p, i % 2 === 0 ? 'A' : 'B'));
 
   const noisy = linha.map((p) => ({ ...p, _r: (p.rating || 3) + Math.random() * 0.5 }));
   noisy.sort((a, b) => b._r - a._r);
@@ -313,32 +320,72 @@ function StarRating({ value, onChange, size = 16, readOnly = false }) {
 }
 
 function PitchView({ teamA, teamB }) {
-  const rows = (n) => {
-    if (n <= 0) return [];
-    if (n <= 3) return [n];
-    if (n <= 6) return [Math.ceil(n / 2), Math.floor(n / 2)];
-    const r1 = Math.ceil(n / 3);
-    const r2 = Math.ceil((n - r1) / 2);
-    return [r1, r2, n - r1 - r2];
-  };
-  const layout = (team, mirrored) => {
-    const rw = rows(team.length);
-    const positions = [];
-    let idx = 0;
-    const rowCount = rw.length;
-    rw.forEach((count, rIdx) => {
-      let yPct = rowCount === 1 ? 50 : 18 + (rIdx * (64 / (rowCount - 1)));
-      if (mirrored) yPct = 100 - yPct;
-      for (let c = 0; c < count; c++) {
-        const xPct = count === 1 ? 50 : 12 + (c * (76 / (count - 1)));
-        positions.push({ player: team[idx], x: xPct, y: yPct });
-        idx++;
+  const baseSlots = [
+    { pos: 'goleiro', x: 50, y: 90 },
+    { pos: 'fixo', x: 30, y: 72 },
+    { pos: 'libero', x: 70, y: 72 },
+    { pos: 'meio', x: 50, y: 54 },
+    { pos: 'ala_esquerdo', x: 20, y: 48 },
+    { pos: 'ala_direito', x: 80, y: 48 },
+    { pos: 'pivo', x: 50, y: 28 },
+  ];
+  const extraSlots = [
+    { x: 35, y: 60 }, { x: 65, y: 60 }, { x: 35, y: 38 }, { x: 65, y: 38 },
+    { x: 50, y: 40 }, { x: 50, y: 65 }, { x: 20, y: 62 }, { x: 80, y: 62 },
+  ];
+
+  const assignSlots = (team, mirrored) => {
+    const slots = baseSlots.map((s) => ({ ...s, y: mirrored ? 100 - s.y : s.y }));
+    const extras = extraSlots.map((s) => ({ ...s, y: mirrored ? 100 - s.y : s.y }));
+    const available = [...slots];
+    const assigned = [];
+    const positional = [];
+    const unpositioned = [];
+
+    team.forEach((player) => {
+      const positions = Array.isArray(player.positions) ? player.positions : [];
+      const known = positions.filter((p) => POSITION_LABELS[p]);
+      if (known.length) positional.push({ player, positions: known });
+      else unpositioned.push(player);
+    });
+
+    positional.sort((a, b) => {
+      const aGk = a.positions.includes('goleiro') ? 0 : 1;
+      const bGk = b.positions.includes('goleiro') ? 0 : 1;
+      return aGk - bGk;
+    });
+
+    positional.forEach(({ player, positions }) => {
+      const slotIndex = available.findIndex((slot) => positions.includes(slot.pos));
+      if (slotIndex >= 0) {
+        const [slot] = available.splice(slotIndex, 1);
+        assigned.push({ player, ...slot });
+      } else {
+        unpositioned.push(player);
       }
     });
-    return positions;
+
+    for (let i = unpositioned.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [unpositioned[i], unpositioned[j]] = [unpositioned[j], unpositioned[i]];
+    }
+    unpositioned.forEach((player) => {
+      const slot = available.shift() || extras.shift();
+      if (slot) assigned.push({ player, ...slot });
+    });
+
+    team.slice(assigned.length).forEach((player, i) => {
+      const angle = (i / Math.max(1, team.length)) * Math.PI * 2;
+      const x = Math.max(10, Math.min(90, 50 + Math.cos(angle) * 34));
+      const rawY = 50 + Math.sin(angle) * 28;
+      const y = mirrored ? 100 - rawY : rawY;
+      assigned.push({ player, x, y });
+    });
+    return assigned;
   };
-  const posA = layout(teamA, false);
-  const posB = layout(teamB, true);
+
+  const posA = assignSlots(teamA, false);
+  const posB = assignSlots(teamB, true);
   const H = 380, W = 260;
   const Marker = ({ p, x, y, color }) => {
     const isGK = isGoleiro(p);
