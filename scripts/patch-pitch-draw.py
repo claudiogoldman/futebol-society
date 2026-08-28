@@ -28,12 +28,9 @@ function drawTeams(confirmedPlayers) {
     else { teamB.push(p); sumB += rating; physB += phys; }
   };
 
-  // Put the strongest goalkeepers on opposite teams first.
   const sortedGks = [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3));
   sortedGks.forEach((p, i) => place(p, i % 2 === 0 ? 'A' : 'B'));
 
-  // Then balance outfield players by rating. Position preferences are retained
-  // on each profile and are used by PitchView to place each player on the field.
   const noisy = linha.map((p) => ({ ...p, _r: (p.rating || 3) + Math.random() * 0.5 }));
   noisy.sort((a, b) => b._r - a._r);
   noisy.forEach((p) => {
@@ -45,7 +42,7 @@ function drawTeams(confirmedPlayers) {
 '''
 
 text2, n1 = re.subn(
-    r"// distributes goalkeepers[\\s\\S]*?function avgRatingFor",
+    r"// distributes goalkeepers[\s\S]*?function avgRatingFor",
     new_draw + "\nfunction avgRatingFor",
     text,
     count=1,
@@ -54,11 +51,6 @@ if n1 != 1:
     raise SystemExit(f'Could not replace drawTeams block: {n1}')
 
 new_pitch = r'''function PitchView({ teamA, teamB }) {
-  // Position slots are expressed as percentages of the SVG. Each team attacks
-  // toward the opposite goal. A preferred position is used when a free slot
-  // exists; otherwise an unpositioned/duplicate player receives a random free
-  // outfield slot. With too many players for the standard slots, extra players
-  // are placed in deterministic fallback slots rather than overlapping.
   const baseSlots = [
     { pos: 'goleiro', x: 50, y: 90 },
     { pos: 'fixo', x: 30, y: 72 },
@@ -88,8 +80,6 @@ new_pitch = r'''function PitchView({ teamA, teamB }) {
       else unpositioned.push(player);
     });
 
-    // More specific roles get first choice. Goleiro is always preferred for the
-    // goalkeeper slot, while other roles use the player's declared positions.
     positional.sort((a, b) => {
       const aGk = a.positions.includes('goleiro') ? 0 : 1;
       const bGk = b.positions.includes('goleiro') ? 0 : 1;
@@ -106,7 +96,6 @@ new_pitch = r'''function PitchView({ teamA, teamB }) {
       }
     });
 
-    // Randomize only players with no usable position (or a duplicated role).
     for (let i = unpositioned.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [unpositioned[i], unpositioned[j]] = [unpositioned[j], unpositioned[i]];
@@ -116,8 +105,6 @@ new_pitch = r'''function PitchView({ teamA, teamB }) {
       if (slot) assigned.push({ player, ...slot });
     });
 
-    // If there are more players than configured slots, spread them across
-    // generated fallback coordinates so no marker is rendered on top of another.
     team.slice(assigned.length).forEach((player, i) => {
       const angle = (i / Math.max(1, team.length)) * Math.PI * 2;
       const x = Math.max(10, Math.min(90, 50 + Math.cos(angle) * 34));
@@ -157,7 +144,7 @@ new_pitch = r'''function PitchView({ teamA, teamB }) {
 '''
 
 text3, n2 = re.subn(
-    r"function PitchView\([\\s\\S]*?\n}\n\n// ---------- login",
+    r"function PitchView\([\s\S]*?\n}\n\n// ---------- login",
     new_pitch + "\n// ---------- login",
     text2,
     count=1,
