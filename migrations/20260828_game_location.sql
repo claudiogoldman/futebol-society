@@ -1,4 +1,5 @@
 -- Game location data is optional and independent from the existing local/name field.
+-- Coordinates remain nullable because no geocoding provider is configured yet.
 alter table public.games add column if not exists location_address text;
 alter table public.games add column if not exists location_city text;
 alter table public.games add column if not exists location_state text;
