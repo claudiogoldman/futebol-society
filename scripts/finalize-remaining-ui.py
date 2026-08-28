@@ -1,14 +1,14 @@
 from pathlib import Path
-# Trigger CI after the workflow exists on this branch.
-
+# Idempotent UI finalizer: applies missing transformations when anchors exist.
 p = Path('app/page.js')
 s = p.read_text()
 
 def rep(old, new):
     global s
     if old not in s:
-        raise SystemExit(f'Missing anchor: {old[:120]}')
+        return False
     s = s.replace(old, new, 1)
+    return True
 
 rep("const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];", "const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];\nconst NATIONALITIES = [{ code: 'BR', name: 'Brasil', flag: '🇧🇷' }, { code: 'AR', name: 'Argentina', flag: '🇦🇷' }, { code: 'UY', name: 'Uruguai', flag: '🇺🇾' }, { code: 'PT', name: 'Portugal', flag: '🇵🇹' }, { code: 'ES', name: 'Espanha', flag: '🇪🇸' }, { code: 'IT', name: 'Itália', flag: '🇮🇹' }, { code: 'DE', name: 'Alemanha', flag: '🇩🇪' }, { code: 'FR', name: 'França', flag: '🇫🇷' }, { code: 'GB', name: 'Reino Unido', flag: '🇬🇧' }, { code: 'US', name: 'Estados Unidos', flag: '🇺🇸' }, { code: 'MX', name: 'México', flag: '🇲🇽' }, { code: 'CL', name: 'Chile', flag: '🇨🇱' }, { code: 'CO', name: 'Colômbia', flag: '🇨🇴' }, { code: 'PY', name: 'Paraguai', flag: '🇵🇾' }, { code: 'OTHER', name: 'Outra', flag: '🌐' }];\nconst nationalityFlag = (code) => NATIONALITIES.find((n) => n.code === code)?.flag || '🌐';")
 rep("const firstName = (player.name || '?').trim().split(' ')[0];", "const firstName = (player.name || '?').trim().split(' ')[0];\n  const flag = nationalityFlag(player.nationality_code);")
