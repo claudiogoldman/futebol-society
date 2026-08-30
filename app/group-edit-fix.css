@@ -1,22 +1,9 @@
 /* Layout safety for inline form controls rendered outside modal flex containers. */
-.sf-app .sf-field-label {
-  display: block;
-}
+.sf-app .sf-field-label { display: block; }
+.sf-app .sf-input { display: block; width: 100%; box-sizing: border-box; }
+.sf-detail .sf-card .sf-field-label + .sf-input { margin-bottom: 10px; }
 
-.sf-app .sf-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* Keep the group defaults editor vertically structured on narrow screens. */
-.sf-detail .sf-card .sf-field-label + .sf-input {
-  margin-bottom: 10px;
-}
-
-/* Nationality flags: page.js uses an emoji generated from the ISO-2 code.
-   The player card inherits Oswald, which does not contain color-emoji glyphs
-   on Windows/Chrome. Force the flag span to an emoji-capable system font. */
+/* Nationality flags */
 .sf-pcard-name span[aria-label] {
   font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif !important;
   font-style: normal;
@@ -28,8 +15,7 @@
   vertical-align: middle;
 }
 
-/* Mobile modal usability: long forms must scroll inside the modal instead of
-   extending past the viewport and trapping the user above the action buttons. */
+/* Mobile modal usability */
 .sf-modal {
   max-height: calc(100dvh - 12px);
   overflow-y: auto;
@@ -40,9 +26,74 @@
   padding-bottom: calc(20px + env(safe-area-inset-bottom));
 }
 
-/* Geolocation is kept in the data model for existing records/maps, but the
-   manual latitude/longitude controls are intentionally hidden from the UI. */
+/* Geolocation remains available to existing records/maps but is hidden from manual UI. */
 .sf-modal label.sf-field-label:has(+ input.sf-input[type="number"][step="any"]),
-.sf-modal input.sf-input[type="number"][step="any"] {
-  display: none;
+.sf-modal input.sf-input[type="number"][step="any"] { display: none; }
+
+/* Consolidated guests/locations manager */
+.sf-consolidated-trigger {
+  position: fixed;
+  right: max(12px, calc((100vw - 480px) / 2 + 12px));
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255,197,61,0.35);
+  border-radius: 999px;
+  background: #143622;
+  color: #EDF6EE;
+  padding: 8px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 5px 18px rgba(0,0,0,0.28);
+}
+.sf-consolidated-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sf-consolidated-panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: min(88dvh, 720px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #143622;
+  color: #EDF6EE;
+  border: 1px solid rgba(237,246,238,0.14);
+  border-radius: 16px 16px 0 0;
+  padding: 16px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.35);
+}
+.sf-consolidated-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.sf-consolidated-head strong { display: block; font-family: Oswald, sans-serif; font-size: 18px; }
+.sf-consolidated-head small { display: block; color: #8FB39C; margin-top: 2px; }
+.sf-consolidated-head button { background: transparent; border: 0; color: #EDF6EE; padding: 6px; }
+.sf-consolidated-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.sf-consolidated-tabs button { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; border: 1px solid rgba(237,246,238,0.14); border-radius: 9px; padding: 9px; background: #0B2417; color: #8FB39C; }
+.sf-consolidated-tabs button.on { background: #FFC53D; color: #0B2417; font-weight: 700; border-color: #FFC53D; }
+.sf-consolidated-panel > div > label, .sf-consolidated-panel label { display: block; color: #8FB39C; font-size: 11px; margin: 7px 0 5px; }
+.sf-consolidated-panel select, .sf-consolidated-panel input { width: 100%; box-sizing: border-box; background: #0B2417; color: #EDF6EE; border: 1px solid rgba(237,246,238,0.14); border-radius: 8px; padding: 10px; }
+.sf-consolidated-form { display: grid; gap: 7px; margin: 10px 0 12px; }
+.sf-consolidated-form button { display: flex; justify-content: center; align-items: center; gap: 5px; border: 0; border-radius: 8px; padding: 10px; background: #FFC53D; color: #0B2417; font-weight: 700; }
+.sf-consolidated-two { display: grid; grid-template-columns: 1fr 72px; gap: 7px; }
+.sf-consolidated-list { display: grid; gap: 6px; }
+.sf-consolidated-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto auto; align-items: center; gap: 5px; background: #0B2417; border: 1px solid rgba(237,246,238,0.14); border-radius: 8px; padding: 8px; }
+.sf-consolidated-row > div { min-width: 0; }
+.sf-consolidated-row strong { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-consolidated-row small { display: block; color: #8FB39C; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-consolidated-row button { border: 1px solid rgba(237,246,238,0.14); border-radius: 7px; background: #143622; color: #EDF6EE; padding: 6px 8px; font-size: 10px; white-space: nowrap; }
+.sf-consolidated-row button.accepted { background: rgba(79,195,247,0.15); color: #4FC3F7; border-color: #4FC3F7; }
+.sf-consolidated-row button:disabled { opacity: 0.55; }
+.sf-consolidated-note { display: block; color: #8FB39C; font-size: 10px; line-height: 1.4; margin-top: 10px; }
+.sf-consolidated-list .empty { color: #8FB39C; font-size: 11px; padding: 12px 0; }
+
+@media (max-width: 480px) {
+  .sf-consolidated-trigger { right: 10px; }
 }
