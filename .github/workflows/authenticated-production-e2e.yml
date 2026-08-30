@@ -1,0 +1,46 @@
+name: Authenticated Production E2E
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_AUTH_STATE_B64: ${{ secrets.PLAYWRIGHT_AUTH_STATE_B64 }}
+      BASE_URL: https://futebol-society-app.vercel.app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate authenticated session secret
+        shell: bash
+        run: |
+          test -n "$PLAYWRIGHT_AUTH_STATE_B64" || {
+            echo "PLAYWRIGHT_AUTH_STATE_B64 is not configured." >&2
+            exit 1
+          }
+          printf '%s' "$PLAYWRIGHT_AUTH_STATE_B64" | base64 --decode > auth-state.json
+          node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('auth-state.json','utf8')); if(!x.cookies && !x.origins) throw new Error('Invalid Playwright storage state');"
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated production E2E
+        run: npx playwright test --config=playwright.config.js
+        env:
+          PLAYWRIGHT_AUTH_STATE: auth-state.json
+
+      - name: Remove authentication state
+        if: always()
+        run: rm -f auth-state.json
