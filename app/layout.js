@@ -1,4 +1,5 @@
 import './group-edit-fix.css';
+import ConsolidatedManager from './consolidated-manager';
 
 export const metadata = {
   title: 'Futebol Society — seu futebol, organizado',
@@ -26,7 +27,10 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body style={{ margin: 0 }}>{children}</body>
+      <body style={{ margin: 0 }}>
+        {children}
+        <ConsolidatedManager />
+      </body>
     </html>
   );
 }
