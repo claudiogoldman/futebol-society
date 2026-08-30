@@ -27,3 +27,22 @@
   line-height: 1;
   vertical-align: middle;
 }
+
+/* Mobile modal usability: long forms must scroll inside the modal instead of
+   extending past the viewport and trapping the user above the action buttons. */
+.sf-modal {
+  max-height: calc(100dvh - 12px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Geolocation is kept in the data model for existing records/maps, but the
+   manual latitude/longitude controls are intentionally hidden from the UI. */
+.sf-modal label.sf-field-label:has(+ input.sf-input[type="number"][step="any"]),
+.sf-modal input.sf-input[type="number"][step="any"] {
+  display: none;
+}
