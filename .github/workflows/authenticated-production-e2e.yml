@@ -2,6 +2,8 @@ name: Authenticated Production E2E
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   e2e:
@@ -10,6 +12,7 @@ jobs:
     env:
       PLAYWRIGHT_AUTH_STATE_B64: ${{ secrets.PLAYWRIGHT_AUTH_STATE_B64 }}
       BASE_URL: https://futebol-society-app.vercel.app
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +24,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Validate authenticated session secret
         shell: bash
