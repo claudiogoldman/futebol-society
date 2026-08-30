@@ -13,3 +13,17 @@
 .sf-detail .sf-card .sf-field-label + .sf-input {
   margin-bottom: 10px;
 }
+
+/* Nationality flags: page.js uses an emoji generated from the ISO-2 code.
+   The player card inherits Oswald, which does not contain color-emoji glyphs
+   on Windows/Chrome. Force the flag span to an emoji-capable system font. */
+.sf-pcard-name span[aria-label] {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif !important;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  line-height: 1;
+  vertical-align: middle;
+}
