@@ -628,7 +628,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -650,6 +650,8 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const [pixOwnerDraft, setPixOwnerDraft] = useState('');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
+  const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
+  const [myAssistsDraft, setMyAssistsDraft] = useState(game.assists?.[myId] || 0);
   // preserve RSVP order (first-come, first-served) so the waitlist is well defined
   const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
   const maxPlayers = game.maxPlayers || null;
@@ -950,6 +952,26 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
           </>
         )}
       </section>
+
+      {hasTeams && game.result && !canManage && allPlayers.some((p) => p.id === myId) && (
+        <section className="sf-card">
+          <div className="sf-card-title"><Trophy size={16} /> Meus gols e assistências</div>
+          <div className="sf-card-subtitle">Informe apenas os seus números. O organizador pode corrigir o resultado quando necessário.</div>
+          <div className="sf-score-row">
+            <div className="sf-score-box">
+              <span>⚽ Gols</span>
+              <input type="number" min="0" className="sf-score-input" value={myGoalsDraft} onChange={(e) => setMyGoalsDraft(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+            </div>
+            <div className="sf-score-box">
+              <span>🎯 Assistências</span>
+              <input type="number" min="0" className="sf-score-input" value={myAssistsDraft} onChange={(e) => setMyAssistsDraft(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+            </div>
+          </div>
+          <button className="sf-btn-primary" onClick={() => onSavePlayerStats(game.id, myId, myGoalsDraft, myAssistsDraft)}>
+            <Check size={16} /> Salvar meus números
+          </button>
+        </section>
+      )}
 
       {hasTeams && canManage && (
         <section className="sf-card">
@@ -1447,6 +1469,19 @@ function MainApp({ session }) {
     loadAll();
   };
 
+  const savePlayerStats = async (gameId, userId, goals, assists) => {
+    const safeGoals = Math.max(0, parseInt(goals, 10) || 0);
+    const safeAssists = Math.max(0, parseInt(assists, 10) || 0);
+    const { error } = await supabase.from('goals').upsert({
+      game_id: gameId,
+      user_id: userId,
+      goals: safeGoals,
+      assists: safeAssists,
+    });
+    if (error) { alert('Não foi possível salvar seus gols/assistências: ' + error.message); return; }
+    loadAll();
+  };
+
   const saveResult = async (gameId, scoreA, scoreB, scorers, assists, playerIds) => {
     await supabase.from('games').update({ score_a: scoreA, score_b: scoreB }).eq('id', gameId);
     const rows = playerIds.map((id) => ({ game_id: gameId, user_id: id, goals: scorers[id] || 0, assists: assists[id] || 0 }));
@@ -1692,6 +1727,7 @@ function MainApp({ session }) {
             onDraw={handleDraw}
             onTogglePaid={togglePaid}
             onSaveResult={saveResult}
+            onSavePlayerStats={savePlayerStats}
             onSaveRatings={saveRatings}
             onDelete={deleteGame}
             onShare={shareWhatsApp}
