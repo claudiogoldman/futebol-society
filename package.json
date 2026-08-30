@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/apply-organizer-integration.js && node scripts/apply-organizer-feature.js && next build",
     "start": "next start",
     "test:e2e": "playwright test"
   },
