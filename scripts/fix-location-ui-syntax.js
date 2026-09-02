@@ -1,0 +1,10 @@
+const fs = require('fs');
+const path = require('path');
+const file = path.join(process.cwd(), 'app', 'page.js');
+let s = fs.readFileSync(file, 'utf8');
+const broken = "              </>}\n            )}";
+const fixed = "              </>\n            )}";
+if (!s.includes(broken)) throw new Error('location UI syntax anchor not found');
+s = s.replace(broken, fixed);
+fs.writeFileSync(file, s);
+console.log('Fixed inline location JSX fragment.');
