@@ -1,0 +1,255 @@
+name: Apply consistency refactor v2
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch application
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          pairs = [
+          ("""  // preserve RSVP order (first-come, first-served) so the waitlist is well defined
+  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const maxPlayers = game.maxPlayers || null;
+  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
+  const waitlistPlayers = maxPlayers ? confirmedPlayers.slice(maxPlayers) : [];
+  const gkPays = game.goalkeeperPays !== false;
+""", """  // The persistent game_waitlist table is the source of truth for substitutes.
+  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const maxPlayers = game.maxPlayers || null;
+  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
+  const waitlistIds = game.waitlist || [];
+  const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const gkPays = game.goalkeeperPays !== false;
+"""),
+          ("""  const iAmConfirmed = game.confirmed.includes(myId);
+  const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
+""", """  const iAmConfirmed = game.confirmed.includes(myId);
+  const iAmWaitlisted = waitlistIds.includes(myId);
+  const myWaitlistPos = waitlistIds.findIndex((id) => id === myId);
+"""),
+          ("""        <button className={`sf-btn-primary ${iAmConfirmed ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
+          {iAmConfirmed
+            ? (myWaitlistPos >= 0 ? <><Check size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : <><Check size={16} /> Você tá confirmado</>)
+            : 'Confirmar minha presença'}
+        </button>
+""", """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
+          {iAmConfirmed
+            ? <><Check size={16} /> Você tá confirmado</>
+            : iAmWaitlisted
+              ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</>
+              : 'Confirmar minha presença'}
+        </button>
+"""),
+          ("""          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => {
+            const on = game.confirmed.includes(p.id);
+            const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);
+            return (
+              <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''} ${onWaitlist ? 'sf-rsvp-waitlist' : ''}`}>
+                <span className="sf-rsvp-check">{on && !onWaitlist ? <Check size={14} /> : null}</span>
+                <span className="sf-rsvp-name">
+                  {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
+                  {p.name}{p.id === myId ? ' (você)' : ''}
+                </span>
+                {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
+                <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+              </div>
+            );
+          })}
+        </div>
+""", """          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => (
+            <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
+              <span className="sf-rsvp-check"><Check size={14} /></span>
+              <span className="sf-rsvp-name">
+                {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
+                {p.name}{p.id === myId ? ' (você)' : ''}
+              </span>
+              <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+            </div>
+          ))}
+        </div>
+        {waitlistPlayers.length > 0 && (
+          <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
+            <div className="sf-muted-sm" style={{ marginBottom: 6 }}>Lista de espera</div>
+            {waitlistPlayers.map((p, index) => (
+              <div key={p.id} className={`sf-rsvp-row sf-rsvp-waitlist ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
+                <span className="sf-rsvp-check"><Clock3 size={14} /></span>
+                <span className="sf-rsvp-name">{p.name}{p.id === myId ? ' (você)' : ''}</span>
+                <span className="sf-waitlist-tag">espera #{index + 1}</span>
+              </div>
+            ))}
+          </div>
+        )}
+"""),
+          ("""            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button>
+""", """            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>
+"""),
+          ("""  const save = () => {
+    onSetDefaults(group.id, {
+""", """  const save = async () => {
+    const ok = await onSetDefaults(group.id, {
+"""),
+          ("""      avatar_url: avatarUrlDraft || null,
+    });
+    setEditing(false);
+  };
+""", """      avatar_url: avatarUrlDraft || null,
+    });
+    if (ok) setEditing(false);
+  };
+"""),
+          ("""  const isOwner = myId === group.createdBy;
+  const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
+  const canManage = isOwner || myMembership?.role === 'admin';
+
+""", """  const isOwner = myId === group.createdBy;
+  const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
+  const canManage = isOwner || myMembership?.role === 'admin';
+
+  useEffect(() => {
+    setNameDraft(group.name || '');
+    setDayDraft(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
+    setTimeDraft(group.defaultTime || '');
+    setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
+    setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');
+    setGoalkeeperPaysDraft(group.defaultGoalkeeperPays !== false);
+    setPixKeyDraft(group.defaultPixKey || '');
+    setPixReceiverDraft(group.defaultPixReceiverName || '');
+    setPixCityDraft(group.defaultPixCity || '');
+    setOrganizerDraft(group.defaultOrganizerId || '');
+    setAvatarDraft(group.avatar || null);
+    setAvatarUrlDraft(group.avatarUrl || '');
+    setEditing(false);
+  }, [group.id]);
+
+"""),
+          ("""  const setCost = async (gameId, cost) => {
+    await supabase.from('games').update({ cost }).eq('id', gameId);
+    loadAll();
+  };
+
+  const setGkPays = async (gameId, goalkeeper_pays) => {
+    await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
+    loadAll();
+  };
+""", """  const setCost = async (gameId, cost) => {
+    const { error } = await supabase.from('games').update({ cost }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar o custo da partida: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+
+  const setGkPays = async (gameId, goalkeeper_pays) => {
+    const { error } = await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar se o goleiro paga: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+"""),
+          ("""  const setMaxPlayers = async (gameId, maxPlayers) => {
+    await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
+    loadAll();
+  };
+""", """  const setMaxPlayers = async (gameId, maxPlayers) => {
+    const { error } = await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar o limite de vagas: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+"""),
+          ("""  const setGroupDefaults = async (groupId, fields) => {
+    await supabase.from('groups').update(fields).eq('id', groupId);
+    loadAll();
+  };
+""", """  const setGroupDefaults = async (groupId, fields) => {
+    const { error } = await supabase.from('groups').update(fields).eq('id', groupId);
+    if (error) {
+      alert('Não foi possível salvar os padrões do grupo: ' + error.message);
+      return false;
+    }
+    await loadAll();
+    return true;
+  };
+"""),
+          ("""    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
+""", """    const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
+"""),
+          ("""      supabase.from('game_confirmations').select('*'),
+      supabase.from('game_teams').select('*'),
+""", """      supabase.from('game_confirmations').select('*'),
+      supabase.from('game_waitlist').select('*').order('queued_at', { ascending: true }).order('id', { ascending: true }),
+      supabase.from('game_teams').select('*'),
+"""),
+          ("""      const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);
+""", """      const waitlist = (waitlistRes.data || [])
+        .filter((w) => w.game_id === g.id)
+        .sort((a, b) => new Date(a.queued_at) - new Date(b.queued_at) || String(a.id).localeCompare(String(b.id)))
+        .map((w) => w.user_id);
+      const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);
+"""),
+          ("""        confirmed, teamA, teamB, payments, scorers, assists, ratings,
+""", """        confirmed, waitlist, teamA, teamB, payments, scorers, assists, ratings,
+"""),
+          ("""  const toggleMyRSVP = async (gameId) => {
+    const g = games.find((x) => x.id === gameId);
+    if (g.confirmed.includes(myId)) {
+      await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId);
+    } else {
+      await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId });
+    }
+    loadAll();
+  };
+""", """  const toggleMyRSVP = async (gameId) => {
+    const g = games.find((x) => x.id === gameId);
+    if (!g) return;
+    let error = null;
+    if (g.confirmed.includes(myId)) {
+      ({ error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId));
+    } else if ((g.waitlist || []).includes(myId)) {
+      ({ error } = await supabase.from('game_waitlist').delete().eq('game_id', gameId).eq('user_id', myId));
+    } else {
+      ({ error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId }));
+    }
+    if (error) { alert('Não foi possível alterar sua presença: ' + error.message); return; }
+    await loadAll();
+  };
+"""),
+          ]
+          for old, new in pairs:
+              if old not in s:
+                  raise SystemExit('Expected source block not found: ' + old[:80].replace('\n',' '))
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+      - name: Verify
+        run: |
+          test "$(grep -c "const waitlistIds = game.waitlist || \[\];" app/society-page.js)" -eq 1
+          test "$(grep -c "Adicionar jogador</button>" app/society-page.js)" -eq 1
+          npm install
+          npm run build
+
+      - name: Commit and clean up
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "fix: align waitlist and group/game settings"
+          git rm .github/workflows/apply-consistency-refactor.yml .github/workflows/apply-consistency-refactor-v2.yml
+          git commit -m "chore: remove one-shot consistency workflows"
+          git push origin HEAD:main
