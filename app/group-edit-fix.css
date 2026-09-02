@@ -97,3 +97,61 @@
 @media (max-width: 480px) {
   .sf-consolidated-trigger { right: 10px; }
 }
+
+/* Compact group location registration: keep the list visible and collapse the long form. */
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child {
+  position: relative;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child::before {
+  content: "＋ Cadastrar novo local";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,197,61,0.35);
+  border-radius: 9px;
+  background: #143622;
+  color: #EDF6EE;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child .sf-field-label,
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child .sf-input:not(:first-of-type),
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child .sf-check-row,
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child .sf-btn-primary {
+  display: none;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child .sf-input:first-of-type {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  height: 42px;
+  min-height: 42px;
+  margin: 0 !important;
+  border-color: transparent;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  cursor: pointer;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within::before {
+  display: none;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within .sf-field-label,
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within .sf-input:not(:first-of-type),
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within .sf-check-row,
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within .sf-btn-primary {
+  display: block;
+}
+.sf-detail .sf-card:has(.sf-rsvp-row.sf-rsvp-on) > div:last-child:focus-within .sf-input:first-of-type {
+  position: static;
+  height: auto;
+  min-height: 0;
+  color: inherit;
+  caret-color: auto;
+  cursor: text;
+  border-color: var(--sf-border);
+  background: var(--sf-input-bg, #0B2417);
+}
