@@ -1,5 +1,6 @@
 import './group-edit-fix.css';
 import './ui-audit-fix.css';
+import WaitlistStatus from './waitlist-status';
 
 export const metadata = {
   title: 'Futebol Society — seu futebol, organizado',
@@ -29,6 +30,7 @@ export default function RootLayout({ children }) {
     <html lang="pt-BR">
       <body style={{ margin: 0 }}>
         {children}
+        <WaitlistStatus />
       </body>
     </html>
   );
