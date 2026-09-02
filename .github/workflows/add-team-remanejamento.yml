@@ -1,0 +1,55 @@
+name: Add team remanejamento
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch team management
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          s = s.replace("onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {", "onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {")
+          s = s.replace("  const [guestManagementOpen, setGuestManagementOpen] = useState(false);", "  const [guestManagementOpen, setGuestManagementOpen] = useState(false);\n  const [editingTeams, setEditingTeams] = useState(false);\n  const [teamDraft, setTeamDraft] = useState({});")
+
+          old = "            {canManage && (\n              <button className=\"sf-btn-primary\" onClick={() => onDraw(game.id, activePlayers)}>\n                <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}\n              </button>\n            )}"
+          new = "            {canManage && (\n              <div className=\"sf-modal-actions\">\n                <button className=\"sf-btn-primary\" onClick={() => onDraw(game.id, activePlayers)}>\n                  <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}\n                </button>\n                {hasTeams && !editingTeams && (\n                  <button className=\"sf-btn-ghost\" onClick={() => { const draft = {}; [...(game.teamA || []), ...(game.teamB || [])].forEach((p) => { draft[p.id] = (game.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B'; }); setTeamDraft(draft); setEditingTeams(true); }}>Remanejar times</button>\n                )}\n              </div>\n            )}"
+          if old not in s: raise SystemExit('draw controls not found')
+          s = s.replace(old, new, 1)
+
+          old = "                <PitchView teamA={game.teamA} teamB={game.teamB} />"
+          new = "                {editingTeams && (\n                  <div className=\"sf-card\" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>\n                    <div className=\"sf-card-subtitle\" style={{ marginTop: 0 }}>Distribuição dos times</div>\n                    {[...(game.teamA || []), ...(game.teamB || [])].map((p) => (\n                      <div key={p.id} className=\"sf-cost-row\">\n                        <span>{p.name}{isGoleiro(p) ? ' (GOL)' : ''}</span>\n                        <select className=\"sf-input-inline\" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>\n                          <option value=\"A\">Time A</option><option value=\"B\">Time B</option>\n                        </select>\n                      </div>\n                    ))}\n                    <div className=\"sf-modal-actions\">\n                      <button className=\"sf-btn-ghost\" onClick={() => setEditingTeams(false)}>Cancelar</button>\n                      <button className=\"sf-btn-primary\" onClick={async () => { const ok = await onSaveTeams(game.id, teamDraft, activePlayers); if (ok) setEditingTeams(false); }}>Salvar times</button>\n                    </div>\n                  </div>\n                )}\n                <PitchView teamA={game.teamA} teamB={game.teamB} />"
+          if old not in s: raise SystemExit('pitch view not found')
+          s = s.replace(old, new, 1)
+
+          old = "  const handleDraw = async (gameId, confirmedPlayers) => {"
+          new = "  const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {\n    const rows = activePlayers.map((p) => ({ game_id: gameId, user_id: p.id, team: teamDraft[p.id] === 'B' ? 'B' : 'A' }));\n    if (rows.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }\n    const teamACount = rows.filter((r) => r.team === 'A').length;\n    const teamBCount = rows.filter((r) => r.team === 'B').length;\n    if (!teamACount || !teamBCount) { alert('Distribua os jogadores entre os dois times.'); return false; }\n    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);\n    if (deleteError) { alert('Não foi possível atualizar os times: ' + deleteError.message); return false; }\n    const { error } = await supabase.from('game_teams').insert(rows);\n    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n\n  const handleDraw = async (gameId, confirmedPlayers) => {"
+          if old not in s: raise SystemExit('handleDraw not found')
+          s = s.replace(old, new, 1)
+
+          old = "            onDraw={handleDraw}\n            onTogglePaid={togglePaid}"
+          new = "            onDraw={handleDraw}\n            onSaveTeams={handleSaveTeams}\n            onTogglePaid={togglePaid}"
+          if old not in s: raise SystemExit('GameDetail props not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: add manual team remanejamento"
+          git push
