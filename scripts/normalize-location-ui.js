@@ -43,6 +43,19 @@ replaceOnce(
   'create group location wording'
 );
 
+// New groups: persist the initial location only in group_locations, avoiding a second source of truth.
+replaceOnce(
+  '      name: newGroupName.trim(),\n      created_by: myId,\n      default_local: newGroupLocal.trim() || null,',
+  '      name: newGroupName.trim(),\n      created_by: myId,',
+  'create group legacy default_local'
+);
+
+replaceOnce(
+  '    if (data) {\n      const { error: memberError } = await supabase.from(\'group_members\').insert({ group_id: data.id, user_id: myId });',
+  '    if (data) {\n      if (newGroupLocal.trim()) {\n        const { error: locationError } = await supabase.from(\'group_locations\').insert({ group_id: data.id, name: newGroupLocal.trim(), is_default: true, created_by: myId });\n        if (locationError) { console.error(\'failed to create initial group location\', locationError); }\n      }\n      const { error: memberError } = await supabase.from(\'group_members\').insert({ group_id: data.id, user_id: myId });',
+  'create initial reusable group location'
+);
+
 // Parent handler: changing the default always operates on the reusable location table.
 const handlerOld = '  const createGame = async () => {';
 const handlerNew = `  const setGroupDefaultLocation = async (groupId, locationId) => {\n    if (locationId) {\n      const { error } = await supabase.from('group_locations').update({ is_default: true }).eq('id', locationId).eq('group_id', groupId);\n      if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return; }\n    } else {\n      const { error } = await supabase.from('group_locations').update({ is_default: false }).eq('group_id', groupId);\n      if (error) { alert('Não foi possível remover o local padrão: ' + error.message); return; }\n    }\n    await loadAll();\n  };\n\n  const createGame = async () => {`;
