@@ -550,9 +550,12 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const iAmConfirmed = game.confirmed.includes(myId);
   const iAmWaitlisted = waitlistIds.includes(myId);
   const myWaitlistPos = waitlistIds.findIndex((id) => id === myId);
-  // editing is creator-only, with no admin override — admins can still SEE
-  // every match (that's handled server-side via RLS visibility), just not edit it
-  const canManage = myId === game.createdBy || (game.groupId && groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(myId) && m.role === 'admin'));
+  const isGameAdmin = !!(game.groupId && groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(myId) && m.role === 'admin'));
+  // Before completion, the creator can manage the match. After completion,
+  // structural changes are restricted to group admins; the creator may still
+  // record/correct the final score.
+  const canManage = !game.result && myId === game.createdBy || isGameAdmin;
+  const canRecordResult = myId === game.createdBy || isGameAdmin;
   const organizer = roster.find((p) => p.id === (game.organizerId || game.createdBy));
   // pix key/receiver/city are per-game settings (whoever is collecting for THAT
   // match may differ from the organizer), falling back to sensible defaults
@@ -666,6 +669,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                 </span>
                 {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
                 <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+                {canManage && on && p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}
               </div>
             );
           })}
@@ -920,7 +924,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         </section>
       )}
 
-      {hasTeams && canManage && (
+      {hasTeams && canRecordResult && (
         <section className="sf-card">
           <div className="sf-card-title"><Trophy size={16} /> Resultado</div>
           <div className="sf-score-row">
