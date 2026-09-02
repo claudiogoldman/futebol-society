@@ -6,6 +6,7 @@ on:
       - 'app/**'
       - 'scripts/**'
       - 'package.json'
+      - 'package-lock.json'
       - 'supabase/migrations/**'
 permissions:
   contents: read
@@ -17,7 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install --no-audit --no-fund
+          cache: npm
+      - run: npm ci --no-audit --no-fund
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
