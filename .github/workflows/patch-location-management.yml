@@ -1,0 +1,70 @@
+name: Patch location management
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, 'fix: restore location management')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Patch source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = """  const [locationDraft, setLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });\n"""
+          new = old + "  const [editingLocationId, setEditingLocationId] = useState(null);\n"
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """    setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');\n"""
+          new = old + "    setEditingLocationId(null);\n"
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>\n              <span className=\"sf-rsvp-name\">{loc.name}</span>\n              {loc.is_default && <span className=\"sf-admin-tag\">PADRÃO</span>}\n              {canManage && <button type=\"button\" className=\"sf-admin-toggle\" style={{ marginLeft: 'auto' }} onClick={() => onDeleteLocation(loc.id)}>Excluir</button>}\n            </div>"""
+          new = """    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>\n              <span className=\"sf-rsvp-name\">{loc.name}</span>\n              {loc.is_default && <span className=\"sf-admin-tag\">PADRÃO</span>}\n              {canManage && <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>\n                <button type=\"button\" className=\"sf-admin-toggle\" onClick={() => { setEditingLocationId(loc.id); setLocationDraft({ name: loc.name || '', address: loc.address || '', city: loc.city || '', state: loc.state || '', latitude: loc.latitude != null ? String(loc.latitude) : '', longitude: loc.longitude != null ? String(loc.longitude) : '', isDefault: !!loc.is_default }); setLocationModalOpen(true); }}>Editar</button>\n                <button type=\"button\" className=\"sf-admin-toggle\" onClick={() => onDeleteLocation(loc.id)}>Excluir</button>\n              </div>}\n            </div>"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """<div className=\"sf-modal-title\">Cadastrar novo local</div>"""
+          new = """<div className=\"sf-modal-title\">{editingLocationId ? 'Editar local' : 'Cadastrar novo local'}</div>"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """<button type=\"button\" className=\"sf-btn-ghost\" onClick={() => setLocationModalOpen(false)}>Cancelar</button>\n                    <button type=\"button\" className=\"sf-btn-primary\" onClick={async () => { if (!locationDraft.name.trim()) return alert('Informe o nome do local.'); const ok = await onCreateLocation(group.id, locationDraft); if (ok) { setLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false }); setLocationModalOpen(false); } }}>Cadastrar local</button>"""
+          new = """<button type=\"button\" className=\"sf-btn-ghost\" onClick={() => { setLocationModalOpen(false); setEditingLocationId(null); }}>Cancelar</button>\n                    <button type=\"button\" className=\"sf-btn-primary\" onClick={async () => { if (!locationDraft.name.trim()) return alert('Informe o nome do local.'); const ok = editingLocationId ? await onUpdateLocation(editingLocationId, locationDraft) : await onCreateLocation(group.id, locationDraft); if (ok) { setLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false }); setLocationModalOpen(false); setEditingLocationId(null); } }}>{editingLocationId ? 'Salvar alterações' : 'Cadastrar local'}</button>"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onDeleteLocation }) {"""
+          new = """function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onUpdateLocation, onDeleteLocation }) {"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """  const deleteGroupLocation = async (locationId) => {"""
+          new = """  const updateGroupLocation = async (locationId, draft) => {\n    const { error } = await supabase.from('group_locations').update({ name: draft.name.trim(), address: draft.address.trim() || null, city: draft.city.trim() || null, state: draft.state.trim().toUpperCase() || null, latitude: draft.latitude === '' ? null : Number(draft.latitude), longitude: draft.longitude === '' ? null : Number(draft.longitude) }).eq('id', locationId);\n    if (error) { alert('Não foi possível editar o local: ' + error.message); return false; }\n    if (draft.isDefault) await setGroupDefaultLocation(groupIdFromLocation(locationId), locationId);\n    await loadAll();\n    return true;\n  };\n\n  const deleteGroupLocation = async (locationId) => {"""
+          # Do not use an invented helper; replace the default call with the known group id through a closure-safe helper below.
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = """    await loadAll();\n  };\n\n  const setGroupDefaultLocation = async (groupId, locationId) => {\n    if (locationId) {\n      const { error } = await supabase.from('group_locations').update({ is_default: true }).eq('id', locationId).eq('group_id', groupId);\n      if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return; }\n    } else {\n      const { error } = await supabase.from('group_locations').update({ is_default: false }).eq('group_id', groupId);\n      if (error) { alert('Não foi possível remover o local padrão: ' + error.message); return; }\n    }\n    await loadAll();\n  };"""
+          new = """    await loadAll();\n  };\n\n  const setGroupDefaultLocation = async (groupId, locationId) => {\n    const { error } = await supabase.rpc('set_group_default_location', { p_group_id: groupId, p_location_id: locationId || null });\n    if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          # Fix update function to use group id from the component instead of a nonexistent helper.
+          s = s.replace("await setGroupDefaultLocation(groupIdFromLocation(locationId), locationId);", "await setGroupDefaultLocation(group.id, locationId);", 1)
+          old = """            onCreateLocation={createGroupLocation}\n            onDeleteLocation={deleteGroupLocation}"""
+          new = """            onCreateLocation={createGroupLocation}\n            onUpdateLocation={updateGroupLocation}\n            onDeleteLocation={deleteGroupLocation}"""
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Commit source patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: restore location management'
+          git push
