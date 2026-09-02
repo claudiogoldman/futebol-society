@@ -678,7 +678,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           </div>
         )}
         <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
-          {iAmConfirmed ? <><Check size={16} /> Você está confirmado</> : iAmWaitlisted ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
+          {iAmConfirmed ? <><Check size={16} /> Você está confirmado</> : iAmWaitlisted ? <><span aria-hidden="true">⏳</span> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
         </button>
         {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
