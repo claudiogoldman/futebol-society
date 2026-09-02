@@ -1,0 +1,52 @@
+name: Wire default location RPC
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.event.head_commit.message == 'chore: wire default location rpc' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = """  const setGroupDefaultLocation = async (groupId, locationId) => {\n    if (locationId) {\n      const { error } = await supabase.from('group_locations').update({ is_default: true }).eq('id', locationId).eq('group_id', groupId);\n      if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return; }\n    } else {\n      const { error } = await supabase.from('group_locations').update({ is_default: false }).eq('group_id', groupId);\n      if (error) { alert('Não foi possível remover o local padrão: ' + error.message); return; }\n    }\n    await loadAll();\n  };"""
+          new = """  const setGroupDefaultLocation = async (groupId, locationId) => {\n    const { error } = await supabase.rpc('set_group_default_location', {\n      p_group_id: groupId,\n      p_location_id: locationId || null,\n    });\n    if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return; }\n    await loadAll();\n  };"""
+          if old not in s:
+              raise SystemExit('old default-location handler not found')
+          s = s.replace(old, new, 1)
+
+          old_save = """    const ok = await onSetDefaults(group.id, {\n      name: nameDraft.trim() || group.name,\n      default_local: group.defaultLocal || null,"""
+          new_save = """    const selectedDefaultLocation = locations.find((l) => l.is_default || l.isDefault);\n    const ok = await onSetDefaults(group.id, {\n      name: nameDraft.trim() || group.name,\n      default_local: selectedDefaultLocation?.name || null,"""
+          if old_save not in s:
+              raise SystemExit('old group save block not found')
+          s = s.replace(old_save, new_save, 1)
+          p.write_text(s)
+          PY
+
+      - name: Build validation
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit source fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git rm .github/workflows/wire-default-location-rpc.yml
+          git commit -m "fix: use atomic group default location update"
+          git push
