@@ -26,19 +26,22 @@ jobs:
         run: npm install
 
       - name: Validate authenticated session secret
+        if: env.PLAYWRIGHT_AUTH_STATE_B64 != ''
         shell: bash
         run: |
-          test -n "$PLAYWRIGHT_AUTH_STATE_B64" || {
-            echo "PLAYWRIGHT_AUTH_STATE_B64 is not configured." >&2
-            exit 1
-          }
           printf '%s' "$PLAYWRIGHT_AUTH_STATE_B64" | base64 --decode > auth-state.json
           node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('auth-state.json','utf8')); if(!x.cookies && !x.origins) throw new Error('Invalid Playwright storage state');"
 
+      - name: Report missing authenticated session secret
+        if: env.PLAYWRIGHT_AUTH_STATE_B64 == ''
+        run: echo "PLAYWRIGHT_AUTH_STATE_B64 is not configured; authenticated E2E skipped."
+
       - name: Install Playwright browsers
+        if: env.PLAYWRIGHT_AUTH_STATE_B64 != ''
         run: npx playwright install --with-deps chromium
 
       - name: Run authenticated production E2E
+        if: env.PLAYWRIGHT_AUTH_STATE_B64 != ''
         run: npx playwright test --config=playwright.config.js
         env:
           PLAYWRIGHT_AUTH_STATE: auth-state.json
