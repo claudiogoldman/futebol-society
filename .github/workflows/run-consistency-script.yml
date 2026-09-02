@@ -1,0 +1,33 @@
+name: Run consistency refactor
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python scripts/consistency_refactor.py
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: consistency-refactor-build-key
+        run: |
+          npm ci
+          npm run build
+      - name: Commit and cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "fix: align waitlist and group/game settings"
+          git rm scripts/consistency_refactor.py .github/workflows/run-consistency-script.yml
+          git commit -m "chore: remove one-shot refactor tooling"
+          git push origin HEAD:main
