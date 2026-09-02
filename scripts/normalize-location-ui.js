@@ -51,10 +51,6 @@ if (!s.includes('const setGroupDefaultLocation = async')) {
   s = s.replace(handlerOld, handlerNew);
 }
 
-const propOld = '            onSetDefaults={setGroupDefaults}\n            onShare={shareGroup}';
-const propNew = '            onSetDefaults={setGroupDefaults}\n            onSetDefaultLocation={setGroupDefaultLocation}\n            onShare={shareGroup}';
-replaceOnce(propOld, propNew, 'GroupDetail default location prop');
-
 replaceOnce(
   '<label className="sf-field-label">Local cadastrado no grupo</label>',
   '<label className="sf-field-label">Local da partida</label>',
