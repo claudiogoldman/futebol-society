@@ -980,7 +980,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
 
 // ---------- group detail ----------
 
-function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onDeleteLocation }) {
+function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onUpdateLocation, onDeleteLocation }) {
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
   const [dayDraft, setDayDraft] = useState(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
