@@ -5,8 +5,95 @@
   white-space: nowrap;
 }
 
-/* Keep the player/name column readable while numeric columns align consistently. */
 .sf-detail table th:first-child,
 .sf-detail table td:first-child {
   text-align: left;
+}
+
+/* Player waitlist status. */
+.sf-waitlist-trigger {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: #0B2417;
+  color: #EDF6EE;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,.22);
+}
+
+.sf-waitlist-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0,0,0,.48);
+}
+
+.sf-waitlist-panel {
+  width: min(520px, 100%);
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(0,0,0,.28);
+  color: #18221b;
+}
+
+.sf-waitlist-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid #e7ece8;
+}
+
+.sf-waitlist-head strong,
+.sf-waitlist-head small,
+.sf-waitlist-row strong,
+.sf-waitlist-row small { display: block; }
+
+.sf-waitlist-head small,
+.sf-waitlist-row small {
+  margin-top: 3px;
+  color: #66736b;
+}
+
+.sf-waitlist-head > button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sf-waitlist-list { padding: 8px 18px 18px; }
+
+.sf-waitlist-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #eef2ef;
+}
+
+.sf-waitlist-row:last-child { border-bottom: 0; }
+
+.sf-waitlist-row > span {
+  min-width: 42px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #edf5ef;
+  font-weight: 800;
 }
