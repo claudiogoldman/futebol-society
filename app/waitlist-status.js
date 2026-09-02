@@ -24,16 +24,17 @@ export default function WaitlistStatus() {
         className="sf-waitlist-trigger"
         onClick={() => setOpen(true)}
         title="Minhas listas de suplentes"
+        aria-label={`Abrir lista de suplentes (${items.length})`}
       >
         <Clock3 size={15} /> <span>Suplente ({items.length})</span>
       </button>
 
       {open && (
         <div className="sf-waitlist-backdrop" onClick={() => setOpen(false)}>
-          <div className="sf-waitlist-panel" onClick={(event) => event.stopPropagation()}>
+          <div className="sf-waitlist-panel" role="dialog" aria-modal="true" aria-labelledby="waitlist-title" onClick={(event) => event.stopPropagation()}>
             <div className="sf-waitlist-head">
               <div>
-                <strong>Lista de suplentes</strong>
+                <strong id="waitlist-title">Lista de suplentes</strong>
                 <small>Você está inscrito e será promovido automaticamente quando surgir uma vaga.</small>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Fechar"><X size={18} /></button>
@@ -44,8 +45,8 @@ export default function WaitlistStatus() {
                 return (
                   <div className="sf-waitlist-row" key={item.id}>
                     <div>
-                      <strong>{game.local || 'Local a definir'}</strong>
-                      <small>{game.date ? new Date(`${game.date}T12:00:00`).toLocaleDateString('pt-BR') : 'Data a definir'}</small>
+                      <strong>{game?.local || 'Local a definir'}</strong>
+                      <small>{game?.date ? new Date(`${game.date}T12:00:00`).toLocaleDateString('pt-BR') : 'Data a definir'}</small>
                     </div>
                     <span>{item.position != null ? `#${item.position}` : 'suplente'}</span>
                     <button className="sf-waitlist-leave" onClick={() => handleLeave(item.id)}>Sair</button>
