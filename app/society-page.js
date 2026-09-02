@@ -502,7 +502,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -527,6 +527,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [guestNameDraft, setGuestNameDraft] = useState('');
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [guestPositionDraft, setGuestPositionDraft] = useState('');
+  const [guestManagementOpen, setGuestManagementOpen] = useState(false);
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -589,8 +590,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             <button type="button" className="sf-admin-toggle" onClick={() => setManagementOpen((v) => !v)}>Gestão ▾</button>
             {managementOpen && (
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: 220, background: 'var(--pitch-mid)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>
-                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Adicionar jogador não cadastrado</button>
-                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); document.getElementById('sf-game-location-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Gerenciar local da partida</button>
+                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); setGuestManagementOpen(true); setTimeout(() => document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0); }}>Adicionar jogador não cadastrado</button>
+                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); if (game.groupId) onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>
               </div>
             )}
           </div>
@@ -667,7 +668,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             );
           })}
         </div>
-        {canManage && (
+        {canManage && guestManagementOpen && (
           <div id="sf-add-guest-form" className="sf-card" style={{ marginTop: 10, marginBottom: 0, padding: 10, background: 'var(--pitch-dark)' }}>
             <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Adicionar jogador não cadastrado</div>
             <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
@@ -676,7 +677,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               <option value="">Posição (opcional)</option>
               {POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}
             </select>
-            <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}>Adicionar convidado</button>
+            <div className="sf-modal-actions"><button className="sf-btn-ghost" onClick={() => setGuestManagementOpen(false)}>Cancelar</button><button className="sf-btn-primary" disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setGuestManagementOpen(false); } }}>Adicionar convidado</button></div>
           </div>
         )}
         {canManage && game.groupId && (
@@ -1863,6 +1864,7 @@ function MainApp({ session }) {
             onToggleMyRSVP={toggleMyRSVP}
             onAddParticipant={addParticipant}
             onAddGuest={addGuest}
+            onOpenGroup={(groupId) => { setTab('grupos'); setSelectedGroupId(groupId); setSelectedGameId(null); }}
             onRemoveParticipant={removeParticipant}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
