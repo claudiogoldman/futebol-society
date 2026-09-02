@@ -502,7 +502,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -528,6 +528,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [guestPositionDraft, setGuestPositionDraft] = useState('');
   const [guestManagementOpen, setGuestManagementOpen] = useState(false);
+  const [editingTeams, setEditingTeams] = useState(false);
+  const [teamDraft, setTeamDraft] = useState({});
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -702,12 +704,34 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         ) : (
           <>
             {canManage && (
-              <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
-                <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
-              </button>
+              <div className="sf-modal-actions">
+                <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
+                  <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
+                </button>
+                {hasTeams && !editingTeams && (
+                  <button className="sf-btn-ghost" onClick={() => { const draft = {}; [...(game.teamA || []), ...(game.teamB || [])].forEach((p) => { draft[p.id] = (game.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B'; }); setTeamDraft(draft); setEditingTeams(true); }}>Remanejar times</button>
+                )}
+              </div>
             )}
             {hasTeams && (
               <>
+                {editingTeams && (
+                  <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
+                    <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Distribuição dos times</div>
+                    {[...(game.teamA || []), ...(game.teamB || [])].map((p) => (
+                      <div key={p.id} className="sf-cost-row">
+                        <span>{p.name}{isGoleiro(p) ? ' (GOL)' : ''}</span>
+                        <select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>
+                          <option value="A">Time A</option><option value="B">Time B</option>
+                        </select>
+                      </div>
+                    ))}
+                    <div className="sf-modal-actions">
+                      <button className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button>
+                      <button className="sf-btn-primary" onClick={async () => { const ok = await onSaveTeams(game.id, teamDraft, activePlayers); if (ok) setEditingTeams(false); }}>Salvar times</button>
+                    </div>
+                  </div>
+                )}
                 <PitchView teamA={game.teamA} teamB={game.teamB} />
                 <div className="sf-teams-legend">
                   <div><span className="sf-dot sf-dot-a" /> Time A — {game.teamA.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
@@ -1503,6 +1527,20 @@ function MainApp({ session }) {
     return true;
   };
 
+  const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {
+    const rows = activePlayers.map((p) => ({ game_id: gameId, user_id: p.id, team: teamDraft[p.id] === 'B' ? 'B' : 'A' }));
+    if (rows.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
+    const teamACount = rows.filter((r) => r.team === 'A').length;
+    const teamBCount = rows.filter((r) => r.team === 'B').length;
+    if (!teamACount || !teamBCount) { alert('Distribua os jogadores entre os dois times.'); return false; }
+    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
+    if (deleteError) { alert('Não foi possível atualizar os times: ' + deleteError.message); return false; }
+    const { error } = await supabase.from('game_teams').insert(rows);
+    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+
   const handleDraw = async (gameId, confirmedPlayers) => {
     const { teamA, teamB } = drawTeams(confirmedPlayers);
     const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
@@ -1873,6 +1911,7 @@ function MainApp({ session }) {
             onSetGameLocation={setGameLocation}
             onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
+            onSaveTeams={handleSaveTeams}
             onTogglePaid={togglePaid}
             onSaveResult={saveResult}
             onSavePlayerStats={savePlayerStats}
