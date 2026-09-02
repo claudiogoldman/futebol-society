@@ -1,0 +1,89 @@
+name: Refactor game management UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Refactor management UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          # lucide icons used by the persistent management FAB/modal
+          old = "  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy\n"
+          new = "  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy, Settings, X\n"
+          if old not in s:
+              raise SystemExit('icon import anchor not found')
+          s = s.replace(old, new, 1)
+
+          # The guest form is now owned by the management modal.
+          s = s.replace("  const [guestManagementOpen, setGuestManagementOpen] = useState(false);\n", "", 1)
+
+          old = '''        {canManage && (\n          <div style={{ position: 'relative', marginLeft: 'auto' }}>\n            <button type="button" className="sf-admin-toggle" onClick={() => setManagementOpen((v) => !v)}>Gestão ▾</button>\n            {managementOpen && (\n              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: 220, background: 'var(--pitch-mid)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>\n                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); setGuestManagementOpen(true); setTimeout(() => document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0); }}>Adicionar jogador não cadastrado</button>\n                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); if (game.groupId) onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>\n              </div>\n            )}\n          </div>\n        )}\n        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}\n'''
+          new = '''        {canManage && (\n          <button\n            type="button"\n            aria-label="Gestão da partida"\n            title="Gestão da partida"\n            className="sf-game-management-fab"\n            onClick={() => setManagementOpen(true)}\n          >\n            <Settings size={24} />\n          </button>\n        )}\n        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}\n'''
+          if old not in s:
+              raise SystemExit('old header management block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''      <section id="sf-game-location-card" className="sf-card">'''
+          new = '''      {canManage && managementOpen && (\n        <div className="sf-modal-backdrop" onClick={() => setManagementOpen(false)}>\n          <div\n            className="sf-modal sf-game-management-modal"\n            role="dialog"\n            aria-modal="true"\n            aria-labelledby="sf-game-management-title"\n            onClick={(e) => e.stopPropagation()}\n            style={{ maxHeight: '86vh', overflowY: 'auto' }}\n          >\n            <div className="sf-game-management-header">\n              <div>\n                <div id="sf-game-management-title" className="sf-modal-title" style={{ marginBottom: 2 }}>Gestão da partida</div>\n                <div className="sf-muted-sm">{formatDatePtBr(game.date)} · {game.local || 'Local a definir'}</div>\n              </div>\n              <button type="button" className="sf-icon-btn" aria-label="Fechar gestão" onClick={() => setManagementOpen(false)}>\n                <X size={18} />\n              </button>\n            </div>\n\n            <section className="sf-management-area">\n              <div className="sf-card-title"><Target size={16} /> Manter local</div>\n              <div className="sf-management-summary">\n                <div><span className="sf-muted">Nome</span><strong>{game.local || 'Local a definir'}</strong></div>\n                <div><span className="sf-muted">Endereço</span><strong>{game.locationAddress || 'Não informado'}</strong></div>\n                <div><span className="sf-muted">Cidade/UF</span><strong>{game.locationCity || game.locationState ? `${game.locationCity || '—'}/${game.locationState || '—'}` : 'Não informado'}</strong></div>\n              </div>\n              <button\n                type="button"\n                className="sf-btn-primary"\n                onClick={() => {\n                  setLocationNameDraft(game.local || '');\n                  setLocationAddressDraft(game.locationAddress || '');\n                  setLocationCityDraft(game.locationCity || '');\n                  setLocationStateDraft(game.locationState || '');\n                  setLocationLatitudeDraft(game.locationLatitude ?? '');\n                  setLocationLongitudeDraft(game.locationLongitude ?? '');\n                  setManagementOpen(false);\n                  setEditingLocation(true);\n                }}\n              >\n                <Target size={16} /> Editar local da partida\n              </button>\n              {game.groupId && (\n                <button\n                  type="button"\n                  className="sf-btn-ghost"\n                  onClick={() => { setManagementOpen(false); onOpenGroup(game.groupId); }}\n                >\n                  Gerenciar locais do grupo\n                </button>\n              )}\n            </section>\n\n            <section className="sf-management-area">\n              <div className="sf-card-title"><Users size={16} /> Manter jogadores da partida</div>\n              <div className="sf-muted-sm">{activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''} confirmados</div>\n\n              {game.groupId && (\n                <div className="sf-management-player-add">\n                  <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>\n                    <option value="">Adicionar jogador do grupo...</option>\n                    {roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => (\n                      <option key={p.id} value={p.id}>{p.name}</option>\n                    ))}\n                  </select>\n                  <button\n                    type="button"\n                    className="sf-btn-primary"\n                    disabled={!participantDraft}\n                    onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}\n                  >\n                    Adicionar\n                  </button>\n                </div>\n              )}\n\n              <div className="sf-management-subtitle">Adicionar convidado não cadastrado</div>\n              <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />\n              <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />\n              <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}>\n                <option value="">Posição (opcional)</option>\n                {POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}\n              </select>\n              <button\n                type="button"\n                className="sf-btn-primary"\n                style={{ width: '100%', marginTop: 8 }}\n                disabled={!guestNameDraft.trim()}\n                onClick={async () => {\n                  const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft);\n                  if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); }\n                }}\n              >\n                <Plus size={16} /> Adicionar convidado\n              </button>\n\n              <div className="sf-management-subtitle">Jogadores confirmados</div>\n              <div className="sf-rsvp-list">\n                {activePlayers.map((p) => (\n                  <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}>\n                    <span className="sf-rsvp-name">{isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}{p.name}{p.id === myId ? ' (você)' : ''}</span>\n                    <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />\n                    {p.id !== myId && (\n                      <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>\n                    )}\n                  </div>\n                ))}\n                {activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}\n              </div>\n            </section>\n\n            <div className="sf-modal-actions">\n              <button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button>\n            </div>\n          </div>\n        </div>\n      )}\n\n      <section id="sf-game-location-card" className="sf-card">'''
+          if old not in s:
+              raise SystemExit('location section anchor not found')
+          s = s.replace(old, new, 1)
+
+          # Remove the duplicated inline guest maintenance form.
+          old_start = '''        {canManage && guestManagementOpen && (\n          <div id="sf-add-guest-form" className="sf-card" style={{ marginTop: 10, marginBottom: 0, padding: 10, background: 'var(--pitch-dark)' }}>'''
+          start = s.find(old_start)
+          if start < 0:
+              raise SystemExit('inline guest form start not found')
+          end_marker = '''        {canManage && game.groupId && (\n          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>'''
+          end = s.find(end_marker, start)
+          if end < 0:
+              raise SystemExit('inline participant form anchor not found')
+          s = s[:start] + s[end:]
+
+          # Replace the remaining inline group-player form with a clean modal launcher.
+          old = '''        {canManage && game.groupId && (\n          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>\n            <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>\n              <option value="">Adicionar jogador do grupo...</option>\n              {roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => (\n                <option key={p.id} value={p.id}>{p.name}</option>\n              ))}\n            </select>\n            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>\n          </div>\n        )}'''
+          new = '''        {canManage && (\n          <button\n            type="button"\n            className="sf-btn-ghost"\n            style={{ width: '100%', marginTop: 10 }}\n            onClick={() => setManagementOpen(true)}\n          >\n            <Users size={16} /> Adicionar jogador\n          </button>\n        )}'''
+          if old not in s:
+              raise SystemExit('inline group-player form not found after guest removal')
+          s = s.replace(old, new, 1)
+
+          # Add dedicated styles to the existing in-file CSS constant.
+          css_anchor = "  .sf-admin-toggle { font-size: 10px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); border-radius: 8px; padding: 6px 8px; cursor: pointer; white-space: nowrap; }\n"
+          css = '''\n  .sf-game-management-fab {\n    position: fixed;\n    right: 18px;\n    bottom: 92px;\n    z-index: 60;\n    width: 56px;\n    height: 56px;\n    border: 0;\n    border-radius: 50%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    background: var(--floodlight);\n    color: var(--pitch-dark);\n    box-shadow: 0 8px 24px rgba(0,0,0,.38);\n    cursor: pointer;\n  }\n  .sf-game-management-fab:active { transform: scale(.96); }\n  .sf-game-management-modal { gap: 12px; }\n  .sf-game-management-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }\n  .sf-management-area { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }\n  .sf-management-summary { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 4px; }\n  .sf-management-summary > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; font-size: 12px; }\n  .sf-management-summary strong { text-align: right; font-weight: 500; color: var(--chalk); }\n  .sf-management-subtitle { font-size: 11px; color: var(--chalk-dim); margin-top: 8px; }\n  .sf-management-player-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }\n  @media (max-width: 380px) {\n    .sf-game-management-fab { right: 14px; bottom: 86px; }\n    .sf-management-player-add { grid-template-columns: 1fr; }\n  }\n'''
+          if css_anchor not in s:
+              raise SystemExit('CSS anchor not found')
+          s = s.replace(css_anchor, css_anchor + css, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Verify build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit refactor and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git rm .github/workflows/refactor-game-management.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: restore floating game management modal"
+          git push
