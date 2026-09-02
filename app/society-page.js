@@ -502,7 +502,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -523,6 +523,10 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [pixCityDraft, setPixCityDraft] = useState('');
   const [pixOwnerDraft, setPixOwnerDraft] = useState('');
   const [participantDraft, setParticipantDraft] = useState('');
+  const [managementOpen, setManagementOpen] = useState(false);
+  const [guestNameDraft, setGuestNameDraft] = useState('');
+  const [guestEmailDraft, setGuestEmailDraft] = useState('');
+  const [guestPositionDraft, setGuestPositionDraft] = useState('');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -580,10 +584,21 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           <div className="sf-eyebrow">{formatDatePtBr(game.date)}</div>
           <div className="sf-h2">{game.local || 'Local a definir'}</div>
         </div>
+        {canManage && (
+          <div style={{ position: 'relative', marginLeft: 'auto' }}>
+            <button type="button" className="sf-admin-toggle" onClick={() => setManagementOpen((v) => !v)}>Gestão ▾</button>
+            {managementOpen && (
+              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: 220, background: 'var(--pitch-mid)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>
+                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Adicionar jogador não cadastrado</button>
+                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); document.getElementById('sf-game-location-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>Gerenciar local da partida</button>
+              </div>
+            )}
+          </div>
+        )}
         {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}
       </div>
 
-      <section className="sf-card">
+      <section id="sf-game-location-card" className="sf-card">
         <div className="sf-card-title"><Target size={16} /> Local da partida</div>
         {!editingLocation ? <>
           <div className="sf-cost-row"><span className="sf-muted">Nome</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{game.local || '—'}</span></div>
@@ -652,6 +667,18 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             );
           })}
         </div>
+        {canManage && (
+          <div id="sf-add-guest-form" className="sf-card" style={{ marginTop: 10, marginBottom: 0, padding: 10, background: 'var(--pitch-dark)' }}>
+            <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Adicionar jogador não cadastrado</div>
+            <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
+            <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />
+            <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}>
+              <option value="">Posição (opcional)</option>
+              {POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}
+            </select>
+            <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}>Adicionar convidado</button>
+          </div>
+        )}
         {canManage && game.groupId && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>
             <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>
@@ -1391,6 +1418,13 @@ function MainApp({ session }) {
     })();
   }, [loadAll]);
 
+  const addGuest = async (gameId, name, email, position) => {
+    const { error } = await supabase.rpc('add_game_guest', { p_game_id: gameId, p_name: name, p_email: email || null, p_nationality_code: 'BR', p_positions: position ? [position] : [] });
+    if (error) { alert('Não foi possível adicionar o convidado: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+
   const addParticipant = async (gameId, userId) => {
     const game = games.find((g) => g.id === gameId);
     if (!game?.groupId) { alert('A partida precisa estar vinculada a um grupo.'); return; }
@@ -1828,6 +1862,7 @@ function MainApp({ session }) {
             onBack={() => setSelectedGameId(null)}
             onToggleMyRSVP={toggleMyRSVP}
             onAddParticipant={addParticipant}
+            onAddGuest={addGuest}
             onRemoveParticipant={removeParticipant}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
