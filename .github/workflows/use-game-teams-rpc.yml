@@ -1,0 +1,81 @@
+name: Use game teams RPC
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch team persistence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = """  const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {
+    const rows = activePlayers.map((p) => ({ game_id: gameId, user_id: p.id, team: teamDraft[p.id] === 'B' ? 'B' : 'A' }));
+    if (rows.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
+    const teamACount = rows.filter((r) => r.team === 'A').length;
+    const teamBCount = rows.filter((r) => r.team === 'B').length;
+    if (!teamACount || !teamBCount) { alert('Distribua os jogadores entre os dois times.'); return false; }
+    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
+    if (deleteError) { alert('Não foi possível atualizar os times: ' + deleteError.message); return false; }
+    const { error } = await supabase.from('game_teams').insert(rows);
+    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };"""
+          new = """  const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {
+    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B').map((p) => p.id);
+    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
+    if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
+    if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
+    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA, p_team_b: teamB });
+    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };"""
+          if old not in s: raise SystemExit('handleSaveTeams block not found')
+          s = s.replace(old, new, 1)
+
+          old = """  const handleDraw = async (gameId, confirmedPlayers) => {
+    const { teamA, teamB } = drawTeams(confirmedPlayers);
+    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
+    if (deleteError) { alert('Não foi possível limpar o sorteio anterior: ' + deleteError.message); return false; }
+    const rows = [
+      ...teamA.map((p) => ({ game_id: gameId, user_id: p.id, team: 'A' })),
+      ...teamB.map((p) => ({ game_id: gameId, user_id: p.id, team: 'B' })),
+    ];
+    if (rows.length) {
+      const { error } = await supabase.from('game_teams').insert(rows);
+      if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
+    }
+    await loadAll();
+    return true;
+  };"""
+          new = """  const handleDraw = async (gameId, confirmedPlayers) => {
+    const { teamA, teamB } = drawTeams(confirmedPlayers);
+    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA.map((p) => p.id), p_team_b: teamB.map((p) => p.id) });
+    if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };"""
+          if old not in s: raise SystemExit('handleDraw block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: persist game teams atomically"
+          git push
