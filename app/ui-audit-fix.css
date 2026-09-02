@@ -1,0 +1,12 @@
+/* Audit UI: compact numeric/stat columns in ranking and match tables. */
+.sf-detail table th:not(:first-child),
+.sf-detail table td:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Keep the player/name column readable while numeric columns align consistently. */
+.sf-detail table th:first-child,
+.sf-detail table td:first-child {
+  text-align: left;
+}
