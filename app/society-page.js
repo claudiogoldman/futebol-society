@@ -527,7 +527,10 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
   const [myAssistsDraft, setMyAssistsDraft] = useState(game.assists?.[myId] || 0);
-  // The persistent game_waitlist table is the source of truth for substitutes.
+  // Confirmed participants and the persistent waitlist are separate sources of truth.
+  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const maxPlayers = game.maxPlayers || null;
+  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
   const waitlistIds = game.waitlist || [];
   const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
   const gkPays = game.goalkeeperPays !== false;
