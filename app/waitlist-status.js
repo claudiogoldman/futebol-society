@@ -12,14 +12,23 @@ export default function WaitlistStatus() {
   const load = async () => {
     const { data: authData } = await supabase.auth.getSession();
     const user = authData?.session?.user;
-    if (!user) return setItems([]);
+    if (!user) {
+      setSession(null);
+      setItems([]);
+      return;
+    }
     setSession(authData.session);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('game_waitlist')
       .select('id,game_id,queued_at,games:game_id(id,date,local,score_a,score_b)')
       .eq('user_id', user.id)
       .order('queued_at', { ascending: true });
+
+    if (error) {
+      setItems([]);
+      return;
+    }
 
     const active = (data || []).filter((item) => {
       const game = Array.isArray(item.games) ? item.games[0] : item.games;
@@ -27,12 +36,8 @@ export default function WaitlistStatus() {
     });
 
     const enriched = await Promise.all(active.map(async (item) => {
-      const { count } = await supabase
-        .from('game_waitlist')
-        .select('id', { count: 'exact', head: true })
-        .eq('game_id', item.game_id)
-        .lte('queued_at', item.queued_at);
-      return { ...item, position: count || 1 };
+      const { data: position, error: positionError } = await supabase.rpc('get_game_waitlist_position', { p_game_id: item.game_id });
+      return { ...item, position: positionError || position == null ? null : position };
     }));
 
     setItems(enriched);
@@ -69,7 +74,7 @@ export default function WaitlistStatus() {
             <div className="sf-waitlist-head">
               <div>
                 <strong>Lista de suplentes</strong>
-                <small>Você será promovido automaticamente quando surgir uma vaga.</small>
+                <small>Você está inscrito e será promovido automaticamente quando surgir uma vaga.</small>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Fechar"><X size={18} /></button>
             </div>
@@ -82,7 +87,7 @@ export default function WaitlistStatus() {
                       <strong>{game.local || 'Local a definir'}</strong>
                       <small>{game.date ? new Date(`${game.date}T12:00:00`).toLocaleDateString('pt-BR') : 'Data a definir'}</small>
                     </div>
-                    <span>#{item.position}</span>
+                    <span>{item.position != null ? `#${item.position}` : 'suplente'}</span>
                     <button className="sf-waitlist-leave" onClick={() => leaveWaitlist(item.id)}>Sair</button>
                   </div>
                 );
