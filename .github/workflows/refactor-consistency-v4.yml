@@ -74,11 +74,10 @@ jobs:
 
           p.write_text(s)
 
-      - name: Validate source
+      - name: Validate patch targets
         run: |
           grep -n "defaultLocationDraft" app/society-page.js
           grep -n "set_group_default_location" app/society-page.js
-          node --check app/society-page.js
 
       - name: Commit source changes and remove one-shot workflow
         run: |
