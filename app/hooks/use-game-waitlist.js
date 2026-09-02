@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import {
+  getMyWaitlistPosition,
+  leaveMyWaitlist,
+  loadMyActiveWaitlist,
+} from '../services/game-waitlist-service';
 
 /**
- * Loads the authenticated user's active game waitlist entries and their FIFO
- * position. The position is resolved by the database RPC because waitlist
- * rows are intentionally protected by RLS.
+ * Presentation-facing waitlist state. Database access is delegated to the
+ * service so RLS-sensitive queries and FIFO position logic stay centralized.
  */
 export function useGameWaitlist() {
   const [session, setSession] = useState(null);
@@ -24,40 +28,23 @@ export function useGameWaitlist() {
 
     setSession(authData.session);
 
-    const { data, error } = await supabase
-      .from('game_waitlist')
-      .select('id,game_id,queued_at,games:game_id(id,date,local,score_a,score_b)')
-      .eq('user_id', user.id)
-      .order('queued_at', { ascending: true });
-
-    if (error) {
+    try {
+      const active = await loadMyActiveWaitlist(user.id);
+      const enriched = await Promise.all(active.map(async (item) => {
+        try {
+          return { ...item, position: await getMyWaitlistPosition(item.game_id) };
+        } catch {
+          return { ...item, position: null };
+        }
+      }));
+      setItems(enriched);
+    } catch {
       setItems([]);
-      return;
     }
-
-    const active = (data || []).filter((item) => {
-      const game = Array.isArray(item.games) ? item.games[0] : item.games;
-      return game && game.score_a == null && game.score_b == null;
-    });
-
-    const enriched = await Promise.all(active.map(async (item) => {
-      const { data: position, error: positionError } = await supabase.rpc(
-        'get_game_waitlist_position',
-        { p_game_id: item.game_id },
-      );
-
-      return {
-        ...item,
-        position: positionError || position == null ? null : position,
-      };
-    }));
-
-    setItems(enriched);
   }, []);
 
   const leaveWaitlist = useCallback(async (id) => {
-    const { error } = await supabase.from('game_waitlist').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    await leaveMyWaitlist(id);
     await load();
   }, [load]);
 
