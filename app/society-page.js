@@ -543,7 +543,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
   // editing is creator-only, with no admin override — admins can still SEE
   // every match (that's handled server-side via RLS visibility), just not edit it
-  const canManage = myId === game.createdBy;
+  const canManage = myId === game.createdBy || (game.groupId && groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(myId) && m.role === 'admin'));
   const organizer = roster.find((p) => p.id === (game.organizerId || game.createdBy));
   // pix key/receiver/city are per-game settings (whoever is collecting for THAT
   // match may differ from the organizer), falling back to sensible defaults
@@ -996,6 +996,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [avatarUrlDraft, setAvatarUrlDraft] = useState(group.avatarUrl || '');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [organizerDraft, setOrganizerDraft] = useState(group.defaultOrganizerId || '');
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1027,7 +1028,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const save = () => {
     onSetDefaults(group.id, {
       name: nameDraft.trim() || group.name,
-      default_local: localDraft.trim() || null,
+      default_local: group.defaultLocal || null,
       default_day_of_week: dayDraft !== '' ? parseInt(dayDraft, 10) : null,
       default_time: timeDraft || null,
       default_max_players: maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null,
@@ -1141,15 +1142,31 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-muted-sm" style={{ marginTop: 4 }}>{[loc.address, loc.city && loc.state ? loc.city + '/' + loc.state : (loc.city || loc.state)].filter(Boolean).join(' · ') || 'Endereço não informado'}</div>
           </div>
         ))}
-        {canManage && <div style={{ marginTop: 10 }}>
-          <label className="sf-field-label">Cadastrar novo local</label>
-          <input className="sf-input" placeholder="Nome da quadra / arena" value={locationDraft.name} onChange={(e) => setLocationDraft({ ...locationDraft, name: e.target.value })} />
-          <input className="sf-input" style={{ marginTop: 6 }} placeholder="Rua, número, complemento" value={locationDraft.address} onChange={(e) => setLocationDraft({ ...locationDraft, address: e.target.value })} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 6, marginTop: 6 }}><input className="sf-input" placeholder="Cidade" value={locationDraft.city} onChange={(e) => setLocationDraft({ ...locationDraft, city: e.target.value })} /><input className="sf-input" maxLength="2" placeholder="UF" value={locationDraft.state} onChange={(e) => setLocationDraft({ ...locationDraft, state: e.target.value.toUpperCase() })} /></div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 }}><input type="number" step="any" className="sf-input" placeholder="Latitude" value={locationDraft.latitude} onChange={(e) => setLocationDraft({ ...locationDraft, latitude: e.target.value })} /><input type="number" step="any" className="sf-input" placeholder="Longitude" value={locationDraft.longitude} onChange={(e) => setLocationDraft({ ...locationDraft, longitude: e.target.value })} /></div>
-          <label className="sf-check-row" style={{ marginTop: 8 }}><input type="checkbox" checked={locationDraft.isDefault} onChange={(e) => setLocationDraft({ ...locationDraft, isDefault: e.target.checked })} /> Usar como local padrão do grupo</label>
-          <button className="sf-btn-primary" style={{ marginTop: 8 }} onClick={async () => { if (!locationDraft.name.trim()) return alert('Informe o nome do local.'); const ok = await onCreateLocation(group.id, locationDraft); if (ok) setLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false }); }}>Cadastrar local</button>
-        </div>}
+        {canManage && (
+          <>
+            <button type="button" className="sf-btn-primary" style={{ marginTop: 10 }} onClick={() => setLocationModalOpen(true)}>
+              <Plus size={16} /> Cadastrar novo local
+            </button>
+            {locationModalOpen && (
+              <div className="sf-modal-backdrop" onClick={() => setLocationModalOpen(false)}>
+                <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
+                  <div className="sf-modal-title">Cadastrar novo local</div>
+                  <label className="sf-field-label">Nome da quadra / arena</label>
+                  <input autoFocus className="sf-input" placeholder="Ex.: Arena Soccer" value={locationDraft.name} onChange={(e) => setLocationDraft({ ...locationDraft, name: e.target.value })} />
+                  <label className="sf-field-label">Endereço</label>
+                  <input className="sf-input" placeholder="Rua, número, complemento" value={locationDraft.address} onChange={(e) => setLocationDraft({ ...locationDraft, address: e.target.value })} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 6 }}><input className="sf-input" placeholder="Cidade" value={locationDraft.city} onChange={(e) => setLocationDraft({ ...locationDraft, city: e.target.value })} /><input className="sf-input" maxLength="2" placeholder="UF" value={locationDraft.state} onChange={(e) => setLocationDraft({ ...locationDraft, state: e.target.value.toUpperCase() })} /></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}><input type="number" step="any" className="sf-input" placeholder="Latitude (opcional)" value={locationDraft.latitude} onChange={(e) => setLocationDraft({ ...locationDraft, latitude: e.target.value })} /><input type="number" step="any" className="sf-input" placeholder="Longitude (opcional)" value={locationDraft.longitude} onChange={(e) => setLocationDraft({ ...locationDraft, longitude: e.target.value })} /></div>
+                  <label className="sf-check-row"><input type="checkbox" checked={locationDraft.isDefault} onChange={(e) => setLocationDraft({ ...locationDraft, isDefault: e.target.checked })} /> Usar como local padrão do grupo</label>
+                  <div className="sf-modal-actions">
+                    <button type="button" className="sf-btn-ghost" onClick={() => setLocationModalOpen(false)}>Cancelar</button>
+                    <button type="button" className="sf-btn-primary" onClick={async () => { if (!locationDraft.name.trim()) return alert('Informe o nome do local.'); const ok = await onCreateLocation(group.id, locationDraft); if (ok) { setLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false }); setLocationModalOpen(false); } }}>Cadastrar local</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <section className="sf-card">
