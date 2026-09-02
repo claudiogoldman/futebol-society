@@ -1,4 +1,5 @@
 import './group-edit-fix.css';
+import './ui-audit-fix.css';
 import ConsolidatedManager from './consolidated-manager';
 
 export const metadata = {
