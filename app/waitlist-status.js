@@ -1,11 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { Clock3, X } from 'lucide-react';
 import { useGameWaitlist } from './hooks/use-game-waitlist';
 
 export default function WaitlistStatus() {
   const { session, items, leaveWaitlist } = useGameWaitlist();
-  const [open, setOpen] = require('react').useState(false);
+  const [open, setOpen] = useState(false);
 
   if (!session || !items.length) return null;
 
