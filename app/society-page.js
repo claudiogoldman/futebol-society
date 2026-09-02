@@ -527,11 +527,9 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
   const [myAssistsDraft, setMyAssistsDraft] = useState(game.assists?.[myId] || 0);
-  // preserve RSVP order (first-come, first-served) so the waitlist is well defined
-  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
-  const maxPlayers = game.maxPlayers || null;
-  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
-  const waitlistPlayers = maxPlayers ? confirmedPlayers.slice(maxPlayers) : [];
+  // The persistent game_waitlist table is the source of truth for substitutes.
+  const waitlistIds = game.waitlist || [];
+  const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
   const gkPays = game.goalkeeperPays !== false;
   const payingPlayers = gkPays ? activePlayers : activePlayers.filter((p) => !isGoleiro(p));
   const rateio = payingPlayers.length > 0 ? (game.cost || 0) / payingPlayers.length : 0;
@@ -540,7 +538,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const allPlayers = hasTeams ? [...game.teamA, ...game.teamB] : [];
   const destaques = useMemo(() => computeGameDestaques(game), [game]);
   const iAmConfirmed = game.confirmed.includes(myId);
-  const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);
+  const iAmWaitlisted = waitlistIds.includes(myId);
+  const myWaitlistPos = waitlistIds.findIndex((id) => id === myId);
   // editing is creator-only, with no admin override — admins can still SEE
   // every match (that's handled server-side via RLS visibility), just not edit it
   const canManage = myId === game.createdBy || (game.groupId && groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(myId) && m.role === 'admin'));
@@ -627,10 +626,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             )}
           </div>
         )}
-        <button className={`sf-btn-primary ${iAmConfirmed ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
-          {iAmConfirmed
-            ? (myWaitlistPos >= 0 ? <><Check size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : <><Check size={16} /> Você tá confirmado</>)
-            : 'Confirmar minha presença'}
+        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
+          {iAmConfirmed ? <><Check size={16} /> Você tá confirmado</> : iAmWaitlisted ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
         </button>
         {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
@@ -660,7 +657,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
-            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button>
+            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>
           </div>
         )}
       </section>
@@ -1001,6 +998,22 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
   const canManage = isOwner || myMembership?.role === 'admin';
+  useEffect(() => {
+    setNameDraft(group.name || '');
+    setDayDraft(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
+    setTimeDraft(group.defaultTime || '');
+    setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
+    setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');
+    setGoalkeeperPaysDraft(group.defaultGoalkeeperPays !== false);
+    setPixKeyDraft(group.defaultPixKey || '');
+    setPixReceiverDraft(group.defaultPixReceiverName || '');
+    setPixCityDraft(group.defaultPixCity || '');
+    setOrganizerDraft(group.defaultOrganizerId || '');
+    setAvatarDraft(group.avatar || null);
+    setAvatarUrlDraft(group.avatarUrl || '');
+    setEditing(false);
+  }, [group.id]);
+
 
   const handleAvatarUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -1025,8 +1038,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   };
   const upcoming = [...games].sort((a, b) => (a.date < b.date ? 1 : -1));
 
-  const save = () => {
-    onSetDefaults(group.id, {
+  const save = async () => {
+    const ok = await onSetDefaults(group.id, {
       name: nameDraft.trim() || group.name,
       default_local: group.defaultLocal || null,
       default_day_of_week: dayDraft !== '' ? parseInt(dayDraft, 10) : null,
@@ -1041,7 +1054,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       avatar: avatarDraft,
       avatar_url: avatarUrlDraft || null,
     });
-    setEditing(false);
+    if (ok) setEditing(false);
   };
 
   return (
@@ -1268,10 +1281,11 @@ function MainApp({ session }) {
   const me = profiles.find((p) => p.id === myId);
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
+      supabase.from('game_waitlist').select('*').order('queued_at', { ascending: true }).order('id', { ascending: true }),
       supabase.from('game_teams').select('*'),
       supabase.from('payments').select('*'),
       supabase.from('goals').select('*'),
@@ -1288,6 +1302,7 @@ function MainApp({ session }) {
         .filter((c) => c.game_id === g.id)
         .sort((a, b) => new Date(a.confirmed_at) - new Date(b.confirmed_at))
         .map((c) => c.user_id);
+      const waitlist = (waitlistRes.data || []).filter((w) => w.game_id === g.id).sort((a, b) => new Date(a.queued_at) - new Date(b.queued_at) || String(a.id).localeCompare(String(b.id))).map((w) => w.user_id);
       const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);
       const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);
       const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);
@@ -1315,7 +1330,7 @@ function MainApp({ session }) {
         pixCity: g.pix_city || null,
         groupId: g.group_id || null,
         organizerId: g.organizer_id || null,
-        confirmed, teamA, teamB, payments, scorers, assists, ratings,
+        confirmed, waitlist, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
     });
@@ -1390,22 +1405,31 @@ function MainApp({ session }) {
 
   const toggleMyRSVP = async (gameId) => {
     const g = games.find((x) => x.id === gameId);
+    if (!g) return;
+    let error = null;
     if (g.confirmed.includes(myId)) {
-      await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId);
+      ({ error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId));
+    } else if ((g.waitlist || []).includes(myId)) {
+      ({ error } = await supabase.from('game_waitlist').delete().eq('game_id', gameId).eq('user_id', myId));
     } else {
-      await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId });
+      ({ error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId }));
     }
-    loadAll();
+    if (error) { alert('Não foi possível alterar sua presença: ' + error.message); return; }
+    await loadAll();
   };
 
   const setCost = async (gameId, cost) => {
-    await supabase.from('games').update({ cost }).eq('id', gameId);
-    loadAll();
+    const { error } = await supabase.from('games').update({ cost }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar o custo da partida: ' + error.message); return false; }
+    await loadAll();
+    return true;
   };
 
   const setGkPays = async (gameId, goalkeeper_pays) => {
-    await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
-    loadAll();
+    const { error } = await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar se o goleiro paga: ' + error.message); return false; }
+    await loadAll();
+    return true;
   };
 
   const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId }) => {
@@ -1430,8 +1454,10 @@ function MainApp({ session }) {
   };
 
   const setMaxPlayers = async (gameId, maxPlayers) => {
-    await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
-    loadAll();
+    const { error } = await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar o limite de vagas: ' + error.message); return false; }
+    await loadAll();
+    return true;
   };
 
   const handleDraw = async (gameId, confirmedPlayers) => {
@@ -1600,8 +1626,10 @@ function MainApp({ session }) {
   };
 
   const setGroupDefaults = async (groupId, fields) => {
-    await supabase.from('groups').update(fields).eq('id', groupId);
-    loadAll();
+    const { error } = await supabase.from('groups').update(fields).eq('id', groupId);
+    if (error) { alert('Não foi possível salvar os padrões do grupo: ' + error.message); return false; }
+    await loadAll();
+    return true;
   };
 
   const leaveGroup = async (groupId) => {
