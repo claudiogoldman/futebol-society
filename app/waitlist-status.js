@@ -38,11 +38,21 @@ export default function WaitlistStatus() {
     setItems(enriched);
   };
 
+  const leaveWaitlist = async (id) => {
+    const { error } = await supabase.from('game_waitlist').delete().eq('id', id);
+    if (error) return alert('Não foi possível sair da lista: ' + error.message);
+    await load();
+  };
+
   useEffect(() => {
     load();
     const onFocus = () => load();
+    const interval = window.setInterval(load, 30000);
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   if (!session || !items.length) return null;
@@ -73,6 +83,7 @@ export default function WaitlistStatus() {
                       <small>{game.date ? new Date(`${game.date}T12:00:00`).toLocaleDateString('pt-BR') : 'Data a definir'}</small>
                     </div>
                     <span>#{item.position}</span>
+                    <button className="sf-waitlist-leave" onClick={() => leaveWaitlist(item.id)}>Sair</button>
                   </div>
                 );
               })}
