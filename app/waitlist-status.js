@@ -1,70 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Clock3, X } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { useGameWaitlist } from './hooks/use-game-waitlist';
 
 export default function WaitlistStatus() {
-  const [session, setSession] = useState(null);
-  const [items, setItems] = useState([]);
-  const [open, setOpen] = useState(false);
-
-  const load = async () => {
-    const { data: authData } = await supabase.auth.getSession();
-    const user = authData?.session?.user;
-    if (!user) {
-      setSession(null);
-      setItems([]);
-      return;
-    }
-    setSession(authData.session);
-
-    const { data, error } = await supabase
-      .from('game_waitlist')
-      .select('id,game_id,queued_at,games:game_id(id,date,local,score_a,score_b)')
-      .eq('user_id', user.id)
-      .order('queued_at', { ascending: true });
-
-    if (error) {
-      setItems([]);
-      return;
-    }
-
-    const active = (data || []).filter((item) => {
-      const game = Array.isArray(item.games) ? item.games[0] : item.games;
-      return game && game.score_a == null && game.score_b == null;
-    });
-
-    const enriched = await Promise.all(active.map(async (item) => {
-      const { data: position, error: positionError } = await supabase.rpc('get_game_waitlist_position', { p_game_id: item.game_id });
-      return { ...item, position: positionError || position == null ? null : position };
-    }));
-
-    setItems(enriched);
-  };
-
-  const leaveWaitlist = async (id) => {
-    const { error } = await supabase.from('game_waitlist').delete().eq('id', id);
-    if (error) return alert('Não foi possível sair da lista: ' + error.message);
-    await load();
-  };
-
-  useEffect(() => {
-    load();
-    const onFocus = () => load();
-    const interval = window.setInterval(load, 30000);
-    window.addEventListener('focus', onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, []);
+  const { session, items, leaveWaitlist } = useGameWaitlist();
+  const [open, setOpen] = require('react').useState(false);
 
   if (!session || !items.length) return null;
 
+  const handleLeave = async (id) => {
+    try {
+      await leaveWaitlist(id);
+    } catch (error) {
+      alert('Não foi possível sair da lista: ' + error.message);
+    }
+  };
+
   return (
     <>
-      <button className="sf-waitlist-trigger" onClick={() => setOpen(true)} title="Minhas listas de suplentes">
+      <button
+        className="sf-waitlist-trigger"
+        onClick={() => setOpen(true)}
+        title="Minhas listas de suplentes"
+      >
         <Clock3 size={15} /> <span>Suplente ({items.length})</span>
       </button>
 
@@ -88,7 +47,7 @@ export default function WaitlistStatus() {
                       <small>{game.date ? new Date(`${game.date}T12:00:00`).toLocaleDateString('pt-BR') : 'Data a definir'}</small>
                     </div>
                     <span>{item.position != null ? `#${item.position}` : 'suplente'}</span>
-                    <button className="sf-waitlist-leave" onClick={() => leaveWaitlist(item.id)}>Sair</button>
+                    <button className="sf-waitlist-leave" onClick={() => handleLeave(item.id)}>Sair</button>
                   </div>
                 );
               })}
