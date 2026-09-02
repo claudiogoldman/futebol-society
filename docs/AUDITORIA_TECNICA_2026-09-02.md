@@ -12,11 +12,19 @@ Revisão do branch `main`, banco Supabase de produção e deploy Vercel do proje
 - Administradores podem promover/remover outros administradores.
 - Membro comum não pode se auto-promover.
 
-Essas regras são refletidas na função `is_group_admin()` e nas políticas de `group_members`.
+### Suplentes / lista de espera
+
+Regra definida pelo produto:
+
+- Quando a partida atingir `max_players`, novos participantes entram em uma lista de suplentes persistente.
+- A fila é FIFO, pela ordem de entrada.
+- O próprio participante deve conseguir saber que está na lista e sua posição.
+- Quando uma vaga for liberada antes do encerramento da partida, o primeiro suplente é promovido automaticamente para `game_confirmations`.
+- A promoção não ocorre depois que a partida estiver encerrada.
+
+A camada de banco implementa a fila em `game_waitlist`, o ingresso automático no `join_game_by_token()` e a promoção pelo trigger `trg_promote_next_game_waitlist`.
 
 ## Integridade de participantes
-
-Foram verificadas as relações entre confirmações, times, pagamentos e partidas.
 
 Resultado da verificação em produção:
 
@@ -26,16 +34,33 @@ Resultado da verificação em produção:
 - partidas agrupadas com organizador fora do grupo: 0
 - grupos com mais de um local padrão: 0
 - avaliações envolvendo não participantes: 0
+- duplicidades na lista de espera: 0
 
 ## Capacidade da partida
 
-A capacidade passou a ser protegida em três níveis:
+A capacidade é protegida em múltiplas camadas:
 
-1. `join_game_by_token()` verifica a capacidade;
+1. `join_game_by_token()` verifica a capacidade e, se lotada, registra o participante na fila;
 2. `add_game_guest()` verifica a capacidade;
-3. trigger `trg_enforce_game_confirmation_capacity` protege qualquer inserção direta em `game_confirmations` e utiliza lock da partida.
+3. trigger `trg_enforce_game_confirmation_capacity` protege inserções em `game_confirmations` e utiliza lock da partida;
+4. a promoção da fila também respeita a capacidade e ocorre antes do encerramento.
 
-Isso evita que a regra dependa apenas da interface.
+## Partida encerrada
+
+Foi definida e implementada a regra de que, após o encerramento da partida, somente administrador do grupo/proprietário pode alterar dados estruturais da partida.
+
+No modelo atual, uma partida é considerada encerrada quando `score_a` e `score_b` estão ambos preenchidos. O criador/organizador ainda pode registrar o resultado final; depois disso, alterações estruturais ficam restritas a administrador.
+
+A restrição abrange, entre outros:
+
+- dados da partida;
+- remoção/inclusão de participantes;
+- times e novo sorteio;
+- convidados;
+- gols/estatísticas estruturais;
+- registros financeiros da partida.
+
+As avaliações (`ratings`) continuam sendo uma ação pós-partida dos próprios participantes e não foram bloqueadas por essa regra.
 
 ## Participante financeiro
 
@@ -47,38 +72,25 @@ A política de inserção/alteração de `ratings` exige que tanto avaliador qua
 
 ## RPCs e SECURITY DEFINER
 
-- `add_game_guest()` permanece disponível apenas para `authenticated`, pois é uma RPC de aplicação.
-- A execução pública/anônima dessa RPC foi revogada.
-- Funções exclusivamente de trigger tiveram o `EXECUTE` removido de `authenticated`.
-- Funções auxiliares de RLS e RPCs de convite continuam expostas somente conforme sua finalidade.
-
-## Lista de espera / suplentes
-
-O código de interface possui uma lista de espera derivada de confirmações acima de `max_players`. Porém, a camada de banco agora impede confirmações acima da capacidade.
-
-Portanto, **não existe atualmente uma lista de espera persistente nem regra de promoção automática de suplente**.
-
-Quando alguém cancela uma confirmação, a vaga fica livre. Um novo participante pode ocupar a vaga, mas não há mecanismo persistente que escolha automaticamente o próximo suplente.
-
-A definição de uma fila real de suplentes e de sua regra de promoção é uma decisão de negócio ainda não identificada na documentação analisada.
+As funções `SECURITY DEFINER` verificadas usam `search_path` explícito para `public`. Funções exclusivas de trigger não ficam expostas para execução normal por usuários autenticados.
 
 ## Legado removido
 
 `app/consolidated-manager.js` foi removido da aplicação porque duplicava as funções de convidados e locais, usava `accepted_at` legado e mantinha comportamento diferente do fluxo principal.
 
-O fluxo principal permanece em `app/page.js`.
-
 ## Pendências técnicas identificadas
 
 1. `app/page.js` continua monolítico e concentra UI, domínio e persistência.
-2. O cadastro de local dentro de `GroupDetail` ainda é inline; a evolução para modal/popup continua recomendada.
-3. Há um campo legado `game_guests.accepted_at` sem uso no fluxo principal.
-4. Existem duas árvores históricas de migrations no repositório (`migrations/` e `supabase/migrations/`); a consolidação deve ser tratada separadamente para não alterar o histórico aplicado em produção.
-5. O texto/controle visual de permissões de partidas deve continuar sendo alinhado com as permissões RLS de grupo.
+2. A interface ainda precisa exibir claramente o estado `suplente` e a posição do usuário na fila no fluxo da partida.
+3. O cadastro de local dentro de `GroupDetail` ainda é inline; a evolução para modal/popup continua recomendada.
+4. Há um campo legado `game_guests.accepted_at` sem uso no fluxo principal.
+5. Existem duas árvores históricas de migrations no repositório (`migrations/` e `supabase/migrations/`); a consolidação deve ser tratada separadamente para não alterar o histórico aplicado em produção.
+6. O controle visual de permissões de partidas deve continuar sendo alinhado com as permissões RLS de grupo.
 
 ## Classificação
 
-- Integridade e segurança acima: **implementado e verificado**.
-- Lista de espera persistente/suplentes: **regra de negócio pendente**.
+- Integridade e segurança: **implementado e verificado**.
+- Lista de espera persistente/FIFO/promoção automática: **regra definida e camada de banco implementada**.
+- Exibição visual do estado de suplente: **pendência de UI**.
 - Modal de locais: **recomendação de UX**.
 - Consolidação das migrations: **pendência técnica de arquitetura**.
