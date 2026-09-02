@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/fix-organizer-group-members.js && node scripts/ensure-organizer-confirmation.js && node scripts/apply-location-ui-and-ranking.js && node scripts/fix-location-ui-syntax.js && node scripts/normalize-location-ui.js && next build",
+    "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test"
   },
