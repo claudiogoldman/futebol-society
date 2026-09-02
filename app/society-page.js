@@ -630,7 +630,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           </div>
         )}
         <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
-          {iAmConfirmed ? <><Check size={16} /> Você tá confirmado</> : iAmWaitlisted ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
+          {iAmConfirmed ? <><Check size={16} /> Você está confirmado</> : iAmWaitlisted ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
         </button>
         {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
@@ -1070,7 +1070,6 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
           <div className="sf-eyebrow">Grupo</div>
           <div className="sf-h2">{group.name}</div>
         </div>
-        {canManage && <button type="button" className="sf-admin-toggle" style={{ marginLeft: 'auto' }} onClick={() => setEditing(true)}>Gestão</button>}
         {isOwner && (
           <button className="sf-icon-btn sf-danger" onClick={() => { if (confirm('Apagar esse grupo? As partidas vinculadas não somem, só perdem o vínculo.')) onDelete(group.id); }}>
             <Trash2 size={18} />
