@@ -75,5 +75,5 @@ REVOKE ALL ON FUNCTION public.validate_group_organizer_membership() FROM anon;
 GRANT EXECUTE ON FUNCTION public.validate_group_organizer_membership() TO authenticated;
 
 REVOKE ALL ON FUNCTION public.validate_group_default_organizer_membership() FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.validate_group_default_organizer_membership() TO anon;
+REVOKE ALL ON FUNCTION public.validate_group_default_organizer_membership() FROM anon;
 GRANT EXECUTE ON FUNCTION public.validate_group_default_organizer_membership() TO authenticated;
