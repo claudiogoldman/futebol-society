@@ -97,3 +97,17 @@
   background: #edf5ef;
   font-weight: 800;
 }
+
+/* Organizer selector in the match rateio card. */
+.sf-detail .sf-cost-row select {
+  width: 140px;
+  min-width: 140px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 380px) {
+  .sf-detail .sf-cost-row select {
+    width: 128px;
+    min-width: 128px;
+  }
+}
