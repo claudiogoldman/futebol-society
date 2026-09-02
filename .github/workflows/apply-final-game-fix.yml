@@ -1,0 +1,75 @@
+name: Apply final game fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Patch game management and team persistence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          # Restore the intended persistent floating management control and modal.
+          if 'Settings' not in s.split('\n', 12)[0:12].__str__():
+              old = "  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy\n"
+              new = "  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy, Settings, X\n"
+              if old not in s: raise SystemExit('icon import anchor not found')
+              s = s.replace(old, new, 1)
+
+          s = s.replace("  const [guestManagementOpen, setGuestManagementOpen] = useState(false);\n", "", 1)
+
+          old = '''        {canManage && (\n          <div style={{ position: 'relative', marginLeft: 'auto' }}>\n            <button type="button" className="sf-admin-toggle" onClick={() => setManagementOpen((v) => !v)}>Gestão ▾</button>\n            {managementOpen && (\n              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: 220, background: 'var(--pitch-mid)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>\n                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); setGuestManagementOpen(true); setTimeout(() => document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0); }}>Adicionar jogador não cadastrado</button>\n                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); if (game.groupId) onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>\n              </div>\n            )}\n          </div>\n        )}\n        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}\n'''
+          new = '''        {canManage && (\n          <button type="button" aria-label="Gestão da partida" title="Gestão da partida" className="sf-game-management-fab" onClick={() => setManagementOpen(true)}>\n            <Settings size={24} />\n          </button>\n        )}\n        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}\n'''
+          if old in s: s = s.replace(old, new, 1)
+
+          old = '''      <section id="sf-game-location-card" className="sf-card">'''
+          new = '''      {canManage && managementOpen && (\n        <div className="sf-modal-backdrop" onClick={() => setManagementOpen(false)}>\n          <div className="sf-modal sf-game-management-modal" role="dialog" aria-modal="true" aria-labelledby="sf-game-management-title" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '86vh', overflowY: 'auto' }}>\n            <div className="sf-game-management-header">\n              <div><div id="sf-game-management-title" className="sf-modal-title" style={{ marginBottom: 2 }}>Gestão da partida</div><div className="sf-muted-sm">{formatDatePtBr(game.date)} · {game.local || 'Local a definir'}</div></div>\n              <button type="button" className="sf-icon-btn" aria-label="Fechar gestão" onClick={() => setManagementOpen(false)}><X size={18} /></button>\n            </div>\n            <section className="sf-management-area">\n              <div className="sf-card-title"><Target size={16} /> Manter local</div>\n              <div className="sf-management-summary">\n                <div><span className="sf-muted">Nome</span><strong>{game.local || 'Local a definir'}</strong></div>\n                <div><span className="sf-muted">Endereço</span><strong>{game.locationAddress || 'Não informado'}</strong></div>\n                <div><span className="sf-muted">Cidade/UF</span><strong>{game.locationCity || game.locationState ? `${game.locationCity || '—'}/${game.locationState || '—'}` : 'Não informado'}</strong></div>\n              </div>\n              <button type="button" className="sf-btn-primary" onClick={() => { setLocationNameDraft(game.local || ''); setLocationAddressDraft(game.locationAddress || ''); setLocationCityDraft(game.locationCity || ''); setLocationStateDraft(game.locationState || ''); setLocationLatitudeDraft(game.locationLatitude ?? ''); setLocationLongitudeDraft(game.locationLongitude ?? ''); setManagementOpen(false); setEditingLocation(true); }}><Target size={16} /> Editar local da partida</button>\n              {game.groupId && <button type="button" className="sf-btn-ghost" onClick={() => { setManagementOpen(false); onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>}\n            </section>\n            <section className="sf-management-area">\n              <div className="sf-card-title"><Users size={16} /> Manter jogadores da partida</div>\n              <div className="sf-muted-sm">{activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''} confirmados</div>\n              {game.groupId && <div className="sf-management-player-add"><select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}><option value="">Adicionar jogador do grupo...</option>{roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><button type="button" className="sf-btn-primary" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button></div>}\n              <div className="sf-management-subtitle">Adicionar convidado não cadastrado</div>\n              <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />\n              <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />\n              <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>\n              <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>\n              <div className="sf-management-subtitle">Jogadores confirmados</div>\n              <div className="sf-rsvp-list">{activePlayers.map((p) => <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}><span className="sf-rsvp-name">{isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}{p.name}{p.id === myId ? ' (você)' : ''}</span><StarRating value={p.rating} readOnly size={12} onChange={() => {}} />{p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}</div>)}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>\n            </section>\n            <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button></div>\n          </div>\n        </div>\n      )}\n\n      <section id="sf-game-location-card" className="sf-card">'''
+          if old in s: s = s.replace(old, new, 1)
+
+          old_start = '''        {canManage && guestManagementOpen && (\n          <div id="sf-add-guest-form" className="sf-card"'''
+          start = s.find(old_start)
+          if start >= 0:
+              end_marker = '''        {canManage && game.groupId && (\n          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>'''
+              end = s.find(end_marker, start)
+              if end >= 0: s = s[:start] + s[end:]
+
+          # Keep one clean launcher for group-player addition.
+          old = '''        {canManage && game.groupId && (\n          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>\n            <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>\n              <option value="">Adicionar jogador do grupo...</option>\n              {roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => (\n                <option key={p.id} value={p.id}>{p.name}</option>\n              ))}\n            </select>\n            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>\n          </div>\n        )}'''
+          new = '''        {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setManagementOpen(true)}><Users size={16} /> Adicionar jogador</button>}'''
+          if old in s: s = s.replace(old, new, 1)
+
+          css_anchor = "  .sf-admin-toggle { font-size: 10px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); border-radius: 8px; padding: 6px 8px; cursor: pointer; white-space: nowrap; }\n"
+          css = '''\n  .sf-game-management-fab { position: fixed; right: 18px; bottom: 92px; z-index: 60; width: 56px; height: 56px; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--floodlight); color: var(--pitch-dark); box-shadow: 0 8px 24px rgba(0,0,0,.38); cursor: pointer; }\n  .sf-game-management-fab:active { transform: scale(.96); }\n  .sf-game-management-modal { gap: 12px; }\n  .sf-game-management-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }\n  .sf-management-area { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }\n  .sf-management-summary { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 4px; }\n  .sf-management-summary > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; font-size: 12px; }\n  .sf-management-summary strong { text-align: right; font-weight: 500; color: var(--chalk); }\n  .sf-management-subtitle { font-size: 11px; color: var(--chalk-dim); margin-top: 8px; }\n  .sf-management-player-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }\n  @media (max-width: 380px) { .sf-game-management-fab { right: 14px; bottom: 86px; } .sf-management-player-add { grid-template-columns: 1fr; } }\n'''
+          if css_anchor in s and '.sf-game-management-fab' not in s: s = s.replace(css_anchor, css_anchor + css, 1)
+
+          # Replace the non-atomic team update functions with the hardened RPC.
+          start = s.find('  const handleSaveTeams = async')
+          end = s.find('  const handleDraw = async', start) if start >= 0 else -1
+          end2 = s.find('\n  };', end) + len('\n  };') if end >= 0 else -1
+          if start >= 0 and end2 > end:
+              team_block = '''  const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {\n    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B').map((p) => p.id);\n    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);\n    if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }\n    if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }\n    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA, p_team_b: teamB });\n    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n\n  const handleDraw = async (gameId, confirmedPlayers) => {\n    const { teamA, teamB } = drawTeams(confirmedPlayers);\n    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA.map((p) => p.id), p_team_b: teamB.map((p) => p.id) });\n    if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };'''
+              s = s[:start] + team_block + s[end2:]
+          p.write_text(s)
+          PY
+      - name: Remove temporary workflow and trigger files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/apply-final-game-fix.yml .github/patch-trigger.txt
+          git add app/society-page.js .github/workflows .github/patch-trigger.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: finalize game management and team persistence"
+          git push
