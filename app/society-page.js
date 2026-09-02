@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
   Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
-  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy
+  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy, Settings, X
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
@@ -527,7 +527,6 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [guestNameDraft, setGuestNameDraft] = useState('');
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [guestPositionDraft, setGuestPositionDraft] = useState('');
-  const [guestManagementOpen, setGuestManagementOpen] = useState(false);
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamDraft, setTeamDraft] = useState({});
 
@@ -591,18 +590,46 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           <div className="sf-h2">{game.local || 'Local a definir'}</div>
         </div>
         {canManage && (
-          <div style={{ position: 'relative', marginLeft: 'auto' }}>
-            <button type="button" className="sf-admin-toggle" onClick={() => setManagementOpen((v) => !v)}>Gestão ▾</button>
-            {managementOpen && (
-              <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: 220, background: 'var(--pitch-mid)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.35)' }}>
-                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left', marginBottom: 6 }} onClick={() => { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setManagementOpen(false); setGuestManagementOpen(true); setTimeout(() => document.getElementById('sf-add-guest-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0); }}>Adicionar jogador não cadastrado</button>
-                <button type="button" className="sf-btn-ghost" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setManagementOpen(false); if (game.groupId) onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>
-              </div>
-            )}
-          </div>
+          <button type="button" aria-label="Gestão da partida" title="Gestão da partida" className="sf-game-management-fab" onClick={() => setManagementOpen(true)}>
+            <Settings size={24} />
+          </button>
         )}
         {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}
       </div>
+
+      {canManage && managementOpen && (
+        <div className="sf-modal-backdrop" onClick={() => setManagementOpen(false)}>
+          <div className="sf-modal sf-game-management-modal" role="dialog" aria-modal="true" aria-labelledby="sf-game-management-title" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '86vh', overflowY: 'auto' }}>
+            <div className="sf-game-management-header">
+              <div><div id="sf-game-management-title" className="sf-modal-title" style={{ marginBottom: 2 }}>Gestão da partida</div><div className="sf-muted-sm">{formatDatePtBr(game.date)} · {game.local || 'Local a definir'}</div></div>
+              <button type="button" className="sf-icon-btn" aria-label="Fechar gestão" onClick={() => setManagementOpen(false)}><X size={18} /></button>
+            </div>
+            <section className="sf-management-area">
+              <div className="sf-card-title"><Target size={16} /> Manter local</div>
+              <div className="sf-management-summary">
+                <div><span className="sf-muted">Nome</span><strong>{game.local || 'Local a definir'}</strong></div>
+                <div><span className="sf-muted">Endereço</span><strong>{game.locationAddress || 'Não informado'}</strong></div>
+                <div><span className="sf-muted">Cidade/UF</span><strong>{game.locationCity || game.locationState ? `${game.locationCity || '—'}/${game.locationState || '—'}` : 'Não informado'}</strong></div>
+              </div>
+              <button type="button" className="sf-btn-primary" onClick={() => { setLocationNameDraft(game.local || ''); setLocationAddressDraft(game.locationAddress || ''); setLocationCityDraft(game.locationCity || ''); setLocationStateDraft(game.locationState || ''); setLocationLatitudeDraft(game.locationLatitude ?? ''); setLocationLongitudeDraft(game.locationLongitude ?? ''); setManagementOpen(false); setEditingLocation(true); }}><Target size={16} /> Editar local da partida</button>
+              {game.groupId && <button type="button" className="sf-btn-ghost" onClick={() => { setManagementOpen(false); onOpenGroup(game.groupId); }}>Gerenciar locais do grupo</button>}
+            </section>
+            <section className="sf-management-area">
+              <div className="sf-card-title"><Users size={16} /> Manter jogadores da partida</div>
+              <div className="sf-muted-sm">{activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''} confirmados</div>
+              {game.groupId && <div className="sf-management-player-add"><select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}><option value="">Adicionar jogador do grupo...</option>{roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><button type="button" className="sf-btn-primary" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button></div>}
+              <div className="sf-management-subtitle">Adicionar convidado não cadastrado</div>
+              <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
+              <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />
+              <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>
+              <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>
+              <div className="sf-management-subtitle">Jogadores confirmados</div>
+              <div className="sf-rsvp-list">{activePlayers.map((p) => <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}><span className="sf-rsvp-name">{isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}{p.name}{p.id === myId ? ' (você)' : ''}</span><StarRating value={p.rating} readOnly size={12} onChange={() => {}} />{p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}</div>)}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>
+            </section>
+            <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button></div>
+          </div>
+        </div>
+      )}
 
       <section id="sf-game-location-card" className="sf-card">
         <div className="sf-card-title"><Target size={16} /> Local da partida</div>
@@ -674,29 +701,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             );
           })}
         </div>
-        {canManage && guestManagementOpen && (
-          <div id="sf-add-guest-form" className="sf-card" style={{ marginTop: 10, marginBottom: 0, padding: 10, background: 'var(--pitch-dark)' }}>
-            <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Adicionar jogador não cadastrado</div>
-            <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
-            <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />
-            <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}>
-              <option value="">Posição (opcional)</option>
-              {POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}
-            </select>
-            <div className="sf-modal-actions"><button className="sf-btn-ghost" onClick={() => setGuestManagementOpen(false)}>Cancelar</button><button className="sf-btn-primary" disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); setGuestManagementOpen(false); } }}>Adicionar convidado</button></div>
-          </div>
-        )}
-        {canManage && game.groupId && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>
-            <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>
-              <option value="">Adicionar jogador do grupo...</option>
-              {roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>
-          </div>
-        )}
+        {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setManagementOpen(true)}><Users size={16} /> Adicionar jogador</button>}
       </section>
 
       <section className="sf-card">
@@ -1532,14 +1537,11 @@ function MainApp({ session }) {
   };
 
   const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {
-    const rows = activePlayers.map((p) => ({ game_id: gameId, user_id: p.id, team: teamDraft[p.id] === 'B' ? 'B' : 'A' }));
-    if (rows.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
-    const teamACount = rows.filter((r) => r.team === 'A').length;
-    const teamBCount = rows.filter((r) => r.team === 'B').length;
-    if (!teamACount || !teamBCount) { alert('Distribua os jogadores entre os dois times.'); return false; }
-    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
-    if (deleteError) { alert('Não foi possível atualizar os times: ' + deleteError.message); return false; }
-    const { error } = await supabase.from('game_teams').insert(rows);
+    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B').map((p) => p.id);
+    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
+    if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
+    if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
+    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA, p_team_b: teamB });
     if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1547,16 +1549,8 @@ function MainApp({ session }) {
 
   const handleDraw = async (gameId, confirmedPlayers) => {
     const { teamA, teamB } = drawTeams(confirmedPlayers);
-    const { error: deleteError } = await supabase.from('game_teams').delete().eq('game_id', gameId);
-    if (deleteError) { alert('Não foi possível limpar o sorteio anterior: ' + deleteError.message); return false; }
-    const rows = [
-      ...teamA.map((p) => ({ game_id: gameId, user_id: p.id, team: 'A' })),
-      ...teamB.map((p) => ({ game_id: gameId, user_id: p.id, team: 'B' })),
-    ];
-    if (rows.length) {
-      const { error } = await supabase.from('game_teams').insert(rows);
-      if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
-    }
+    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA.map((p) => p.id), p_team_b: teamB.map((p) => p.id) });
+    if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
     await loadAll();
     return true;
   };
@@ -2383,6 +2377,18 @@ const CSS = `
 
   .sf-admin-tag { font-size: 9px; font-weight: 700; color: var(--pitch-dark); background: var(--floodlight); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: middle; }
   .sf-admin-toggle { font-size: 10px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); border-radius: 8px; padding: 6px 8px; cursor: pointer; white-space: nowrap; }
+
+  .sf-game-management-fab { position: fixed; right: 18px; bottom: 92px; z-index: 60; width: 56px; height: 56px; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--floodlight); color: var(--pitch-dark); box-shadow: 0 8px 24px rgba(0,0,0,.38); cursor: pointer; }
+  .sf-game-management-fab:active { transform: scale(.96); }
+  .sf-game-management-modal { gap: 12px; }
+  .sf-game-management-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .sf-management-area { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .sf-management-summary { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 4px; }
+  .sf-management-summary > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; font-size: 12px; }
+  .sf-management-summary strong { text-align: right; font-weight: 500; color: var(--chalk); }
+  .sf-management-subtitle { font-size: 11px; color: var(--chalk-dim); margin-top: 8px; }
+  .sf-management-player-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+  @media (max-width: 380px) { .sf-game-management-fab { right: 14px; bottom: 86px; } .sf-management-player-add { grid-template-columns: 1fr; } }
   .sf-paid-chip { font-size: 11px; padding: 6px 10px; border-radius: 20px; background: var(--pitch-dark); border: 1px solid var(--line); color: var(--chalk-dim); cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .sf-paid-on { background: rgba(79,195,247,0.15); border-color: var(--team-b); color: var(--team-b); }
 
