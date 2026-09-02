@@ -65,7 +65,7 @@ r("                </select>\n              </>\n            )}\n            <la
               </>}
             )}
             <label className="sf-field-label">Data</label>`, 'inline location UI');
-r("            onRemoveMember={removeGroupMember}\n          />", "            onRemoveMember={removeGroupMember}\n            locations={groupLocations.filter((l) => String(l.group_id) === String(selectedGroupId))}\n            onCreateLocation={createGroupLocation}\n            onDeleteLocation={deleteGroupLocation}\n          />", 'GroupDetail location props');
+r("            onRemoveMember={removeGroupMember}\n          />", "            onRemoveMember={removeGroupMember}\n            onSetDefaultLocation={setGroupDefaultLocation}\n            locations={groupLocations.filter((l) => String(l.group_id) === String(selectedGroupId))}\n            onCreateLocation={createGroupLocation}\n            onDeleteLocation={deleteGroupLocation}\n          />", 'GroupDetail location props');
 r("  const createGame = async () => {", `  const createGroupLocation = async (groupId, draft) => {
     const { data, error } = await supabase.from('group_locations').insert({ group_id: groupId, name: draft.name.trim(), address: draft.address.trim() || null, city: draft.city.trim() || null, state: draft.state.trim().toUpperCase() || null, latitude: draft.latitude === '' ? null : Number(draft.latitude), longitude: draft.longitude === '' ? null : Number(draft.longitude), is_default: !!draft.isDefault, created_by: myId }).select().single();
     if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }
