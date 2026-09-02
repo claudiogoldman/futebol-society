@@ -1,0 +1,149 @@
+name: Apply consistency refactor
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Society page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          replacements = []
+
+          old = """  const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);\n"""
+          # 1) GameDetail must use the persistent DB waitlist, never confirmation overflow.
+          old_block = """  // preserve RSVP order (first-come, first-served) so the waitlist is well defined\n  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);\n  const maxPlayers = game.maxPlayers || null;\n  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;\n  const waitlistPlayers = maxPlayers ? confirmedPlayers.slice(maxPlayers) : [];\n  const gkPays = game.goalkeeperPays !== false;\n"""
+          new_block = """  // The persistent game_waitlist table is the only source of truth for substitutes.\n  const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);\n  const maxPlayers = game.maxPlayers || null;\n  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;\n  const waitlistIds = game.waitlist || [];\n  const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);\n  const gkPays = game.goalkeeperPays !== false;\n"""
+          if old_block not in s:
+              raise SystemExit('Expected GameDetail waitlist block not found')
+          s = s.replace(old_block, new_block, 1)
+
+          old = """  const iAmConfirmed = game.confirmed.includes(myId);\n  const myWaitlistPos = waitlistPlayers.findIndex((p) => p.id === myId);\n"""
+          new = """  const iAmConfirmed = game.confirmed.includes(myId);\n  const iAmWaitlisted = waitlistIds.includes(myId);\n  const myWaitlistPos = waitlistIds.findIndex((id) => id === myId);\n"""
+          if old not in s:
+              raise SystemExit('Expected RSVP state block not found')
+          s = s.replace(old, new, 1)
+
+          old = """        <button className={`sf-btn-primary ${iAmConfirmed ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? (myWaitlistPos >= 0 ? <><Check size={16} /> Você tá na espera (#{myWaitlistPos + 1})</> : <><Check size={16} /> Você tá confirmado</>)\n            : 'Confirmar minha presença'}\n        </button>\n"""
+          new = """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? <><Check size={16} /> Você tá confirmado</>\n            : iAmWaitlisted\n              ? <><Clock3 size={16} /> Você tá na espera (#{myWaitlistPos + 1})</>\n              : 'Confirmar minha presença'}\n        </button>\n"""
+          if old not in s:
+              raise SystemExit('Expected RSVP button block not found')
+          s = s.replace(old, new, 1)
+
+          old = """          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => {\n            const on = game.confirmed.includes(p.id);\n            const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);\n            return (\n              <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''} ${onWaitlist ? 'sf-rsvp-waitlist' : ''}`}>\n                <span className=\"sf-rsvp-check\">{on && !onWaitlist ? <Check size={14} /> : null}</span>\n                <span className=\"sf-rsvp-name\">\n                  {isGoleiro(p) && <span className=\"sf-gk-tag\" title=\"Goleiro\"><Hand size={10} /> GOL</span>}\n                  {p.name}{p.id === myId ? ' (você)' : ''}\n                </span>\n                {onWaitlist && <span className=\"sf-waitlist-tag\">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}\n                <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />\n              </div>\n            );\n          })}\n        </div>\n"""
+          new = """          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => (\n            <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}>\n              <span className=\"sf-rsvp-check\"><Check size={14} /></span>\n              <span className=\"sf-rsvp-name\">\n                {isGoleiro(p) && <span className=\"sf-gk-tag\" title=\"Goleiro\"><Hand size={10} /> GOL</span>}\n                {p.name}{p.id === myId ? ' (você)' : ''}\n              </span>\n              <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />\n            </div>\n          ))}\n        </div>\n        {waitlistPlayers.length > 0 && (\n          <div className=\"sf-rsvp-list\" style={{ marginTop: 10 }}>\n            <div className=\"sf-muted-sm\" style={{ marginBottom: 6 }}>Lista de espera</div>\n            {waitlistPlayers.map((p, index) => (\n              <div key={p.id} className={`sf-rsvp-row sf-rsvp-waitlist ${p.id === myId ? 'sf-rsvp-me' : ''}`}>\n                <span className=\"sf-rsvp-check\"><Clock3 size={14} /></span>\n                <span className=\"sf-rsvp-name\">{p.name}{p.id === myId ? ' (você)' : ''}</span>\n                <span className=\"sf-waitlist-tag\">espera #{index + 1}</span>\n              </div>\n            ))}\n          </div>\n        )}\n"""
+          if old not in s:
+              raise SystemExit('Expected confirmed roster block not found')
+          s = s.replace(old, new, 1)
+
+          old = """            <button className=\"sf-btn-ghost\" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button>\n"""
+          new = """            <button className=\"sf-btn-ghost\" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar jogador</button>\n"""
+          if old not in s:
+              raise SystemExit('Expected add participant button not found')
+          s = s.replace(old, new, 1)
+
+          # 2) Group edit: never close the editor until the database confirms success.
+          old = """  const save = () => {\n    onSetDefaults(group.id, {\n"""
+          new = """  const save = async () => {\n    const ok = await onSetDefaults(group.id, {\n"""
+          if old not in s:
+              raise SystemExit('Expected group save handler not found')
+          s = s.replace(old, new, 1)
+
+          old = """      avatar_url: avatarUrlDraft || null,\n    });\n    setEditing(false);\n  };\n"""
+          new = """      avatar_url: avatarUrlDraft || null,\n    });\n    if (ok) setEditing(false);\n  };\n"""
+          if old not in s:
+              raise SystemExit('Expected group save tail not found')
+          s = s.replace(old, new, 1)
+
+          # 3) Make group editor state follow the selected group, preventing stale organizer/default values.
+          marker = """  const isOwner = myId === group.createdBy;\n  const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);\n  const canManage = isOwner || myMembership?.role === 'admin';\n\n"""
+          insert = marker + """  useEffect(() => {\n    setNameDraft(group.name || '');\n    setDayDraft(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');\n    setTimeDraft(group.defaultTime || '');\n    setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');\n    setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');\n    setGoalkeeperPaysDraft(group.defaultGoalkeeperPays !== false);\n    setPixKeyDraft(group.defaultPixKey || '');\n    setPixReceiverDraft(group.defaultPixReceiverName || '');\n    setPixCityDraft(group.defaultPixCity || '');\n    setOrganizerDraft(group.defaultOrganizerId || '');\n    setAvatarDraft(group.avatar || null);\n    setAvatarUrlDraft(group.avatarUrl || '');\n    setEditing(false);\n  }, [group.id]);\n\n"""
+          if marker not in s:
+              raise SystemExit('Expected group state marker not found')
+          s = s.replace(marker, insert, 1)
+
+          # 4) Surface Supabase errors instead of silently failing game settings.
+          old = """  const setCost = async (gameId, cost) => {\n    await supabase.from('games').update({ cost }).eq('id', gameId);\n    loadAll();\n  };\n\n  const setGkPays = async (gameId, goalkeeper_pays) => {\n    await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);\n    loadAll();\n  };\n"""
+          new = """  const setCost = async (gameId, cost) => {\n    const { error } = await supabase.from('games').update({ cost }).eq('id', gameId);\n    if (error) { alert('Não foi possível alterar o custo da partida: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n\n  const setGkPays = async (gameId, goalkeeper_pays) => {\n    const { error } = await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);\n    if (error) { alert('Não foi possível alterar se o goleiro paga: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n"""
+          if old not in s:
+              raise SystemExit('Expected cost/GK handlers not found')
+          s = s.replace(old, new, 1)
+
+          old = """  const setMaxPlayers = async (gameId, maxPlayers) => {\n    await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);\n    loadAll();\n  };\n"""
+          new = """  const setMaxPlayers = async (gameId, maxPlayers) => {\n    const { error } = await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);\n    if (error) { alert('Não foi possível alterar o limite de vagas: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n"""
+          if old not in s:
+              raise SystemExit('Expected max players handler not found')
+          s = s.replace(old, new, 1)
+
+          old = """  const setGroupDefaults = async (groupId, fields) => {\n    await supabase.from('groups').update(fields).eq('id', groupId);\n    loadAll();\n  };\n"""
+          new = """  const setGroupDefaults = async (groupId, fields) => {\n    const { error } = await supabase.from('groups').update(fields).eq('id', groupId);\n    if (error) {\n      alert('Não foi possível salvar os padrões do grupo: ' + error.message);\n      return false;\n    }\n    await loadAll();\n    return true;\n  };\n"""
+          if old not in s:
+              raise SystemExit('Expected group defaults handler not found')
+          s = s.replace(old, new, 1)
+
+          # 5) Persist the real waitlist in MainApp instead of deriving it from confirmations.
+          old = """    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([\n"""
+          new = """    const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([\n"""
+          if old not in s:
+              raise SystemExit('Expected loadAll Promise.all not found')
+          s = s.replace(old, new, 1)
+
+          old = """      supabase.from('game_confirmations').select('*'),\n      supabase.from('game_teams').select('*'),\n"""
+          new = """      supabase.from('game_confirmations').select('*'),\n      supabase.from('game_waitlist').select('*').order('queued_at', { ascending: true }).order('id', { ascending: true }),\n      supabase.from('game_teams').select('*'),\n"""
+          if old not in s:
+              raise SystemExit('Expected waitlist query insertion point not found')
+          s = s.replace(old, new, 1)
+
+          old = """      const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);\n"""
+          new = """      const waitlist = (waitlistRes.data || [])\n        .filter((w) => w.game_id === g.id)\n        .sort((a, b) => new Date(a.queued_at) - new Date(b.queued_at) || String(a.id).localeCompare(String(b.id)))\n        .map((w) => w.user_id);\n      const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);\n"""
+          if old not in s:
+              raise SystemExit('Expected waitlist assembly insertion point not found')
+          s = s.replace(old, new, 1)
+
+          old = """        confirmed, teamA, teamB, payments, scorers, assists, ratings,\n"""
+          new = """        confirmed, waitlist, teamA, teamB, payments, scorers, assists, ratings,\n"""
+          if old not in s:
+              raise SystemExit('Expected assembled game fields not found')
+          s = s.replace(old, new, 1)
+
+          # 6) RSVP toggle: a user already on the waitlist must leave the waitlist, not re-submit a confirmation.
+          old = """  const toggleMyRSVP = async (gameId) => {\n    const g = games.find((x) => x.id === gameId);\n    if (g.confirmed.includes(myId)) {\n      await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId);\n    } else {\n      await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId });\n    }\n    loadAll();\n  };\n"""
+          new = """  const toggleMyRSVP = async (gameId) => {\n    const g = games.find((x) => x.id === gameId);\n    if (!g) return;\n    let error = null;\n    if (g.confirmed.includes(myId)) {\n      ({ error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId));\n    } else if ((g.waitlist || []).includes(myId)) {\n      ({ error } = await supabase.from('game_waitlist').delete().eq('game_id', gameId).eq('user_id', myId));\n    } else {\n      ({ error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId }));\n    }\n    if (error) { alert('Não foi possível alterar sua presença: ' + error.message); return; }\n    await loadAll();\n  };\n"""
+          if old not in s:
+              raise SystemExit('Expected RSVP handler not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Verify build and source consistency
+        run: |
+          test "$(grep -c "const waitlistIds = game.waitlist || \[\];" app/society-page.js)" -eq 1
+          test "$(grep -c "supabase.from('game_waitlist').select('\*')" app/society-page.js)" -eq 1
+          test "$(grep -c "Adicionar jogador</button>" app/society-page.js)" -eq 1
+          npm ci
+          npm run build
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --quiet && { echo "No changes"; exit 0; }
+          git commit -m "fix: align waitlist and group/game settings"
+          git push origin HEAD:main
