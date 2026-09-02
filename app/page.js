@@ -8,26 +8,17 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
+import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
+import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 
 // ---------- helpers ----------
 
 const POSITION_LABELS = { goleiro: 'Goleiro', fixo: 'Fixo', libero: 'Líbero', meio: 'Meio', ala_esquerdo: 'Ala Esquerdo', ala_direito: 'Ala Direito', pivo: 'Pivô' };
 const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];
 
-function isGoleiro(p) {
-  return Array.isArray(p.positions) && p.positions.includes('goleiro');
-}
-
 // combines weight + age deviation from a "typical" player into one number,
 // used only to break near-ties in the rating balance so the draw doesn't
 // accidentally stack every heavy/young player on the same side.
-function physicalScore(p) {
-  let score = 0;
-  if (p.weight_kg) score += (p.weight_kg - 75) / 10;
-  if (p.age) score += (p.age - 30) / 10;
-  return score;
-}
-
 function playerMeta(p) {
   const bits = [];
   const knownPositions = Array.isArray(p.positions) ? p.positions.filter((pos) => POSITION_LABELS[pos]) : [];
@@ -92,123 +83,6 @@ function PlayerCard({ player, compact }) {
 // Positions are preferences only: a player can be assigned to another slot when
 // needed to complete both teams. Players without positions are distributed by
 // the normal rating balance and receive fallback positions in the pitch view.
-function drawTeams(confirmedPlayers) {
-  const players = [...confirmedPlayers];
-  const goleiros = players.filter(isGoleiro);
-  const linha = players.filter((p) => !isGoleiro(p));
-  let teamA = [], teamB = [], sumA = 0, sumB = 0, physA = 0, physB = 0;
-
-  const place = (p, preferredTeam = null) => {
-    const rating = p.rating || 3;
-    const phys = physicalScore(p);
-    let toA;
-    if (preferredTeam === 'A') toA = true;
-    else if (preferredTeam === 'B') toA = false;
-    else {
-      const ratingGap = sumA - sumB;
-      toA = Math.abs(ratingGap) > 0.75 ? ratingGap <= 0 : physA <= physB;
-    }
-    if (toA) { teamA.push(p); sumA += rating; physA += phys; }
-    else { teamB.push(p); sumB += rating; physB += phys; }
-  };
-
-  const sortedGks = [...goleiros].sort((a, b) => (b.rating || 3) - (a.rating || 3));
-  sortedGks.forEach((p, i) => place(p, i % 2 === 0 ? 'A' : 'B'));
-
-  const noisy = linha.map((p) => ({ ...p, _r: (p.rating || 3) + Math.random() * 0.5 }));
-  noisy.sort((a, b) => b._r - a._r);
-  noisy.forEach((p) => {
-    const { _r, ...clean } = p;
-    place(clean);
-  });
-  return { teamA, teamB };
-}
-
-function avgRatingFor(game, playerId) {
-  const ratings = game.ratings || {};
-  let sum = 0, count = 0;
-  Object.values(ratings).forEach((raterMap) => {
-    if (raterMap && raterMap[playerId] != null) { sum += raterMap[playerId]; count += 1; }
-  });
-  return count > 0 ? sum / count : null;
-}
-
-function computeGameDestaques(game) {
-  if (!game.result) return null;
-  const all = [...(game.teamA || []), ...(game.teamB || [])];
-  const scorers = game.result.scorers || {};
-  const assists = game.assists || {};
-  const idsA = (game.teamA || []).map((p) => p.id);
-  const idsB = (game.teamB || []).map((p) => p.id);
-
-  let mvp = null, mvpAvg = -1, mvpVotes = 0;
-  all.forEach((p) => {
-    const avg = avgRatingFor(game, p.id);
-    if (avg != null && avg > mvpAvg) {
-      mvpAvg = avg; mvp = p;
-      mvpVotes = Object.values(game.ratings || {}).filter((r) => r[p.id] != null).length;
-    }
-  });
-
-  let artilheiro = null, maxGoals = 0;
-  all.forEach((p) => {
-    const gl = scorers[p.id] || 0;
-    if (gl > maxGoals) { maxGoals = gl; artilheiro = p; }
-  });
-
-  let passador = null, maxAssists = 0;
-  all.forEach((p) => {
-    const as = assists[p.id] || 0;
-    if (as > maxAssists) { maxAssists = as; passador = p; }
-  });
-
-  // muro: goalkeeper on the team that conceded the fewest goals
-  let muro = null, muroConceded = null;
-  const gkA = (game.teamA || []).find(isGoleiro);
-  const gkB = (game.teamB || []).find(isGoleiro);
-  if (gkA) { muro = gkA; muroConceded = game.result.scoreB; }
-  if (gkB && (muroConceded == null || game.result.scoreA < muroConceded)) { muro = gkB; muroConceded = game.result.scoreA; }
-
-  return { mvp, mvpAvg, mvpVotes, artilheiro, maxGoals, passador, maxAssists, muro, muroConceded };
-}
-
-function computeRanking(profiles, games) {
-  const stats = {};
-  profiles.forEach((p) => { stats[p.id] = { id: p.id, name: p.name, nationality_code: p.nationality_code || null, jogos: 0, vit: 0, emp: 0, der: 0, gols: 0, assistencias: 0, pontos: 0, notaSum: 0, notaCount: 0, mvps: 0, muros: 0 }; });
-  const finalizadas = games.filter((g) => g.result);
-  finalizadas.forEach((g) => {
-    const { scoreA, scoreB } = g.result;
-    const idsA = (g.teamA || []).map((p) => p.id);
-    const idsB = (g.teamB || []).map((p) => p.id);
-    [...idsA, ...idsB].forEach((id) => {
-      if (!stats[id]) return;
-      stats[id].jogos += 1;
-      const inA = idsA.includes(id);
-      if (scoreA === scoreB) { stats[id].emp += 1; stats[id].pontos += 1; }
-      else if ((inA && scoreA > scoreB) || (!inA && scoreB > scoreA)) { stats[id].vit += 1; stats[id].pontos += 3; }
-      else { stats[id].der += 1; }
-    });
-    Object.entries(g.scorers || {}).forEach(([id, n]) => { if (stats[id] && n) stats[id].gols += n; });
-    Object.entries(g.assists || {}).forEach(([id, n]) => { if (stats[id] && n) stats[id].assistencias += n; });
-    Object.values(g.ratings || {}).forEach((raterMap) => {
-      Object.entries(raterMap || {}).forEach(([id, score]) => {
-        if (stats[id] && score != null) { stats[id].notaSum += score; stats[id].notaCount += 1; }
-      });
-    });
-    const destaques = computeGameDestaques(g);
-    if (destaques?.mvp && stats[destaques.mvp.id]) stats[destaques.mvp.id].mvps += 1;
-    if (destaques?.muro && stats[destaques.muro.id]) stats[destaques.muro.id].muros += 1;
-  });
-  const totalFinalizadas = finalizadas.length;
-  return Object.values(stats)
-    .map((s) => ({
-      ...s,
-      nota: s.notaCount > 0 ? s.notaSum / s.notaCount : null,
-      presencaPct: totalFinalizadas > 0 ? Math.round((s.jogos / totalFinalizadas) * 100) : null,
-    }))
-    .sort((a, b) => b.pontos - a.pontos || b.gols - a.gols || b.vit - a.vit);
-}
-
 function formatDatePtBr(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T12:00:00');
@@ -628,7 +502,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -648,6 +522,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   const [pixReceiverDraft, setPixReceiverDraft] = useState('');
   const [pixCityDraft, setPixCityDraft] = useState('');
   const [pixOwnerDraft, setPixOwnerDraft] = useState('');
+  const [participantDraft, setParticipantDraft] = useState('');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -669,7 +544,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
   // editing is creator-only, with no admin override — admins can still SEE
   // every match (that's handled server-side via RLS visibility), just not edit it
   const canManage = myId === game.createdBy;
-  const organizer = roster.find((p) => p.id === game.createdBy);
+  const organizer = roster.find((p) => p.id === (game.organizerId || game.createdBy));
   // pix key/receiver/city are per-game settings (whoever is collecting for THAT
   // match may differ from the organizer), falling back to sensible defaults
   const activePixKey = game.pixKey || organizer?.pix_key || null;
@@ -761,7 +636,7 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
         )}
         <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
-          {roster.map((p) => {
+          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => {
             const on = game.confirmed.includes(p.id);
             const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);
             return (
@@ -777,6 +652,17 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
             );
           })}
         </div>
+        {canManage && game.groupId && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 10 }}>
+            <select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}>
+              <option value="">Adicionar jogador do grupo...</option>
+              {roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <button className="sf-btn-ghost" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button>
+          </div>
+        )}
       </section>
 
       <section className="sf-card">
@@ -807,6 +693,15 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
 
       <section className="sf-card">
         <div className="sf-card-title"><Wallet size={16} /> Rateio</div>
+        <div className="sf-cost-row">
+          <span className="sf-muted">Organizador</span>
+          {canManage ? (
+            <select className="sf-input-inline" value={game.organizerId || ''} onChange={(e) => onSetGameOrganizer(game.id, e.target.value || null)}>
+              <option value="">Não definido</option>
+              {roster.filter((p) => !game.groupId || (groupMembers || []).some((m) => m.group_id === game.groupId && m.user_id === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          ) : <span className="sf-mono-value" style={{ cursor: 'default' }}>{organizer?.name || '—'}</span>}
+        </div>
         <div className="sf-cost-row">
           <span className="sf-muted">Custo da quadra</span>
           {!canManage ? (
@@ -1085,14 +980,14 @@ function GameDetail({ game, roster, myId, isAdmin, onBack, onToggleMyRSVP, onSet
 
 // ---------- group detail ----------
 
-function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember }) {
+function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onDeleteLocation }) {
   const [editing, setEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState(group.name);
-  const [localDraft, setLocalDraft] = useState(group.defaultLocal);
   const [dayDraft, setDayDraft] = useState(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
   const [timeDraft, setTimeDraft] = useState(group.defaultTime);
   const [maxPlayersDraft, setMaxPlayersDraft] = useState(group.defaultMaxPlayers || '');
   const [costDraft, setCostDraft] = useState(group.defaultCost || '');
+  const [locationDraft, setLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
   const [goalkeeperPaysDraft, setGoalkeeperPaysDraft] = useState(group.defaultGoalkeeperPays !== false);
   const [pixKeyDraft, setPixKeyDraft] = useState(group.defaultPixKey || '');
   const [pixReceiverDraft, setPixReceiverDraft] = useState(group.defaultPixReceiverName || '');
@@ -1100,6 +995,7 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
   const [avatarDraft, setAvatarDraft] = useState(group.avatar || null);
   const [avatarUrlDraft, setAvatarUrlDraft] = useState(group.avatarUrl || '');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [organizerDraft, setOrganizerDraft] = useState(group.defaultOrganizerId || '');
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1140,6 +1036,7 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
       default_pix_key: pixKeyDraft.trim() || null,
       default_pix_receiver_name: pixReceiverDraft.trim() || null,
       default_pix_city: pixCityDraft.trim() || null,
+      default_organizer_id: organizerDraft || null,
       avatar: avatarDraft,
       avatar_url: avatarUrlDraft || null,
     });
@@ -1165,13 +1062,14 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
         <div className="sf-card-title"><Layers size={16} /> Padrões do grupo</div>
         {!editing ? (
           <>
-            <div className="sf-cost-row"><span className="sf-muted">Local</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultLocal || '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Local padrão</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{locations.find((l) => l.is_default)?.name || locations.find((l) => l.isDefault)?.name || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Dia</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultDayOfWeek != null ? WEEKDAY_LABELS[group.defaultDayOfWeek] : '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Horário</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultTime || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Vagas</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultMaxPlayers || 'sem limite'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Imagem do grupo</span><img src={group.avatarUrl || '/group-avatars/futebol.svg'} alt="Imagem do grupo" style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--sf-border)' }} /></div>
             <div className="sf-cost-row"><span className="sf-muted">Custo da quadra</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultCost ? money(group.defaultCost) : '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Goleiro paga?</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultGoalkeeperPays !== false ? 'Sim' : 'Não'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Organizador padrão</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{members.find((m) => m.id === group.defaultOrganizerId)?.name || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">PIX</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultPixKey || '—'}</span></div>
             {canManage && <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setEditing(true)}>Editar padrões</button>}
           </>
@@ -1194,8 +1092,12 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
             </div>
             <label className="sf-field-label">Nome do grupo</label>
             <input className="sf-input" value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} />
-            <label className="sf-field-label">Local padrão</label>
-            <input className="sf-input" value={localDraft} onChange={(e) => setLocalDraft(e.target.value)} />
+            <label className="sf-field-label">Local padrão das partidas</label>
+            <select className="sf-input" value={locations.find((l) => l.is_default)?.id || ""} onChange={(e) => onSetDefaultLocation(group.id, e.target.value || null)}>
+              <option value="">Nenhum local padrão</option>
+              {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+            </select>
+            <div className="sf-muted-sm" style={{ marginTop: 4 }}>O local padrão é escolhido entre os locais cadastrados abaixo e será sugerido automaticamente nas novas partidas.</div>
             <label className="sf-field-label">Dia padrão</label>
             <select className="sf-input" value={dayDraft} onChange={(e) => setDayDraft(e.target.value)}>
               <option value="">Sem dia fixo</option>
@@ -1207,6 +1109,12 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
             <input type="number" min="1" className="sf-input" value={maxPlayersDraft} onChange={(e) => setMaxPlayersDraft(e.target.value)} />
             <label className="sf-field-label">Goleiro paga a quadra?</label>
             <div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(true)}>Sim</button><button type="button" className={!goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(false)}>Não</button></div>
+            <label className="sf-field-label">Organizador padrão das partidas</label>
+            <select className="sf-input" value={organizerDraft} onChange={(e) => { const id = e.target.value; setOrganizerDraft(id); const p = members.find((m) => m.id === id); if (p?.pix_key) { setPixKeyDraft(p.pix_key); setPixReceiverDraft(p.name || ''); } }}>
+              <option value="">Nenhum organizador padrão</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <div className="sf-muted-sm">Se o organizador tiver PIX cadastrado, ele será usado na nova partida. O PIX da partida permanece editável.</div>
             <label className="sf-field-label">Chave PIX padrão</label><input className="sf-input" value={pixKeyDraft} onChange={(e) => setPixKeyDraft(e.target.value)} />
             <label className="sf-field-label">Recebedor padrão</label><input className="sf-input" value={pixReceiverDraft} onChange={(e) => setPixReceiverDraft(e.target.value)} />
             <label className="sf-field-label">Cidade do PIX</label><input className="sf-input" value={pixCityDraft} onChange={(e) => setPixCityDraft(e.target.value)} />
@@ -1218,6 +1126,30 @@ function GroupDetail({ group, games, members, myId, onBack, onSetDefaults, onSha
             </div>
           </>
         )}
+      </section>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><Target size={16} /> Locais cadastrados ({locations.length})</div>
+        {locations.length === 0 && <div className="sf-muted-sm">Nenhum local cadastrado. Cadastre aqui uma vez e reutilize em todas as partidas do grupo.</div>}
+        {locations.map((loc) => (
+          <div key={loc.id} className="sf-rsvp-row sf-rsvp-on" style={{ display: 'block', marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="sf-rsvp-name">{loc.name}</span>
+              {loc.is_default && <span className="sf-admin-tag">PADRÃO</span>}
+              {canManage && <button type="button" className="sf-admin-toggle" style={{ marginLeft: 'auto' }} onClick={() => onDeleteLocation(loc.id)}>Excluir</button>}
+            </div>
+            <div className="sf-muted-sm" style={{ marginTop: 4 }}>{[loc.address, loc.city && loc.state ? loc.city + '/' + loc.state : (loc.city || loc.state)].filter(Boolean).join(' · ') || 'Endereço não informado'}</div>
+          </div>
+        ))}
+        {canManage && <div style={{ marginTop: 10 }}>
+          <label className="sf-field-label">Cadastrar novo local</label>
+          <input className="sf-input" placeholder="Nome da quadra / arena" value={locationDraft.name} onChange={(e) => setLocationDraft({ ...locationDraft, name: e.target.value })} />
+          <input className="sf-input" style={{ marginTop: 6 }} placeholder="Rua, número, complemento" value={locationDraft.address} onChange={(e) => setLocationDraft({ ...locationDraft, address: e.target.value })} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 6, marginTop: 6 }}><input className="sf-input" placeholder="Cidade" value={locationDraft.city} onChange={(e) => setLocationDraft({ ...locationDraft, city: e.target.value })} /><input className="sf-input" maxLength="2" placeholder="UF" value={locationDraft.state} onChange={(e) => setLocationDraft({ ...locationDraft, state: e.target.value.toUpperCase() })} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 }}><input type="number" step="any" className="sf-input" placeholder="Latitude" value={locationDraft.latitude} onChange={(e) => setLocationDraft({ ...locationDraft, latitude: e.target.value })} /><input type="number" step="any" className="sf-input" placeholder="Longitude" value={locationDraft.longitude} onChange={(e) => setLocationDraft({ ...locationDraft, longitude: e.target.value })} /></div>
+          <label className="sf-check-row" style={{ marginTop: 8 }}><input type="checkbox" checked={locationDraft.isDefault} onChange={(e) => setLocationDraft({ ...locationDraft, isDefault: e.target.checked })} /> Usar como local padrão do grupo</label>
+          <button className="sf-btn-primary" style={{ marginTop: 8 }} onClick={async () => { if (!locationDraft.name.trim()) return alert('Informe o nome do local.'); const ok = await onCreateLocation(group.id, locationDraft); if (ok) setLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false }); }}>Cadastrar local</button>
+        </div>}
       </section>
 
       <section className="sf-card">
@@ -1298,6 +1230,12 @@ function MainApp({ session }) {
   const [newLocationLongitude, setNewLocationLongitude] = useState('');
   const [newMaxPlayers, setNewMaxPlayers] = useState('');
   const [newGameGroupId, setNewGameGroupId] = useState(null);
+  const [newGameOrganizerId, setNewGameOrganizerId] = useState('');
+  const [groupLocations, setGroupLocations] = useState([]);
+  const [newGameLocationId, setNewGameLocationId] = useState('');
+  const [inlineLocationOpen, setInlineLocationOpen] = useState(false);
+  const [inlineLocationDraft, setInlineLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
+  const [rankingGroupFilter, setRankingGroupFilter] = useState('');
   const [newGameCost, setNewGameCost] = useState('');
   const [newGameGoalkeeperPays, setNewGameGoalkeeperPays] = useState(true);
   const [newGamePixKey, setNewGamePixKey] = useState('');
@@ -1313,7 +1251,7 @@ function MainApp({ session }) {
   const me = profiles.find((p) => p.id === myId);
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
@@ -1323,6 +1261,7 @@ function MainApp({ session }) {
       supabase.from('ratings').select('*'),
       supabase.from('groups').select('*').order('name'),
       supabase.from('group_members').select('*'),
+      supabase.from('group_locations').select('*').order('is_default', { ascending: false }).order('name'),
     ]);
     const profs = profilesRes.data || [];
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
@@ -1358,6 +1297,7 @@ function MainApp({ session }) {
         pixReceiverName: g.pix_receiver_name || null,
         pixCity: g.pix_city || null,
         groupId: g.group_id || null,
+        organizerId: g.organizer_id || null,
         confirmed, teamA, teamB, payments, scorers, assists, ratings,
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
@@ -1373,10 +1313,12 @@ function MainApp({ session }) {
       defaultPixKey: g.default_pix_key || '',
       defaultPixReceiverName: g.default_pix_receiver_name || '',
       defaultPixCity: g.default_pix_city || '',
+      defaultOrganizerId: g.default_organizer_id || null,
       avatar: g.avatar || null,
       avatarUrl: g.avatar_url || '',
     })));
     setGroupMembers(groupMembersRes.data || []);
+    setGroupLocations(groupLocationsRes.data || []);
     setLoading(false);
   }, []);
 
@@ -1413,6 +1355,22 @@ function MainApp({ session }) {
     })();
   }, [loadAll]);
 
+  const addParticipant = async (gameId, userId) => {
+    const game = games.find((g) => g.id === gameId);
+    if (!game?.groupId) { alert('A partida precisa estar vinculada a um grupo.'); return; }
+    const member = groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(userId));
+    if (!member) { alert('Só é possível adicionar jogadores que pertencem ao grupo da partida.'); return; }
+    const { error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: userId });
+    if (error) { alert('Não foi possível adicionar o jogador: ' + error.message); return; }
+    await loadAll();
+  };
+
+  const removeParticipant = async (gameId, userId) => {
+    const { error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', userId);
+    if (error) { alert('Não foi possível remover o jogador: ' + error.message); return; }
+    await loadAll();
+  };
+
   const toggleMyRSVP = async (gameId) => {
     const g = games.find((x) => x.id === gameId);
     if (g.confirmed.includes(myId)) {
@@ -1440,6 +1398,12 @@ function MainApp({ session }) {
       pix_city: pixCity || null,
       pix_owner_id: pixOwnerId || null,
     }).eq('id', gameId);
+    loadAll();
+  };
+
+  const setGameOrganizer = async (gameId, organizerId) => {
+    const { error } = await supabase.from('games').update({ organizer_id: organizerId || null }).eq('id', gameId);
+    if (error) { alert('Não foi possível alterar o organizador: ' + error.message); return; }
     loadAll();
   };
 
@@ -1497,34 +1461,90 @@ function MainApp({ session }) {
     loadAll();
   };
 
+  const createInlineGameLocation = async () => {
+    if (!newGameGroupId) { alert('Selecione um grupo antes de cadastrar o local.'); return; }
+    if (!inlineLocationDraft.name.trim()) { alert('Informe o nome do local.'); return; }
+    const { data, error } = await supabase.from('group_locations').insert({ group_id: newGameGroupId, name: inlineLocationDraft.name.trim(), address: inlineLocationDraft.address.trim() || null, city: inlineLocationDraft.city.trim() || null, state: inlineLocationDraft.state.trim().toUpperCase() || null, latitude: inlineLocationDraft.latitude === '' ? null : Number(inlineLocationDraft.latitude), longitude: inlineLocationDraft.longitude === '' ? null : Number(inlineLocationDraft.longitude), is_default: !!inlineLocationDraft.isDefault, created_by: myId }).select().single();
+    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return; }
+    setGroupLocations((prev) => [...prev, data]);
+    setNewGameLocationId(data.id);
+    setNewLocal(data.name || '');
+    setNewLocationAddress(data.address || '');
+    setNewLocationCity(data.city || '');
+    setNewLocationState(data.state || '');
+    setNewLocationLatitude(data.latitude != null ? String(data.latitude) : '');
+    setNewLocationLongitude(data.longitude != null ? String(data.longitude) : '');
+    setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
+    setInlineLocationOpen(false);
+  };
+
+  const createGroupLocation = async (groupId, draft) => {
+    const { data, error } = await supabase.from('group_locations').insert({ group_id: groupId, name: draft.name.trim(), address: draft.address.trim() || null, city: draft.city.trim() || null, state: draft.state.trim().toUpperCase() || null, latitude: draft.latitude === '' ? null : Number(draft.latitude), longitude: draft.longitude === '' ? null : Number(draft.longitude), is_default: !!draft.isDefault, created_by: myId }).select().single();
+    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+
+  const deleteGroupLocation = async (locationId) => {
+    if (!confirm('Excluir este local cadastrado?')) return;
+    const { error } = await supabase.from('group_locations').delete().eq('id', locationId);
+    if (error) { alert('Não foi possível excluir o local: ' + error.message); return; }
+    await loadAll();
+  };
+
+  const setGroupDefaultLocation = async (groupId, locationId) => {
+    if (locationId) {
+      const { error } = await supabase.from('group_locations').update({ is_default: true }).eq('id', locationId).eq('group_id', groupId);
+      if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return; }
+    } else {
+      const { error } = await supabase.from('group_locations').update({ is_default: false }).eq('group_id', groupId);
+      if (error) { alert('Não foi possível remover o local padrão: ' + error.message); return; }
+    }
+    await loadAll();
+  };
+
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
     const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
     const { data, error } = await supabase.from('games').insert({
       date, local: newLocal.trim(), location_address: newLocationAddress.trim() || null, location_city: newLocationCity.trim() || null, location_state: newLocationState.trim() || null, location_latitude: newLocationLatitude === '' ? null : Number(newLocationLatitude), location_longitude: newLocationLongitude === '' ? null : Number(newLocationLongitude), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
       cost: newGameCost === '' ? 0 : Number(newGameCost),
+      organizer_id: newGameOrganizerId || null,
       goalkeeper_pays: newGameGoalkeeperPays,
       pix_key: newGamePixKey.trim() || null,
       pix_receiver_name: newGamePixReceiverName.trim() || null,
       pix_city: newGamePixCity.trim() || null,
     }).select().single();
     if (error) { alert('Não deu pra criar a partida: ' + error.message); return; }
-    setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers(''); setNewGameGroupId(null);
+    setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers(''); setNewGameGroupId(null); setNewGameOrganizerId(''); setNewGameLocationId(''); setInlineLocationOpen(false); setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
     setNewGameCost(''); setNewGameGoalkeeperPays(true); setNewGamePixKey(''); setNewGamePixReceiverName(''); setNewGamePixCity('');
     setShowNewGame(false);
     await loadAll();
-    if (data) setSelectedGameId(data.id);
+    if (data) {
+      if (newGameOrganizerId) {
+        const { error: organizerConfirmationError } = await supabase
+          .from('game_confirmations')
+          .upsert({ game_id: data.id, user_id: newGameOrganizerId }, { onConflict: 'game_id,user_id' });
+        if (organizerConfirmationError) {
+          console.error('failed to confirm organizer in game', organizerConfirmationError);
+        }
+      }
+      setSelectedGameId(data.id);
+    }
   };
 
   // opens the "nova partida" modal pre-filled with a group's own defaults
   const openNewGameForGroup = (group) => {
     setNewGameGroupId(group.id);
     setNewDate(nextDateForWeekday(group.defaultDayOfWeek));
-    setNewLocal(group.defaultLocal || '');
+    setNewLocal('');
     setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
     setNewGameCost(group.defaultCost != null ? String(group.defaultCost) : '');
     setNewGameGoalkeeperPays(group.defaultGoalkeeperPays !== false);
-    setNewGamePixKey(group.defaultPixKey || '');
+    setNewGameOrganizerId(group.defaultOrganizerId || '');
+    const defaultOrganizer = profiles.find((p) => p.id === group.defaultOrganizerId);
+    setNewGamePixKey(defaultOrganizer?.pix_key || group.defaultPixKey || '');
+    setNewGamePixReceiverName(defaultOrganizer?.pix_key ? (defaultOrganizer.name || '') : (group.defaultPixReceiverName || ''));
     setNewGamePixReceiverName(group.defaultPixReceiverName || '');
     setNewGamePixCity(group.defaultPixCity || '');
     setShowNewGame(true);
@@ -1549,6 +1569,10 @@ function MainApp({ session }) {
     }).select().single();
     if (error) { alert('Não deu pra criar o grupo: ' + error.message); return; }
     if (data) {
+      if (newGroupLocal.trim()) {
+        const { error: locationError } = await supabase.from('group_locations').insert({ group_id: data.id, name: newGroupLocal.trim(), is_default: true, created_by: myId });
+        if (locationError) { console.error('failed to create initial group location', locationError); }
+      }
       const { error: memberError } = await supabase.from('group_members').insert({ group_id: data.id, user_id: myId });
       if (memberError) console.error('failed to add self as member', memberError);
     }
@@ -1623,7 +1647,8 @@ function MainApp({ session }) {
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const ranking = useMemo(() => computeRanking(profiles, games), [profiles, games]);
+  useEffect(() => { if (!rankingGroupFilter && groups.length) setRankingGroupFilter(groups[0].id); }, [groups, rankingGroupFilter]);
+  const ranking = useMemo(() => { if (!rankingGroupFilter) return []; const memberIds = new Set(groupMembers.filter((m) => String(m.group_id) === String(rankingGroupFilter)).map((m) => String(m.user_id))); const groupGames = games.filter((g) => String(g.groupId) === String(rankingGroupFilter)); return computeRanking(profiles.filter((p) => memberIds.has(String(p.id))), groupGames); }, [profiles, games, groupMembers, rankingGroupFilter]);
   const todayIso = new Date().toISOString().slice(0, 10);
   const upcomingGames = useMemo(() => [...games].filter((g) => g.date >= todayIso).sort((a, b) => (a.date > b.date ? 1 : -1)), [games, todayIso]);
   const pastGames = useMemo(() => [...games].filter((g) => g.date < todayIso).sort((a, b) => (a.date < b.date ? 1 : -1)), [games, todayIso]);
@@ -1715,13 +1740,18 @@ function MainApp({ session }) {
           <GameDetail
             game={selectedGame}
             roster={profiles}
+            groupMembers={groupMembers}
+            groupMemberIds={new Set(groupMembers.filter((m) => String(m.group_id) === String(selectedGame?.groupId)).map((m) => String(m.user_id)))}
             myId={myId}
             isAdmin={!!me?.is_admin}
             onBack={() => setSelectedGameId(null)}
             onToggleMyRSVP={toggleMyRSVP}
+            onAddParticipant={addParticipant}
+            onRemoveParticipant={removeParticipant}
             onSetCost={setCost}
             onSetGkPays={setGkPays}
             onSetGamePixDetails={setGamePixDetails}
+            onSetGameOrganizer={setGameOrganizer}
             onSetGameLocation={setGameLocation}
             onSetMaxPlayers={setMaxPlayers}
             onDraw={handleDraw}
@@ -1776,6 +1806,10 @@ function MainApp({ session }) {
             onLeave={leaveGroup}
             onDelete={deleteGroup}
             onRemoveMember={removeGroupMember}
+            onSetDefaultLocation={setGroupDefaultLocation}
+            locations={groupLocations.filter((l) => String(l.group_id) === String(selectedGroupId))}
+            onCreateLocation={createGroupLocation}
+            onDeleteLocation={deleteGroupLocation}
           />
         )}
 
@@ -1832,6 +1866,14 @@ function MainApp({ session }) {
             )}
 
             {subTab === 'ranking' && (
+              <>
+              <div className="sf-roster-filter">
+                <label className="sf-field-label">Grupo do ranking</label>
+                <select className="sf-input" value={rankingGroupFilter} onChange={(e) => setRankingGroupFilter(e.target.value)}>
+                  <option value="">Selecione um grupo</option>
+                  {elencoGroupOptions.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
               <div className="sf-ranking-table">
                 <div className="sf-ranking-header">
                   <span className="sf-rk-name">Jogador</span>
@@ -1852,6 +1894,7 @@ function MainApp({ session }) {
                   </div>
                 ))}
               </div>
+              </>
             )}
           </div>
         )}
@@ -1887,11 +1930,24 @@ function MainApp({ session }) {
             // Selecting a group must inherit every group default.
             // The fields remain editable for this specific game.
             setNewDate(nextDateForWeekday(g.defaultDayOfWeek));
-            setNewLocal(g.defaultLocal || '');
+            setNewLocal('');
             setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '');
             setNewGameCost(g.defaultCost != null ? String(g.defaultCost) : '');
             setNewGameGoalkeeperPays(g.defaultGoalkeeperPays !== false);
-            setNewGamePixKey(g.defaultPixKey || '');
+            const defaultLocation = groupLocations.find((l) => String(l.group_id) === String(g.id) && l.is_default) || groupLocations.find((l) => String(l.group_id) === String(g.id));
+            setNewGameLocationId(defaultLocation?.id || '');
+            if (defaultLocation) {
+              setNewLocal(defaultLocation.name || '');
+              setNewLocationAddress(defaultLocation.address || '');
+              setNewLocationCity(defaultLocation.city || '');
+              setNewLocationState(defaultLocation.state || '');
+              setNewLocationLatitude(defaultLocation.latitude != null ? String(defaultLocation.latitude) : '');
+              setNewLocationLongitude(defaultLocation.longitude != null ? String(defaultLocation.longitude) : '');
+            }
+            setNewGameOrganizerId(g.defaultOrganizerId || '');
+            const defaultOrganizer = profiles.find((p) => p.id === g.defaultOrganizerId);
+            setNewGamePixKey(defaultOrganizer?.pix_key || g.defaultPixKey || '');
+            setNewGamePixReceiverName(defaultOrganizer?.pix_key ? (defaultOrganizer.name || '') : (g.defaultPixReceiverName || ''));
             setNewGamePixReceiverName(g.defaultPixReceiverName || '');
             setNewGamePixCity(g.defaultPixCity || '');
           } else {
@@ -1900,6 +1956,14 @@ function MainApp({ session }) {
             setNewMaxPlayers('');
             setNewGameCost('');
             setNewGameGoalkeeperPays(true);
+            setNewGameOrganizerId('');
+            setNewGameLocationId('');
+            setNewLocal('');
+            setNewLocationAddress('');
+            setNewLocationCity('');
+            setNewLocationState('');
+            setNewLocationLatitude('');
+            setNewLocationLongitude('');
             setNewGamePixKey('');
             setNewGamePixReceiverName('');
             setNewGamePixCity('');
@@ -1909,6 +1973,43 @@ function MainApp({ session }) {
                   <option value="">Nenhum grupo</option>
                   {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
+              </>
+            )}
+            <label className="sf-field-label">Organizador da partida</label>
+            <select className="sf-input" value={newGameOrganizerId} onChange={(e) => { const id = e.target.value; setNewGameOrganizerId(id); const p = profiles.find((x) => x.id === id); if (p?.pix_key) { setNewGamePixKey(p.pix_key); setNewGamePixReceiverName(p.name || ''); } }}>
+              <option value="">Não definido</option>
+              {profiles.filter((p) => !newGameGroupId || (groupMembers || []).some((m) => m.group_id === newGameGroupId && m.user_id === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {newGameGroupId && (
+              <>
+                <label className="sf-field-label">Local da partida</label>
+                <select className="sf-input" value={newGameLocationId} onChange={(e) => {
+                  const id = e.target.value;
+                  setNewGameLocationId(id);
+                  const location = groupLocations.find((l) => String(l.id) === String(id));
+                  if (location) {
+                    setNewLocal(location.name || '');
+                    setNewLocationAddress(location.address || '');
+                    setNewLocationCity(location.city || '');
+                    setNewLocationState(location.state || '');
+                    setNewLocationLatitude(location.latitude != null ? String(location.latitude) : '');
+                    setNewLocationLongitude(location.longitude != null ? String(location.longitude) : '');
+                  }
+                }}>
+                  <option value="">Selecionar local cadastrado...</option>
+                  {groupLocations.filter((l) => String(l.group_id) === String(newGameGroupId)).map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}{l.is_default ? ' · padrão' : ''}</option>
+                  ))}
+                </select>
+                <button type="button" className="sf-btn-ghost" style={{ marginTop: 6 }} onClick={() => setInlineLocationOpen((v) => !v)}>{inlineLocationOpen ? 'Fechar cadastro de local' : 'Cadastrar novo local sem sair da partida'}</button>
+                {inlineLocationOpen && <div className="sf-card" style={{ marginTop: 8 }}>
+                  <label className="sf-field-label">Nome do local</label><input className="sf-input" placeholder="Quadra / arena" value={inlineLocationDraft.name} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, name: e.target.value })} />
+                  <label className="sf-field-label">Endereço</label><input className="sf-input" placeholder="Rua, número, complemento" value={inlineLocationDraft.address} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, address: e.target.value })} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 6 }}><input className="sf-input" placeholder="Cidade" value={inlineLocationDraft.city} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, city: e.target.value })} /><input className="sf-input" maxLength="2" placeholder="UF" value={inlineLocationDraft.state} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, state: e.target.value.toUpperCase() })} /></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 }}><input type="number" step="any" className="sf-input" placeholder="Latitude" value={inlineLocationDraft.latitude} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, latitude: e.target.value })} /><input type="number" step="any" className="sf-input" placeholder="Longitude" value={inlineLocationDraft.longitude} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, longitude: e.target.value })} /></div>
+                  <label className="sf-check-row" style={{ marginTop: 8 }}><input type="checkbox" checked={inlineLocationDraft.isDefault} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, isDefault: e.target.checked })} /> Tornar padrão do grupo</label>
+                  <button type="button" className="sf-btn-primary" style={{ marginTop: 8 }} onClick={createInlineGameLocation}>Cadastrar e usar nesta partida</button>
+                </div>}
               </>
             )}
             <label className="sf-field-label">Data</label>
@@ -1942,8 +2043,9 @@ function MainApp({ session }) {
             <div className="sf-modal-title">Criar grupo</div>
             <label className="sf-field-label">Nome do grupo</label>
             <input className="sf-input" placeholder="ex: Bola com os camarada" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
-            <label className="sf-field-label">Local padrão</label>
-            <input className="sf-input" placeholder="Quadra / arena" value={newGroupLocal} onChange={(e) => setNewGroupLocal(e.target.value)} />
+            <label className="sf-field-label">Local inicial (opcional)</label>
+            <input className="sf-input" placeholder="Nome da quadra / arena" value={newGroupLocal} onChange={(e) => setNewGroupLocal(e.target.value)} />
+            <div className="sf-muted-sm" style={{ marginTop: 4 }}>Depois de criar o grupo, você poderá cadastrar o endereço completo e definir o local padrão em Locais cadastrados.</div>
             <label className="sf-field-label">Dia padrão</label>
             <select className="sf-input" value={newGroupDay} onChange={(e) => setNewGroupDay(e.target.value)}>
               {WEEKDAY_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
