@@ -1,164 +1,34 @@
 /* Audit UI: compact numeric/stat columns in ranking and match tables. */
 .sf-detail table th:not(:first-child),
-.sf-detail table td:not(:first-child) {
-  text-align: right;
-  white-space: nowrap;
-}
-
+.sf-detail table td:not(:first-child) { text-align: right; white-space: nowrap; }
 .sf-detail table th:first-child,
-.sf-detail table td:first-child {
-  text-align: left;
-}
+.sf-detail table td:first-child { text-align: left; }
 
 /* Player waitlist status. */
-.sf-waitlist-trigger {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 1200;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid rgba(255,255,255,.16);
-  border-radius: 999px;
-  padding: 9px 13px;
-  background: #0B2417;
-  color: #EDF6EE;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0,0,0,.22);
-}
-
-.sf-waitlist-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  background: rgba(0,0,0,.48);
-}
-
-.sf-waitlist-panel {
-  width: min(520px, 100%);
-  max-height: min(70vh, 620px);
-  overflow: auto;
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 20px 60px rgba(0,0,0,.28);
-  color: #18221b;
-}
-
-.sf-waitlist-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 18px;
-  border-bottom: 1px solid #e7ece8;
-}
-
-.sf-waitlist-head strong,
-.sf-waitlist-head small,
-.sf-waitlist-row strong,
-.sf-waitlist-row small { display: block; }
-
-.sf-waitlist-head small,
-.sf-waitlist-row small {
-  margin-top: 3px;
-  color: #66736b;
-}
-
-.sf-waitlist-head > button {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
+.sf-waitlist-trigger { position: fixed; right: 18px; bottom: 18px; z-index: 1200; display: inline-flex; align-items: center; gap: 7px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 9px 13px; background: #0B2417; color: #EDF6EE; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+.sf-waitlist-backdrop { position: fixed; inset: 0; z-index: 1300; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.48); }
+.sf-waitlist-panel { width: min(520px, 100%); max-height: min(70vh, 620px); overflow: auto; border-radius: 18px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,.28); color: #18221b; }
+.sf-waitlist-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 18px; border-bottom: 1px solid #e7ece8; }
+.sf-waitlist-head strong,.sf-waitlist-head small,.sf-waitlist-row strong,.sf-waitlist-row small { display: block; }
+.sf-waitlist-head small,.sf-waitlist-row small { margin-top: 3px; color: #66736b; }
+.sf-waitlist-head > button { border: 0; background: transparent; cursor: pointer; }
 .sf-waitlist-list { padding: 8px 18px 18px; }
-
-.sf-waitlist-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 0;
-  border-bottom: 1px solid #eef2ef;
-}
-
+.sf-waitlist-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #eef2ef; }
 .sf-waitlist-row:last-child { border-bottom: 0; }
-
-.sf-waitlist-row > span {
-  min-width: 42px;
-  text-align: center;
-  border-radius: 999px;
-  padding: 5px 8px;
-  background: #edf5ef;
-  font-weight: 800;
-}
+.sf-waitlist-row > span { min-width: 42px; text-align: center; border-radius: 999px; padding: 5px 8px; background: #edf5ef; font-weight: 800; }
 
 /* Organizer selector in the match rateio card. */
-.sf-detail .sf-cost-row select {
-  width: 140px;
-  min-width: 140px;
-  box-sizing: border-box;
-}
-
-@media (max-width: 380px) {
-  .sf-detail .sf-cost-row select {
-    width: 128px;
-    min-width: 128px;
-  }
-}
+.sf-detail .sf-cost-row select { width: 140px; min-width: 140px; box-sizing: border-box; }
+@media (max-width: 380px) { .sf-detail .sf-cost-row select { width: 128px; min-width: 128px; } }
 
 /* Player position tags. */
 .sf-position-tags { display:inline-flex; align-items:center; gap:3px; margin-right:6px; flex-wrap:wrap; }
 .sf-position-tag { display:inline-flex; align-items:center; gap:2px; border:1px solid rgba(255,197,61,.5); border-radius:999px; padding:2px 5px; background:rgba(255,197,61,.12); color:#FFC53D; font-size:9px; font-weight:800; line-height:1; white-space:nowrap; }
 
 /* Floating match-management control: icon only, persistent and out of the content flow. */
-.sf-game-management-fab {
-  position: fixed;
-  right: 18px;
-  bottom: 92px;
-  z-index: 1100;
-  width: 52px;
-  height: 52px;
-  min-width: 52px;
-  min-height: 52px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--floodlight);
-  color: var(--pitch-dark);
-  box-shadow: 0 8px 24px rgba(0,0,0,.38);
-  cursor: pointer;
-}
-
-.sf-game-management-fab:hover { transform: translateY(-1px); }
-.sf-game-management-fab:focus-visible { outline: 3px solid rgba(255,255,255,.9); outline-offset: 3px; }
-.sf-game-management-fab:active { transform: scale(.96); }
-
-/* In the new-game form, keep "Cadastrar novo local" as a compact secondary action
-   instead of making it look like another primary submit button. */
-.sf-modal select.sf-input + .sf-btn-ghost {
-  width: auto;
-  align-self: flex-start;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  margin-top: 6px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
+.sf-app .sf-game-management-fab { position: fixed; right: 18px; bottom: 92px; z-index: 1100; width: 52px; height: 52px; min-width: 52px; min-height: 52px; padding: 0; border: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--floodlight); color: var(--pitch-dark); box-shadow: 0 8px 24px rgba(0,0,0,.38); cursor: pointer; }
+.sf-app .sf-game-management-fab:hover { transform: translateY(-1px); }
+.sf-app .sf-game-management-fab:focus-visible { outline: 3px solid rgba(255,255,255,.9); outline-offset: 3px; }
+.sf-modal select.sf-input + .sf-btn-ghost { width: auto; align-self: flex-start; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; margin-top: 6px; border-radius: 8px; font-size: 12px; }
 .sf-modal select.sf-input + .sf-btn-ghost:hover { border-color: var(--floodlight); color: var(--floodlight); }
-
-@media (max-width: 380px) {
-  .sf-game-management-fab { right: 14px; bottom: 86px; width: 50px; height: 50px; min-width: 50px; min-height: 50px; }
-}
+@media (max-width: 380px) { .sf-app .sf-game-management-fab { right: 14px; bottom: 86px; width: 50px; height: 50px; min-width: 50px; min-height: 50px; } }
