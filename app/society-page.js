@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
+import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 
 // ---------- helpers ----------
 
@@ -83,40 +84,6 @@ function PlayerCard({ player, compact }) {
 // Positions are preferences only: a player can be assigned to another slot when
 // needed to complete both teams. Players without positions are distributed by
 // the normal rating balance and receive fallback positions in the pitch view.
-function formatDatePtBr(iso) {
-  if (!iso) return '';
-  const d = new Date(iso + 'T12:00:00');
-  return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
-}
-
-const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-
-// next upcoming date (yyyy-mm-dd) that falls on the given weekday (0=Sun..6=Sat)
-function nextDateForWeekday(weekday) {
-  if (weekday == null) return '';
-  const today = new Date();
-  const diff = (weekday - today.getDay() + 7) % 7 || 7;
-  const d = new Date(today);
-  d.setDate(today.getDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-
-function money(n) {
-  return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function gameLocationQuery(game) {
-  if (game.locationLatitude != null && game.locationLongitude != null) return `${game.locationLatitude},${game.locationLongitude}`;
-  return [game.local, game.locationAddress, game.locationCity, game.locationState].filter(Boolean).join(', ');
-}
-
-function gameMapUrls(game) {
-  const query = gameLocationQuery(game);
-  if (!query) return { google: null, waze: null };
-  const encoded = encodeURIComponent(query);
-  return { google: `https://www.google.com/maps/dir/?api=1&destination=${encoded}`, waze: game.locationLatitude != null && game.locationLongitude != null ? `https://www.waze.com/ul?ll=${encoded}&navigate=yes` : `https://www.waze.com/ul?q=${encoded}&navigate=yes` };
-}
-
 // ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------
 
 function crc16(payload) {
