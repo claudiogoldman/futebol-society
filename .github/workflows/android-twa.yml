@@ -31,15 +31,51 @@ jobs:
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
 
+      - name: Configure Android SDK and Bubblewrap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "JAVA_HOME=${JAVA_HOME}"
+
+          if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "${ANDROID_SDK_ROOT}" ]; then
+            SDK_PATH="${ANDROID_SDK_ROOT}"
+          elif [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
+            SDK_PATH="${ANDROID_HOME}"
+          elif [ -d "/usr/local/lib/android/sdk" ]; then
+            SDK_PATH="/usr/local/lib/android/sdk"
+          else
+            echo "Android SDK not found on runner"
+            exit 1
+          fi
+
+          echo "Using Android SDK: ${SDK_PATH}"
+          echo "ANDROID_SDK_ROOT=${SDK_PATH}" >> "${GITHUB_ENV}"
+          echo "ANDROID_HOME=${SDK_PATH}" >> "${GITHUB_ENV}"
+
+          bubblewrap updateConfig \
+            --jdkPath="${JAVA_HOME}" \
+            --androidSdkPath="${SDK_PATH}"
+
+          bubblewrap doctor
+
       - name: Generate Android project
-        run: printf 'n\n' | bubblewrap update --manifest=android/twa-manifest.json --skipVersionUpgrade
+        run: bubblewrap update --manifest=android/twa-manifest.json --directory=android --skipVersionUpgrade
+
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f android/gradlew
+          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
+          echo "Android project generated successfully"
 
       - name: Build unsigned App Bundle
-        run: bubblewrap build --manifest=android/twa-manifest.json --skipSigning
+        run: bubblewrap build --manifest=android/twa-manifest.json --directory=android --skipSigning
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: futebol-society-aab
-          path: '**/*-bundle.aab'
+          path: 'android/**/*-bundle.aab'
           if-no-files-found: error
