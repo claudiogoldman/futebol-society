@@ -1,0 +1,40 @@
+{
+  "packageId": "br.com.treinadorideal.futebolsociety",
+  "host": "futebol-society-app.vercel.app",
+  "name": "Futebol Society",
+  "launcherName": "Society",
+  "display": "standalone",
+  "themeColor": "#0B2417",
+  "themeColorDark": "#0B2417",
+  "navigationColor": "#0B2417",
+  "navigationColorDark": "#0B2417",
+  "navigationDividerColor": "#0B2417",
+  "navigationDividerColorDark": "#0B2417",
+  "backgroundColor": "#0B2417",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://futebol-society-app.vercel.app/icons/society.svg",
+  "maskableIconUrl": "https://futebol-society-app.vercel.app/icons/society.svg",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "society"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://futebol-society-app.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 23,
+  "orientation": "portrait",
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}
