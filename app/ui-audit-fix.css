@@ -112,7 +112,53 @@
   }
 }
 
-
 /* Player position tags. */
 .sf-position-tags { display:inline-flex; align-items:center; gap:3px; margin-right:6px; flex-wrap:wrap; }
 .sf-position-tag { display:inline-flex; align-items:center; gap:2px; border:1px solid rgba(255,197,61,.5); border-radius:999px; padding:2px 5px; background:rgba(255,197,61,.12); color:#FFC53D; font-size:9px; font-weight:800; line-height:1; white-space:nowrap; }
+
+/* Floating match-management control: icon only, persistent and out of the content flow. */
+.sf-game-management-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 92px;
+  z-index: 1100;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--floodlight);
+  color: var(--pitch-dark);
+  box-shadow: 0 8px 24px rgba(0,0,0,.38);
+  cursor: pointer;
+}
+
+.sf-game-management-fab:hover { transform: translateY(-1px); }
+.sf-game-management-fab:focus-visible { outline: 3px solid rgba(255,255,255,.9); outline-offset: 3px; }
+.sf-game-management-fab:active { transform: scale(.96); }
+
+/* In the new-game form, keep "Cadastrar novo local" as a compact secondary action
+   instead of making it look like another primary submit button. */
+.sf-modal select.sf-input + .sf-btn-ghost {
+  width: auto;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  margin-top: 6px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.sf-modal select.sf-input + .sf-btn-ghost:hover { border-color: var(--floodlight); color: var(--floodlight); }
+
+@media (max-width: 380px) {
+  .sf-game-management-fab { right: 14px; bottom: 86px; width: 50px; height: 50px; min-width: 50px; min-height: 50px; }
+}
