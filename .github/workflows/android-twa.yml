@@ -47,7 +47,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
           test -d "${SDK_PATH}"
           test -d "${SDK_PATH}/build-tools"
@@ -55,7 +54,6 @@ jobs:
 
           echo "JAVA_HOME=${JAVA_HOME}"
           echo "Android SDK=${SDK_PATH}"
-          ls -la "${SDK_PATH}/build-tools"
 
           mkdir -p "${HOME}/.bubblewrap"
           cat > "${HOME}/.bubblewrap/config.json" <<EOF
@@ -65,7 +63,6 @@ jobs:
           }
           EOF
 
-          cat "${HOME}/.bubblewrap/config.json"
           bubblewrap doctor
 
       - name: Generate Android project
@@ -77,14 +74,20 @@ jobs:
           set -euo pipefail
           test -f android/gradlew
           test -f android/app/build.gradle || test -f android/app/build.gradle.kts
+          chmod +x android/gradlew
           echo "Android project generated successfully"
 
       - name: Build unsigned App Bundle
-        run: bubblewrap build --manifest=android/twa-manifest.json --directory=android --skipSigning
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: futebol-society-aab
-          path: 'android/**/*-bundle.aab'
+          path: 'android/app/build/outputs/bundle/release/*.aab'
           if-no-files-found: error
