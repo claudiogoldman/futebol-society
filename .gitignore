@@ -6,3 +6,6 @@ out/
 auth-state.json
 playwright-report/
 test-results/
+android/android.keystore
+*.keystore
+*.jks
