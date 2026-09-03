@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
+import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
@@ -591,7 +592,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>
               <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>
               <div className="sf-management-subtitle">Jogadores confirmados</div>
-              <div className="sf-rsvp-list">{activePlayers.map((p) => <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}><span className="sf-rsvp-name">{isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}{p.name}{p.id === myId ? ' (você)' : ''}</span><StarRating value={p.rating} readOnly size={12} onChange={() => {}} />{p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}</div>)}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>
+              <div className="sf-rsvp-list">{activePlayers.map((p) => <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}><span className="sf-rsvp-name"><PositionTags player={p} />{p.name}{p.id === myId ? ' (você)' : ''}</span><StarRating value={p.rating} readOnly size={12} onChange={() => {}} />{p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}</div>)}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>
             </section>
             <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button></div>
           </div>
@@ -658,7 +659,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''} ${onWaitlist ? 'sf-rsvp-waitlist' : ''}`}>
                 <span className="sf-rsvp-check">{on && !onWaitlist ? <Check size={14} /> : null}</span>
                 <span className="sf-rsvp-name">
-                  {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
+                  <PositionTags player={p} />
                   {p.name}{p.id === myId ? ' (você)' : ''}
                 </span>
                 {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
@@ -1966,7 +1967,7 @@ function MainApp({ session }) {
                     </button>
                     <div className="sf-player-card-info">
                       <div className="sf-h3">
-                        {isGoleiro(p) && <span className="sf-gk-tag" title="Goleiro"><Hand size={10} /> GOL</span>}
+                        <PositionTags player={p} />
                         {p.nationality_code ? <span aria-label={p.nationality_code} style={{ marginRight: 5 }}>{countryFlag(p.nationality_code)}</span> : null}
                         {p.name}
                         {p.is_admin && <span className="sf-admin-tag" title="Admin">ADMIN</span>}

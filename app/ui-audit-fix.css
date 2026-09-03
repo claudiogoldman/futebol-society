@@ -111,3 +111,8 @@
     min-width: 128px;
   }
 }
+
+
+/* Player position tags. */
+.sf-position-tags { display:inline-flex; align-items:center; gap:3px; margin-right:6px; flex-wrap:wrap; }
+.sf-position-tag { display:inline-flex; align-items:center; gap:2px; border:1px solid rgba(255,197,61,.5); border-radius:999px; padding:2px 5px; background:rgba(255,197,61,.12); color:#FFC53D; font-size:9px; font-weight:800; line-height:1; white-space:nowrap; }
