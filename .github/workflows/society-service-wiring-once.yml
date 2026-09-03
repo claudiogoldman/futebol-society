@@ -1,0 +1,34 @@
+name: Society service wiring once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply patch
+        run: node scripts/patch-society-service-wiring.cjs
+      - name: Validate diff
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+        run: npm run build
+      - name: Commit patched page
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: wire Society game mutations to service layer"
+          git push
