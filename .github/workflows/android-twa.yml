@@ -86,11 +86,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "ERROR: ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
-          test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}" || { echo "ERROR: BUBBLEWRAP_KEYSTORE_PASSWORD is empty"; exit 1; }
-          test -n "${BUBBLEWRAP_KEY_PASSWORD}" || { echo "ERROR: BUBBLEWRAP_KEY_PASSWORD is empty"; exit 1; }
+          if [ -z "${ANDROID_KEYSTORE_BASE64}" ]; then
+            echo "ERROR: ANDROID_KEYSTORE_BASE64 is empty"
+            exit 1
+          fi
+          echo "ANDROID_KEYSTORE_BASE64: present (${#ANDROID_KEYSTORE_BASE64} characters)"
 
-          echo "Base64 secret length: ${#ANDROID_KEYSTORE_BASE64} characters"
+          if [ -z "${BUBBLEWRAP_KEYSTORE_PASSWORD}" ]; then
+            echo "ERROR: BUBBLEWRAP_KEYSTORE_PASSWORD is empty"
+            exit 1
+          fi
+          echo "BUBBLEWRAP_KEYSTORE_PASSWORD: present"
+
+          if [ -z "${BUBBLEWRAP_KEY_PASSWORD}" ]; then
+            echo "ERROR: BUBBLEWRAP_KEY_PASSWORD is empty"
+            exit 1
+          fi
+          echo "BUBBLEWRAP_KEY_PASSWORD: present"
+
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
           echo "Decoded keystore size: $(wc -c < android/android.keystore) bytes"
@@ -98,7 +111,7 @@ jobs:
           keytool -list \
             -keystore android/android.keystore \
             -alias society \
-            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
+            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" >/dev/null
 
           echo "Signing key loaded successfully"
 
