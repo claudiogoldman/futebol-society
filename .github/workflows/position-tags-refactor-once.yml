@@ -26,38 +26,26 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           page = Path('app/society-page.js')
           css = Path('app/ui-audit-fix.css')
           text = page.read_text()
-
           import_line = "import PositionTags from '../components/players/PositionTags';"
           anchor = "import { NATIONALITIES, countryFlag } from '../lib/countries';"
           if import_line not in text:
-              if anchor not in text:
-                  raise SystemExit('Import anchor not found')
               text = text.replace(anchor, anchor + "\n" + import_line, 1)
-
           old = "{isGoleiro(p) && <span className=\"sf-gk-tag\" title=\"Goleiro\"><Hand size={10} /> GOL</span>}"
-          count = text.count(old)
-          if count != 2:
-              raise SystemExit(f'Expected exactly 2 goalkeeper tags, found {count}')
-          text = text.replace(old, "<PositionTags player={p} />")
-          page.write_text(text)
-
+          if text.count(old) != 2:
+              raise SystemExit(f'Expected exactly 2 goalkeeper tags, found {text.count(old)}')
+          page.write_text(text.replace(old, "<PositionTags player={p} />"))
           css_text = css.read_text()
-          marker = "/* Player position tags. */"
-          if marker not in css_text:
-              css_text += '''\n\n/* Player position tags. */\n.sf-position-tags {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  margin-right: 6px;\n  flex-wrap: wrap;\n}\n\n.sf-position-tag {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  border: 1px solid rgba(255,197,61,.5);\n  border-radius: 999px;\n  padding: 2px 5px;\n  background: rgba(255,197,61,.12);\n  color: #FFC53D;\n  font-size: 9px;\n  font-weight: 800;\n  line-height: 1;\n  white-space: nowrap;\n}\n'''
-              css.write_text(css_text)
+          if "/* Player position tags. */" not in css_text:
+              css.write_text(css_text + '''\n\n/* Player position tags. */\n.sf-position-tags { display:inline-flex; align-items:center; gap:3px; margin-right:6px; flex-wrap:wrap; }\n.sf-position-tag { display:inline-flex; align-items:center; gap:2px; border:1px solid rgba(255,197,61,.5); border-radius:999px; padding:2px 5px; background:rgba(255,197,61,.12); color:#FFC53D; font-size:9px; font-weight:800; line-height:1; white-space:nowrap; }\n''')
           PY
-
       - name: Validate
         run: |
           git diff --check
           npm ci --no-audit --no-fund
           NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key npm run build
-
       - name: Commit refactor
         run: |
           git config user.name 'github-actions[bot]'
@@ -65,3 +53,5 @@ jobs:
           git add app/society-page.js app/ui-audit-fix.css
           git commit -m 'refactor: render all known player positions'
           git push
+
+# One-shot integration; removed after successful validation.
