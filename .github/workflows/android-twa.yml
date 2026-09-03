@@ -85,13 +85,21 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.BUBBLEWRAP_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
-          test -n "${BUBBLEWRAP_KEY_PASSWORD}"
+
+          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "ERROR: ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
+          test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}" || { echo "ERROR: BUBBLEWRAP_KEYSTORE_PASSWORD is empty"; exit 1; }
+          test -n "${BUBBLEWRAP_KEY_PASSWORD}" || { echo "ERROR: BUBBLEWRAP_KEY_PASSWORD is empty"; exit 1; }
+
+          echo "Base64 secret length: ${#ANDROID_KEYSTORE_BASE64} characters"
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
-          keytool -list -keystore android/android.keystore \
+          echo "Decoded keystore size: $(wc -c < android/android.keystore) bytes"
+
+          keytool -list \
+            -keystore android/android.keystore \
             -alias society \
-            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" >/dev/null
+            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
+
           echo "Signing key loaded successfully"
 
       - name: Build signed App Bundle
