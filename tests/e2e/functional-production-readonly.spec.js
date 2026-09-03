@@ -30,7 +30,8 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
     await expect(newGameButton).toBeVisible();
     await newGameButton.click();
 
-    await expect(page.getByText('Nova partida', { exact: true })).toBeVisible();
+    const newGameModalTitle = page.locator('.sf-modal-title').filter({ hasText: /^Nova partida$/ });
+    await expect(newGameModalTitle).toBeVisible();
     const selects = page.locator('select.sf-input');
     await expect(selects.first()).toBeVisible();
 
