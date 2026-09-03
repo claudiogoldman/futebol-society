@@ -47,15 +47,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
           test -d "${SDK_PATH}"
           test -d "${SDK_PATH}/build-tools"
           test -d "${JAVA_HOME}"
-
-          echo "JAVA_HOME=${JAVA_HOME}"
-          echo "Android SDK=${SDK_PATH}"
-          ls -la "${SDK_PATH}/build-tools"
 
           mkdir -p "${HOME}/.bubblewrap"
           cat > "${HOME}/.bubblewrap/config.json" <<EOF
@@ -65,7 +60,6 @@ jobs:
           }
           EOF
 
-          cat "${HOME}/.bubblewrap/config.json"
           bubblewrap doctor
 
       - name: Generate Android project
@@ -77,14 +71,100 @@ jobs:
           set -euo pipefail
           test -f android/gradlew
           test -f android/app/build.gradle || test -f android/app/build.gradle.kts
+          chmod +x android/gradlew
           echo "Android project generated successfully"
 
-      - name: Build unsigned App Bundle
-        run: bubblewrap build --manifest=android/twa-manifest.json --directory=android --skipSigning
+      - name: Prepare signing key
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
+          test -s android/android.keystore
+          keytool -list -keystore android/android.keystore -alias society -storepass "${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}" >/dev/null
+          echo "Signing key loaded successfully"
 
-      - name: Upload AAB
+      - name: Build signed App Bundle
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.BUBBLEWRAP_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          bubblewrap build \
+            --manifest=twa-manifest.json \
+            --signingKeyPath=android.keystore \
+            --signingKeyAlias=society
+
+      - name: Build unsigned App Bundle
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
+
+      - name: Generate signing fingerprint and Digital Asset Links
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p android-signing
+
+          SHA256=$(keytool -list -v \
+            -keystore android/android.keystore \
+            -alias society \
+            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" \
+            | awk -F': ' '/SHA256:/{print $2; exit}' \
+            | tr -d '\r')
+
+          test -n "${SHA256}"
+          echo "${SHA256}" > android-signing/sha256.txt
+
+          mkdir -p android-signing/.well-known
+          cat > android-signing/.well-known/assetlinks.json <<EOF
+          [
+            {
+              "relation": ["delegate_permission/common.handle_all_urls"],
+              "target": {
+                "namespace": "android_app",
+                "package_name": "br.com.treinadorideal.futebolsociety",
+                "sha256_cert_fingerprints": ["${SHA256}"]
+              }
+            }
+          ]
+          EOF
+
+          echo "Digital Asset Links generated"
+
+      - name: Upload signed AAB
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: futebol-society-aab
-          path: 'android/**/*-bundle.aab'
+          name: futebol-society-aab-signed
+          path: android/app-release-bundle.aab
+          if-no-files-found: error
+
+      - name: Upload signing metadata
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: futebol-society-assetlinks
+          path: android-signing/
+          if-no-files-found: error
+
+      - name: Upload unsigned AAB
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: futebol-society-aab-unsigned
+          path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
