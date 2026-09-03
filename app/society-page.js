@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1521,7 +1521,7 @@ function MainApp({ session }) {
   };
 
   const togglePaid = async (gameId, userId, paid) => {
-    const { error } = await supabase.from('payments').upsert({ game_id: gameId, user_id: userId, paid });
+    const { error } = await setGamePayment(gameId, userId, paid);
     if (error) { alert('Não foi possível atualizar o pagamento: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1530,22 +1530,17 @@ function MainApp({ session }) {
   const savePlayerStats = async (gameId, userId, goals, assists) => {
     const safeGoals = Math.max(0, parseInt(goals, 10) || 0);
     const safeAssists = Math.max(0, parseInt(assists, 10) || 0);
-    const { error } = await supabase.from('goals').upsert({
-      game_id: gameId,
-      user_id: userId,
-      goals: safeGoals,
-      assists: safeAssists,
-    });
+    const { error } = await setPlayerStats(gameId, userId, safeGoals, safeAssists);
     if (error) { alert('Não foi possível salvar seus gols/assistências: ' + error.message); return; }
     loadAll();
   };
 
   const saveResult = async (gameId, scoreA, scoreB, scorers, assists, playerIds) => {
-    const { error: resultError } = await supabase.from('games').update({ score_a: scoreA, score_b: scoreB }).eq('id', gameId);
+    const { error: resultError } = await setGameResult(gameId, scoreA, scoreB);
     if (resultError) { alert('Não foi possível salvar o placar: ' + resultError.message); return false; }
     const rows = playerIds.map((id) => ({ game_id: gameId, user_id: id, goals: scorers[id] || 0, assists: assists[id] || 0 }));
     if (rows.length) {
-      const { error: goalsError } = await supabase.from('goals').upsert(rows);
+      const { error: goalsError } = await setGameGoals(gameId, rows);
       if (goalsError) { alert('O placar foi salvo, mas os gols/assistências não puderam ser salvos: ' + goalsError.message); await loadAll(); return false; }
     }
     await loadAll();
@@ -1557,7 +1552,7 @@ function MainApp({ session }) {
       .filter(([, score]) => score > 0)
       .map(([ratedId, score]) => ({ game_id: gameId, rater_id: myId, rated_id: ratedId, score }));
     if (rows.length) {
-      const { error } = await supabase.from('ratings').upsert(rows);
+      const { error } = await setGameRatings(rows);
       if (error) { alert('Não foi possível salvar as avaliações: ' + error.message); return false; }
     }
     await loadAll();
