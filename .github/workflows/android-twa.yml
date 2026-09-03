@@ -30,6 +30,16 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
 
@@ -38,12 +48,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}"
           test -d "${SDK_PATH}"
+          test -d "${SDK_PATH}/build-tools"
           test -d "${JAVA_HOME}"
 
           echo "JAVA_HOME=${JAVA_HOME}"
           echo "Android SDK=${SDK_PATH}"
+          ls -la "${SDK_PATH}/build-tools"
 
           mkdir -p "${HOME}/.bubblewrap"
           cat > "${HOME}/.bubblewrap/config.json" <<EOF
