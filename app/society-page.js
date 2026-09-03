@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails, setGameOrganizer, setGameLocation, setGameMaxPlayers, setGameTeams } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1475,20 +1475,20 @@ function MainApp({ session }) {
   };
 
   const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId }) => {
-    const { error } = await setGamePixDetails(gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId });
+    const { error } = await serviceSetGamePixDetails(gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId });
     if (error) { alert('Não foi possível salvar os dados do PIX: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const setGameOrganizer = async (gameId, organizerId) => {
-    const { error } = await setGameOrganizer(gameId, organizerId);
+    const { error } = await serviceSetGameOrganizer(gameId, organizerId);
     if (error) { alert('Não foi possível alterar o organizador: ' + error.message); return; }
     loadAll();
   };
 
   const setGameLocation = async (gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude }) => {
-    const { error } = await setGameLocation(gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude });
+    const { error } = await serviceSetGameLocation(gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude });
     if (error) { alert('Não foi possível salvar o local da partida: ' + error.message); return false; }
     await loadAll();
     return true;
