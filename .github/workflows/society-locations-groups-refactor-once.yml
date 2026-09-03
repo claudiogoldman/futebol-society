@@ -103,6 +103,9 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-validation-placeholder
         run: npm run build
 
       - name: Commit and push
