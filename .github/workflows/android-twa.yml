@@ -86,23 +86,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${ANDROID_KEYSTORE_BASE64}" ]; then
-            echo "ERROR: ANDROID_KEYSTORE_BASE64 is empty"
-            exit 1
-          fi
+          test -n "${ANDROID_KEYSTORE_BASE64}"
+          test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
+          test -n "${BUBBLEWRAP_KEY_PASSWORD}"
+
           echo "ANDROID_KEYSTORE_BASE64: present (${#ANDROID_KEYSTORE_BASE64} characters)"
-
-          if [ -z "${BUBBLEWRAP_KEYSTORE_PASSWORD}" ]; then
-            echo "ERROR: BUBBLEWRAP_KEYSTORE_PASSWORD is empty"
-            exit 1
-          fi
-          echo "BUBBLEWRAP_KEYSTORE_PASSWORD: present"
-
-          if [ -z "${BUBBLEWRAP_KEY_PASSWORD}" ]; then
-            echo "ERROR: BUBBLEWRAP_KEY_PASSWORD is empty"
-            exit 1
-          fi
-          echo "BUBBLEWRAP_KEY_PASSWORD: present"
+          echo "BUBBLEWRAP_KEYSTORE_PASSWORD length: ${#BUBBLEWRAP_KEYSTORE_PASSWORD} characters"
+          echo "BUBBLEWRAP_KEY_PASSWORD length: ${#BUBBLEWRAP_KEY_PASSWORD} characters"
 
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
