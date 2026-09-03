@@ -28,13 +28,13 @@ jobs:
           if (!page.includes(oldImport)) throw new Error('Expected Society service import not found');
           page = page.replace(oldImport, newImport);
 
-          const profileUpload = /const ext = \(file\.name\.split\('\.'\)\.pop\(\) \|\| 'jpg'\)\.toLowerCase\(\);[\s\S]*?onUpdate\(\{ avatar_url: `\$\{data\.publicUrl\}\?t=\$\{Date\.now\(\)\}` \}\);/;
-          if (!profileUpload.test(page)) throw new Error('Expected profile avatar upload block not found');
-          page = page.replace(profileUpload, `const { data, error } = await serviceUploadProfileAvatar(me.id, file);\n      if (error) throw error;\n      onUpdate({ avatar_url: \`${'${data.publicUrl}'}?t=\${Date.now()}\` });`);
+          const profileHandler = /const handlePhotoChange = async \(e\) => \{[\s\S]*?\n  \};/;
+          if (!profileHandler.test(page)) throw new Error('Expected profile photo handler not found');
+          page = page.replace(profileHandler, `const handlePhotoChange = async (e) => {\n    const file = e.target.files?.[0];\n    if (!file) return;\n    setUploading(true);\n    try {\n      const { data, error } = await serviceUploadProfileAvatar(me.id, file);\n      if (error) throw error;\n      onUpdate({ avatar_url: \`${'${data.publicUrl}'}?t=\${Date.now()}\` });\n    } finally {\n      setUploading(false);\n      if (fileInputRef.current) fileInputRef.current.value = '';\n    }\n  };`);
 
-          const groupUpload = /const safeName = \(file\.name \|\| 'grupo'\)\.replace\(\/\[\^a-zA-Z0-9\._-\]\/g, '-'\);[\s\S]*?setAvatarDraft\(null\);/;
-          if (!groupUpload.test(page)) throw new Error('Expected group image upload block not found');
-          page = page.replace(groupUpload, `const { data, error } = await serviceUploadGroupImage(group.id, myId, file);\n      if (error) throw error;\n      setAvatarUrlDraft(data.publicUrl);\n      setAvatarDraft(null);`);
+          const groupHandler = /const handleAvatarUpload = async \(event\) => \{[\s\S]*?\n  \};/;
+          if (!groupHandler.test(page)) throw new Error('Expected group avatar handler not found');
+          page = page.replace(groupHandler, `const handleAvatarUpload = async (event) => {\n    const file = event.target.files?.[0];\n    if (!file) return;\n    if (!file.type.startsWith('image/')) { alert('Selecione uma imagem.'); return; }\n    if (file.size > 5 * 1024 * 1024) { alert('A imagem deve ter no máximo 5 MB.'); return; }\n    setAvatarUploading(true);\n    try {\n      const { data, error } = await serviceUploadGroupImage(group.id, myId, file);\n      if (error) throw error;\n      setAvatarUrlDraft(data.publicUrl);\n      setAvatarDraft(null);\n    } catch (error) {\n      alert('Não foi possível enviar a imagem: ' + error.message);\n    } finally {\n      setAvatarUploading(false);\n      event.target.value = '';\n    }\n  };`);
 
           fs.writeFileSync(path, page);
           NODE
