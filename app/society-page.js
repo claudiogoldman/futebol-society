@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1562,7 +1562,7 @@ function MainApp({ session }) {
   const createInlineGameLocation = async () => {
     if (!newGameGroupId) { alert('Selecione um grupo antes de cadastrar o local.'); return; }
     if (!inlineLocationDraft.name.trim()) { alert('Informe o nome do local.'); return; }
-    const { data, error } = await supabase.from('group_locations').insert({ group_id: newGameGroupId, name: inlineLocationDraft.name.trim(), address: inlineLocationDraft.address.trim() || null, city: inlineLocationDraft.city.trim() || null, state: inlineLocationDraft.state.trim().toUpperCase() || null, latitude: inlineLocationDraft.latitude === '' ? null : Number(inlineLocationDraft.latitude), longitude: inlineLocationDraft.longitude === '' ? null : Number(inlineLocationDraft.longitude), is_default: !!inlineLocationDraft.isDefault, created_by: myId }).select().single();
+    const { data, error } = await serviceCreateGroupLocation(newGameGroupId, inlineLocationDraft, myId);
     if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return; }
     setGroupLocations((prev) => [...prev, data]);
     setNewGameLocationId(data.id);
@@ -1577,7 +1577,7 @@ function MainApp({ session }) {
   };
 
   const createGroupLocation = async (groupId, draft) => {
-    const { data, error } = await supabase.from('group_locations').insert({ group_id: groupId, name: draft.name.trim(), address: draft.address.trim() || null, city: draft.city.trim() || null, state: draft.state.trim().toUpperCase() || null, latitude: draft.latitude === '' ? null : Number(draft.latitude), longitude: draft.longitude === '' ? null : Number(draft.longitude), is_default: !!draft.isDefault, created_by: myId }).select().single();
+    const { data, error } = await serviceCreateGroupLocation(groupId, draft, myId);
     if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1585,20 +1585,20 @@ function MainApp({ session }) {
 
   const deleteGroupLocation = async (locationId) => {
     if (!confirm('Excluir este local cadastrado?')) return;
-    const { error } = await supabase.from('group_locations').delete().eq('id', locationId);
+    const { error } = await serviceDeleteGroupLocation(locationId);
     if (error) { alert('Não foi possível excluir o local: ' + error.message); return; }
     await loadAll();
   };
 
   const setGroupDefaultLocation = async (groupId, locationId) => {
-    const { error } = await supabase.rpc('set_group_default_location', { p_group_id: groupId, p_location_id: locationId || null });
+    const { error } = await serviceSetGroupDefaultLocation(groupId, locationId);
     if (error) { alert('Não foi possível definir o local padrão: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const updateGroupLocation = async (groupId, locationId, draft) => {
-    const { error } = await supabase.from('group_locations').update({ name: draft.name.trim(), address: draft.address.trim() || null, city: draft.city.trim() || null, state: draft.state.trim().toUpperCase() || null, latitude: draft.latitude === '' ? null : Number(draft.latitude), longitude: draft.longitude === '' ? null : Number(draft.longitude) }).eq('id', locationId).eq('group_id', groupId);
+    const { error } = await serviceUpdateGroupLocation(groupId, locationId, draft);
     if (error) { alert('Não foi possível editar o local: ' + error.message); return false; }
     if (draft.isDefault) { const ok = await setGroupDefaultLocation(groupId, locationId); if (!ok) return false; }
     await loadAll();
@@ -1608,7 +1608,7 @@ function MainApp({ session }) {
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
     const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
-    const { data, error } = await supabase.from('games').insert({
+    const { data, error } = await serviceCreateGame({
       date, local: newLocal.trim(), location_address: newLocationAddress.trim() || null, location_city: newLocationCity.trim() || null, location_state: newLocationState.trim() || null, location_latitude: newLocationLatitude === '' ? null : Number(newLocationLatitude), location_longitude: newLocationLongitude === '' ? null : Number(newLocationLongitude), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
       cost: newGameCost === '' ? 0 : Number(newGameCost),
       organizer_id: newGameOrganizerId || null,
@@ -1616,7 +1616,7 @@ function MainApp({ session }) {
       pix_key: newGamePixKey.trim() || null,
       pix_receiver_name: newGamePixReceiverName.trim() || null,
       pix_city: newGamePixCity.trim() || null,
-    }).select().single();
+    });
     if (error) { alert('Não deu pra criar a partida: ' + error.message); return; }
     setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers(''); setNewGameGroupId(null); setNewGameOrganizerId(''); setNewGameLocationId(''); setInlineLocationOpen(false); setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
     setNewGameCost(''); setNewGameGoalkeeperPays(true); setNewGamePixKey(''); setNewGamePixReceiverName(''); setNewGamePixCity('');
@@ -1624,9 +1624,7 @@ function MainApp({ session }) {
     await loadAll();
     if (data) {
       if (newGameOrganizerId) {
-        const { error: organizerConfirmationError } = await supabase
-          .from('game_confirmations')
-          .upsert({ game_id: data.id, user_id: newGameOrganizerId }, { onConflict: 'game_id,user_id' });
+        const { error: organizerConfirmationError } = await serviceConfirmOrganizer(data.id, newGameOrganizerId);
         if (organizerConfirmationError) {
           console.error('failed to confirm organizer in game', organizerConfirmationError);
         }
@@ -1653,7 +1651,7 @@ function MainApp({ session }) {
   };
 
   const deleteGame = async (gameId) => {
-    const { error } = await supabase.from('games').delete().eq('id', gameId);
+    const { error } = await serviceDeleteGame(gameId);
     if (error) { alert('Não foi possível excluir a partida: ' + error.message); return false; }
     setSelectedGameId(null);
     await loadAll();
@@ -1662,7 +1660,7 @@ function MainApp({ session }) {
 
   const createGroup = async () => {
     if (!newGroupName.trim()) return;
-    const { data, error } = await supabase.from('groups').insert({
+    const { data, error } = await serviceCreateGroup({
       name: newGroupName.trim(),
       created_by: myId,
       default_local: newGroupLocal.trim() || null,
@@ -1670,14 +1668,14 @@ function MainApp({ session }) {
       default_time: newGroupTime || null,
       default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,
       default_cost: newGroupCost ? parseFloat(newGroupCost) : null,
-    }).select().single();
+    });
     if (error) { alert('Não deu pra criar o grupo: ' + error.message); return; }
     if (data) {
       if (newGroupLocal.trim()) {
-        const { error: locationError } = await supabase.from('group_locations').insert({ group_id: data.id, name: newGroupLocal.trim(), is_default: true, created_by: myId });
+        const { error: locationError } = await serviceCreateGroupLocation(data.id, { name: newGroupLocal.trim(), address: '', city: '', state: '', latitude: '', longitude: '', isDefault: true }, myId);
         if (locationError) { console.error('failed to create initial group location', locationError); }
       }
-      const { error: memberError } = await supabase.from('group_members').insert({ group_id: data.id, user_id: myId });
+      const { error: memberError } = await serviceAddGroupMember(data.id, myId);
       if (memberError) console.error('failed to add self as member', memberError);
     }
     setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');
@@ -1687,27 +1685,27 @@ function MainApp({ session }) {
   };
 
   const setGroupDefaults = async (groupId, fields) => {
-    const { error } = await supabase.from('groups').update(fields).eq('id', groupId);
+    const { error } = await serviceSetGroupDefaults(groupId, fields);
     if (error) { alert('Não foi possível salvar os padrões do grupo: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const leaveGroup = async (groupId) => {
-    const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', myId);
+    const { error } = await serviceLeaveGroup(groupId, myId);
     if (error) { alert('Não foi possível sair do grupo: ' + error.message); return; }
     setSelectedGroupId(null);
     await loadAll();
   };
 
   const removeGroupMember = async (groupId, userId) => {
-    const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
+    const { error } = await serviceRemoveGroupMember(groupId, userId);
     if (error) { alert('Não foi possível remover o membro: ' + error.message); return; }
     await loadAll();
   };
 
   const deleteGroup = async (groupId) => {
-    const { error } = await supabase.from('groups').delete().eq('id', groupId);
+    const { error } = await serviceDeleteGroup(groupId);
     if (error) { alert('Não foi possível excluir o grupo: ' + error.message); return false; }
     setSelectedGroupId(null);
     await loadAll();
