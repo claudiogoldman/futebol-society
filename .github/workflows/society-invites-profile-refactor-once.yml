@@ -28,11 +28,11 @@ jobs:
           if (!page.includes(oldImport)) throw new Error('Expected Society service import not found');
           page = page.replace(oldImport, newImport);
 
-          const invite = /const \{ data: gameId \} = await supabase\.rpc\('join_game_by_token', \{ p_token: token \} \);/;
-          const groupInvite = /const \{ data: groupId \} = await supabase\.rpc\('join_group_by_token', \{ p_token: groupToken \} \);/;
-          if (!invite.test(page) || !groupInvite.test(page)) throw new Error('Expected invite RPCs not found');
-          page = page.replace(invite, 'const { data: gameId } = await serviceJoinGameByToken(token);');
-          page = page.replace(groupInvite, 'const { data: groupId } = await serviceJoinGroupByToken(groupToken);');
+          const oldGameInvite = "const { data: gameId } = await supabase.rpc('join_game_by_token', { p_token: token });";
+          const oldGroupInvite = "const { data: groupId } = await supabase.rpc('join_group_by_token', { p_token: groupToken });";
+          if (!page.includes(oldGameInvite) || !page.includes(oldGroupInvite)) throw new Error('Expected invite RPCs not found');
+          page = page.replace(oldGameInvite, "const { data: gameId } = await serviceJoinGameByToken(token);");
+          page = page.replace(oldGroupInvite, "const { data: groupId } = await serviceJoinGroupByToken(groupToken);");
 
           const guest = /const addGuest = async \(gameId, name, email, position\) => \{[\s\S]*?\n  \};/;
           if (!guest.test(page)) throw new Error('Expected addGuest handler not found');
