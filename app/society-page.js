@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setAdmin as serviceSetAdmin } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setAdmin as serviceSetAdmin, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -357,13 +357,9 @@ function MyProfileCard({ me, onUpdate }) {
     if (!file) return;
     setUploading(true);
     try {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-      const path = `${me.id}/avatar.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, cacheControl: '3600' });
-      if (!error) {
-        const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-        onUpdate({ avatar_url: `${data.publicUrl}?t=${Date.now()}` });
-      }
+      const { data, error } = await serviceUploadProfileAvatar(me.id, file);
+      if (error) throw error;
+      onUpdate({ avatar_url: `${data.publicUrl}?t=${Date.now()}` });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -1057,11 +1053,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     if (file.size > 5 * 1024 * 1024) { alert('A imagem deve ter no máximo 5 MB.'); return; }
     setAvatarUploading(true);
     try {
-      const safeName = (file.name || 'grupo').replace(/[^a-zA-Z0-9._-]/g, '-');
-      const filePath = group.id + '/' + myId + '/' + Date.now() + '-' + safeName;
-      const { error } = await supabase.storage.from('group-images').upload(filePath, file, { upsert: false, contentType: file.type });
+      const { data, error } = await serviceUploadGroupImage(group.id, myId, file);
       if (error) throw error;
-      const { data } = supabase.storage.from('group-images').getPublicUrl(filePath);
       setAvatarUrlDraft(data.publicUrl);
       setAvatarDraft(null);
     } catch (error) {
