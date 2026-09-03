@@ -82,10 +82,11 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.BUBBLEWRAP_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
-          test -n "${{ secrets.BUBBLEWRAP_KEY_PASSWORD }}"
+          test -n "${BUBBLEWRAP_KEY_PASSWORD}"
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
           keytool -list -keystore android/android.keystore \
