@@ -111,7 +111,7 @@ jobs:
           keytool -list \
             -keystore android/android.keystore \
             -alias society \
-            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" >/dev/null
+            -storepass:env:BUBBLEWRAP_KEYSTORE_PASSWORD >/dev/null
 
           echo "Signing key loaded successfully"
 
@@ -151,7 +151,7 @@ jobs:
           SHA256=$(keytool -list -v \
             -keystore android/android.keystore \
             -alias society \
-            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" \
+            -storepass:env:BUBBLEWRAP_KEYSTORE_PASSWORD \
             | awk -F': ' '/SHA256:/{print $2; exit}' \
             | tr -d '\r')
 
