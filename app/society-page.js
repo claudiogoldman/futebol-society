@@ -12,6 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails, setGameOrganizer, setGameLocation, setGameMaxPlayers, setGameTeams } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1432,13 +1433,13 @@ function MainApp({ session }) {
     if (!game?.groupId) { alert('A partida precisa estar vinculada a um grupo.'); return; }
     const member = groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(userId));
     if (!member) { alert('Só é possível adicionar jogadores que pertencem ao grupo da partida.'); return; }
-    const { error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: userId });
+    const { error } = await addGameParticipant(gameId, userId);
     if (error) { alert('Não foi possível adicionar o jogador: ' + error.message); return; }
     await loadAll();
   };
 
   const removeParticipant = async (gameId, userId) => {
-    const { error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', userId);
+    const { error } = await removeGameParticipant(gameId, userId);
     if (error) { alert('Não foi possível remover o jogador: ' + error.message); return; }
     await loadAll();
   };
@@ -1446,59 +1447,55 @@ function MainApp({ session }) {
   const toggleMyRSVP = async (gameId) => {
     const g = games.find((x) => x.id === gameId);
     if (!g) return;
-    let error = null;
+    let response;
     if (g.confirmed.includes(myId)) {
-      ({ error } = await supabase.from('game_confirmations').delete().eq('game_id', gameId).eq('user_id', myId));
+      response = await removeGameParticipant(gameId, myId);
     } else if ((g.waitlist || []).includes(myId)) {
-      ({ error } = await supabase.from('game_waitlist').delete().eq('game_id', gameId).eq('user_id', myId));
+      response = await toggleGameWaitlist(gameId, myId, false);
     } else {
-      ({ error } = await supabase.from('game_confirmations').insert({ game_id: gameId, user_id: myId }));
+      response = await addGameParticipant(gameId, myId);
     }
+    const { error } = response;
     if (error) { alert('Não foi possível alterar sua presença: ' + error.message); return; }
     await loadAll();
   };
 
   const setCost = async (gameId, cost) => {
-    const { error } = await supabase.from('games').update({ cost }).eq('id', gameId);
+    const { error } = await setGameCost(gameId, cost);
     if (error) { alert('Não foi possível alterar o custo da partida: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const setGkPays = async (gameId, goalkeeper_pays) => {
-    const { error } = await supabase.from('games').update({ goalkeeper_pays }).eq('id', gameId);
+    const { error } = await setGameGoalkeeperPays(gameId, goalkeeper_pays);
     if (error) { alert('Não foi possível alterar se o goleiro paga: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const setGamePixDetails = async (gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId }) => {
-    const { error } = await supabase.from('games').update({
-      pix_key: pixKey || null,
-      pix_receiver_name: pixReceiverName || null,
-      pix_city: pixCity || null,
-      pix_owner_id: pixOwnerId || null,
-    }).eq('id', gameId);
+    const { error } = await setGamePixDetails(gameId, { pixKey, pixReceiverName, pixCity, pixOwnerId });
     if (error) { alert('Não foi possível salvar os dados do PIX: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const setGameOrganizer = async (gameId, organizerId) => {
-    const { error } = await supabase.from('games').update({ organizer_id: organizerId || null }).eq('id', gameId);
+    const { error } = await setGameOrganizer(gameId, organizerId);
     if (error) { alert('Não foi possível alterar o organizador: ' + error.message); return; }
     loadAll();
   };
 
   const setGameLocation = async (gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude }) => {
-    const { error } = await supabase.from('games').update({ local: local || null, location_address: locationAddress, location_city: locationCity, location_state: locationState, location_latitude: locationLatitude, location_longitude: locationLongitude }).eq('id', gameId);
+    const { error } = await setGameLocation(gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude });
     if (error) { alert('Não foi possível salvar o local da partida: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const setMaxPlayers = async (gameId, maxPlayers) => {
-    const { error } = await supabase.from('games').update({ max_players: maxPlayers }).eq('id', gameId);
+    const { error } = await setGameMaxPlayers(gameId, maxPlayers);
     if (error) { alert('Não foi possível alterar o limite de vagas: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1509,7 +1506,7 @@ function MainApp({ session }) {
     const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
     if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
     if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
-    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA, p_team_b: teamB });
+    const { error } = await setGameTeams(gameId, teamA, teamB);
     if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1517,7 +1514,7 @@ function MainApp({ session }) {
 
   const handleDraw = async (gameId, confirmedPlayers) => {
     const { teamA, teamB } = drawTeams(confirmedPlayers);
-    const { error } = await supabase.rpc('set_game_teams', { p_game_id: gameId, p_team_a: teamA.map((p) => p.id), p_team_b: teamB.map((p) => p.id) });
+    const { error } = await setGameTeams(gameId, teamA.map((p) => p.id), teamB.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
     await loadAll();
     return true;
