@@ -46,7 +46,7 @@ jobs:
           const replacements = [
             [
               /const createInlineGameLocation = async \(\) => \{[\s\S]*?\n  \};\n\n  const createGroupLocation = async \(groupId, draft\) => \{[\s\S]*?\n  \};/,
-              `const createInlineGameLocation = async () => {\n    if (!newGameGroupId || !inlineLocationDraft.name.trim()) return false;\n    const { data, error } = await serviceCreateGroupLocation(newGameGroupId, inlineLocationDraft, myId);\n    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }\n    if (data) {\n      setNewGameLocationId(data.id);\n      setNewLocal(data.name || '');\n      setNewLocationAddress(data.address || '');\n      setNewLocationCity(data.city || '');\n      setNewLocationState(data.state || '');\n      setNewLocationLatitude(data.latitude ?? '');\n      setNewLocationLongitude(data.longitude ?? '');\n    }\n    setInlineLocationOpen(false);\n    setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });\n    await loadAll();\n    return true;\n  };\n\n  const createGroupLocation = async (groupId, draft) => {\n    const { data, error } = await serviceCreateGroupLocation(groupId, draft, myId);\n    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }\n    await loadAll();\n    return !!data;\n  };`
+              `const createInlineGameLocation = async () => {\n    if (!newGameGroupId) { alert('Selecione um grupo antes de cadastrar o local.'); return; }\n    if (!inlineLocationDraft.name.trim()) { alert('Informe o nome do local.'); return; }\n    const { data, error } = await serviceCreateGroupLocation(newGameGroupId, inlineLocationDraft, myId);\n    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return; }\n    setGroupLocations((prev) => [...prev, data]);\n    setNewGameLocationId(data.id);\n    setNewLocal(data.name || '');\n    setNewLocationAddress(data.address || '');\n    setNewLocationCity(data.city || '');\n    setNewLocationState(data.state || '');\n    setNewLocationLatitude(data.latitude != null ? String(data.latitude) : '');\n    setNewLocationLongitude(data.longitude != null ? String(data.longitude) : '');\n    setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });\n    setInlineLocationOpen(false);\n  };\n\n  const createGroupLocation = async (groupId, draft) => {\n    const { data, error } = await serviceCreateGroupLocation(groupId, draft, myId);\n    if (error) { alert('Não foi possível cadastrar o local: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };`
             ],
             [
               /const deleteGroupLocation = async \(locationId\) => \{[\s\S]*?\n  \};\n\n  const setGroupDefaultLocation = async \(groupId, locationId\) => \{[\s\S]*?\n  \};\n\n  const updateGroupLocation = async \(groupId, locationId, draft\) => \{[\s\S]*?\n  \};/,
@@ -94,7 +94,10 @@ jobs:
 
       - name: Verify no direct location/group CRUD writes remain
         run: |
-          ! grep -n "supabase.from('group_locations')\|supabase.from('groups')\|supabase.from('group_members')\|supabase.from('games')" app/society-page.js
+          if grep -nE "supabase\.from\('(group_locations|groups|group_members|games)'\)\.(insert|update|delete)" app/society-page.js; then
+            echo "Direct location/group/game mutation remains in Society page"
+            exit 1
+          fi
 
       - name: Install
         run: npm ci --no-audit --no-fund
