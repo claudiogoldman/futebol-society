@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setAdmin as serviceSetAdmin } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1407,11 +1407,11 @@ function MainApp({ session }) {
     (async () => {
       try {
         if (token) {
-          const { data: gameId } = await supabase.rpc('join_game_by_token', { p_token: token });
+          const { data: gameId } = await serviceJoinGameByToken(token);
           await loadAll();
           if (gameId) { setTab('partidas'); setSelectedGameId(gameId); }
         } else if (groupToken) {
-          const { data: groupId } = await supabase.rpc('join_group_by_token', { p_token: groupToken });
+          const { data: groupId } = await serviceJoinGroupByToken(groupToken);
           await loadAll();
           if (groupId) { setTab('grupos'); setSelectedGroupId(groupId); }
         }
@@ -1422,7 +1422,7 @@ function MainApp({ session }) {
   }, [loadAll]);
 
   const addGuest = async (gameId, name, email, position) => {
-    const { error } = await supabase.rpc('add_game_guest', { p_game_id: gameId, p_name: name, p_email: email || null, p_nationality_code: 'BR', p_positions: position ? [position] : [] });
+    const { error } = await serviceAddGameGuest(gameId, name, email, position);
     if (error) { alert('Não foi possível adicionar o convidado: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1713,14 +1713,14 @@ function MainApp({ session }) {
   };
 
   const updateMyProfile = async (fields) => {
-    const { error } = await supabase.from('profiles').update(fields).eq('id', myId);
+    const { error } = await serviceUpdateMyProfile(myId, fields);
     if (error) { alert('Não foi possível salvar seu perfil: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const toggleAdmin = async (userId, isAdmin) => {
-    const { error } = await supabase.from('profiles').update({ is_admin: isAdmin }).eq('id', userId);
+    const { error } = await serviceSetAdmin(userId, isAdmin);
     if (error) { alert('Não foi possível alterar a administração: ' + error.message); return false; }
     await loadAll();
     return true;
