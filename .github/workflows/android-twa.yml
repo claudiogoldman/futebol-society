@@ -13,8 +13,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Checkout Android branch
         uses: actions/checkout@v4
+        with:
+          ref: android-play-store
 
       - name: Setup Java 17
         uses: actions/setup-java@v5
@@ -25,38 +27,33 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
 
-      - name: Configure Android SDK and Bubblewrap
+      - name: Configure Bubblewrap paths
         shell: bash
         run: |
           set -euo pipefail
 
+          SDK_PATH="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          test -d "${SDK_PATH}"
+          test -d "${JAVA_HOME}"
+
           echo "JAVA_HOME=${JAVA_HOME}"
+          echo "Android SDK=${SDK_PATH}"
 
-          if [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -d "${ANDROID_SDK_ROOT}" ]; then
-            SDK_PATH="${ANDROID_SDK_ROOT}"
-          elif [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
-            SDK_PATH="${ANDROID_HOME}"
-          elif [ -d "/usr/local/lib/android/sdk" ]; then
-            SDK_PATH="/usr/local/lib/android/sdk"
-          else
-            echo "Android SDK not found on runner"
-            exit 1
-          fi
+          mkdir -p "${HOME}/.bubblewrap"
+          cat > "${HOME}/.bubblewrap/config.json" <<EOF
+          {
+            "jdkPath": "${JAVA_HOME}",
+            "androidSdkPath": "${SDK_PATH}"
+          }
+          EOF
 
-          echo "Using Android SDK: ${SDK_PATH}"
-          echo "ANDROID_SDK_ROOT=${SDK_PATH}" >> "${GITHUB_ENV}"
-          echo "ANDROID_HOME=${SDK_PATH}" >> "${GITHUB_ENV}"
-
-          bubblewrap updateConfig \
-            --jdkPath="${JAVA_HOME}" \
-            --androidSdkPath="${SDK_PATH}"
-
+          cat "${HOME}/.bubblewrap/config.json"
           bubblewrap doctor
 
       - name: Generate Android project
