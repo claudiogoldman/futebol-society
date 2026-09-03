@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      SIGNING_ENABLED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
       - name: Checkout Android branch
@@ -75,19 +77,25 @@ jobs:
           echo "Android project generated successfully"
 
       - name: Prepare signing key
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNING_ENABLED == 'true'
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.BUBBLEWRAP_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
+          test -n "${BUBBLEWRAP_KEY_PASSWORD}"
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
-          keytool -list -keystore android/android.keystore -alias society -storepass "${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}" >/dev/null
+          keytool -list -keystore android/android.keystore \
+            -alias society \
+            -storepass "${BUBBLEWRAP_KEYSTORE_PASSWORD}" >/dev/null
           echo "Signing key loaded successfully"
 
       - name: Build signed App Bundle
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNING_ENABLED == 'true'
         shell: bash
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
@@ -102,7 +110,7 @@ jobs:
             --signingKeyAlias=society
 
       - name: Build unsigned App Bundle
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        if: env.SIGNING_ENABLED != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -111,7 +119,7 @@ jobs:
           ./gradlew bundleRelease --stacktrace
 
       - name: Generate signing fingerprint and Digital Asset Links
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNING_ENABLED == 'true'
         shell: bash
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
@@ -146,7 +154,7 @@ jobs:
           echo "Digital Asset Links generated"
 
       - name: Upload signed AAB
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNING_ENABLED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: futebol-society-aab-signed
@@ -154,7 +162,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload signing metadata
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: env.SIGNING_ENABLED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: futebol-society-assetlinks
@@ -162,7 +170,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload unsigned AAB
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        if: env.SIGNING_ENABLED != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: futebol-society-aab-unsigned
