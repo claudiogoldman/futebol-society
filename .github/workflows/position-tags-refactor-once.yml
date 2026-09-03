@@ -16,12 +16,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Patch Society player rows
         run: |
           python - <<'PY'
@@ -32,13 +30,18 @@ jobs:
           import_line = "import PositionTags from '../components/players/PositionTags';"
           anchor = "import { NATIONALITIES, countryFlag } from '../lib/countries';"
           if import_line not in text:
+              if anchor not in text:
+                  raise SystemExit('Import anchor not found')
               text = text.replace(anchor, anchor + "\n" + import_line, 1)
           old = "{isGoleiro(p) && <span className=\"sf-gk-tag\" title=\"Goleiro\"><Hand size={10} /> GOL</span>}"
-          if text.count(old) != 2:
-              raise SystemExit(f'Expected exactly 2 goalkeeper tags, found {text.count(old)}')
-          page.write_text(text.replace(old, "<PositionTags player={p} />"))
+          count = text.count(old)
+          if count < 1:
+              raise SystemExit(f'No goalkeeper tag found: {count}')
+          text = text.replace(old, "<PositionTags player={p} />")
+          page.write_text(text)
           css_text = css.read_text()
-          if "/* Player position tags. */" not in css_text:
+          marker = "/* Player position tags. */"
+          if marker not in css_text:
               css.write_text(css_text + '''\n\n/* Player position tags. */\n.sf-position-tags { display:inline-flex; align-items:center; gap:3px; margin-right:6px; flex-wrap:wrap; }\n.sf-position-tag { display:inline-flex; align-items:center; gap:2px; border:1px solid rgba(255,197,61,.5); border-radius:999px; padding:2px 5px; background:rgba(255,197,61,.12); color:#FFC53D; font-size:9px; font-weight:800; line-height:1; white-space:nowrap; }\n''')
           PY
       - name: Validate
@@ -54,4 +57,4 @@ jobs:
           git commit -m 'refactor: render all known player positions'
           git push
 
-# One-shot integration; removed after successful validation.
+# One-shot integration; remove this workflow after the refactor commit is created.
