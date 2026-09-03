@@ -1,0 +1,67 @@
+name: Apply player position presentation refactor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/position-tags-refactor-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Patch Society player rows
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('app/society-page.js')
+          css = Path('app/ui-audit-fix.css')
+          text = page.read_text()
+
+          import_line = "import PositionTags from '../components/players/PositionTags';"
+          anchor = "import { NATIONALITIES, countryFlag } from '../lib/countries';"
+          if import_line not in text:
+              if anchor not in text:
+                  raise SystemExit('Import anchor not found')
+              text = text.replace(anchor, anchor + "\n" + import_line, 1)
+
+          old = "{isGoleiro(p) && <span className=\"sf-gk-tag\" title=\"Goleiro\"><Hand size={10} /> GOL</span>}"
+          count = text.count(old)
+          if count != 2:
+              raise SystemExit(f'Expected exactly 2 goalkeeper tags, found {count}')
+          text = text.replace(old, "<PositionTags player={p} />")
+          page.write_text(text)
+
+          css_text = css.read_text()
+          marker = "/* Player position tags. */"
+          if marker not in css_text:
+              css_text += '''\n\n/* Player position tags. */\n.sf-position-tags {\n  display: inline-flex;\n  align-items: center;\n  gap: 3px;\n  margin-right: 6px;\n  flex-wrap: wrap;\n}\n\n.sf-position-tag {\n  display: inline-flex;\n  align-items: center;\n  gap: 2px;\n  border: 1px solid rgba(255,197,61,.5);\n  border-radius: 999px;\n  padding: 2px 5px;\n  background: rgba(255,197,61,.12);\n  color: #FFC53D;\n  font-size: 9px;\n  font-weight: 800;\n  line-height: 1;\n  white-space: nowrap;\n}\n'''
+              css.write_text(css_text)
+          PY
+
+      - name: Validate
+        run: |
+          git diff --check
+          npm ci --no-audit --no-fund
+          NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key npm run build
+
+      - name: Commit refactor
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js app/ui-audit-fix.css
+          git commit -m 'refactor: render all known player positions'
+          git push
