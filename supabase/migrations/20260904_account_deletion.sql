@@ -53,5 +53,5 @@ begin
 end;
 $$;
 
-revoke all on function public.delete_my_account() from public;
+revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
