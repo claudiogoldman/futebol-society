@@ -1,140 +1,133 @@
-# Google Play — Data Safety (pré-auditoria técnica)
+# Google Play — Data Safety (auditoria técnica)
 
-> **Status:** documento técnico preliminar. Deve ser conferido no formulário vigente do Google Play Console antes do envio/publicação.
->
-> **Base:** código e funcionalidades atualmente identificados no repositório `futebol-society`.
+> **Status:** auditoria técnica do build atual. O formulário do Play Console deve ser conferido novamente no momento do envio, principalmente se houver alteração de código, SDK ou modelo de dados.
 
-## 1. Conta e identificação
+## 1. Dados identificados no aplicativo
 
-O aplicativo permite criação/autenticação de conta e mantém dados de perfil.
+### Informações pessoais
+- **Nome** — perfil e identificação dentro de grupos/partidas.
+- **Endereço de e-mail** — autenticação e conta.
+- **IDs de usuário** — identificação técnica da conta.
+- **Número de telefone** — quando informado pelo usuário.
+- **Outras informações pessoais** — idade e nacionalidade, quando informadas.
 
-**Dados identificados:**
-- e-mail;
-- identificadores técnicos da conta;
-- nome;
-- telefone, quando informado;
-- idade, quando informada;
-- nacionalidade, quando informada.
+### Saúde e fitness
+- **Informações sobre condicionamento físico** — peso e informações esportivas/de atividade física mantidas no perfil.
 
-**Finalidades:** funcionamento da conta, identificação do usuário, organização de grupos e partidas e comunicação relacionada ao serviço.
+A classificação como fitness é a interpretação técnica mais adequada para os dados esportivos identificados; confirmar no formulário vigente caso o Play Console apresente nomenclatura diferente.
 
-**Exclusão:** existe fluxo autenticado de exclusão da conta e página pública para solicitação de exclusão.
+### Fotos e vídeos
+- **Fotos** — avatar/foto de perfil e imagens fornecidas para grupos.
 
-## 2. Informações esportivas / perfil
+### Informações financeiras
+- **Informações de pagamento** — dados relacionados ao rateio/Pix, incluindo chave Pix quando cadastrada, nome do recebedor, cidade do recebedor e situação de pagamento.
 
-**Dados identificados:**
-- peso, quando informado;
-- pé preferido;
-- posições de jogo;
-- atributos esportivos;
-- presença e participação em partidas;
-- times;
-- gols e assistências;
+A classificação exata de cada campo deve seguir as opções apresentadas pelo Play Console.
+
+### Atividade no app
+- participação em grupos e partidas;
+- presença e lista de espera;
+- escalação/times;
+- gols, assistências e resultados;
 - avaliações e ranking.
 
-**Finalidades:** personalização do perfil, organização das partidas, estatísticas e funcionalidades esportivas.
+Esses dados são necessários para as funcionalidades esportivas e de organização do aplicativo.
 
-> A classificação exata entre as categorias de dados do Play Console deve ser conferida no formulário vigente, especialmente para peso e demais informações potencialmente relacionadas a saúde/fitness.
+## 2. Localização
 
-## 3. Fotos e imagens
+A revisão do código não identificou `navigator.geolocation` nem rastreamento contínuo da localização física do usuário/dispositivo.
 
-**Dados identificados:**
-- foto/avatar de perfil;
-- imagens de grupos.
+O aplicativo pode armazenar endereço e coordenadas **do local esportivo cadastrado para a partida/grupo**. Esses dados representam o local do evento, não a localização física do dispositivo do usuário.
 
-**Finalidade:** identificação visual do usuário e/ou grupo dentro do aplicativo.
+Portanto, não há evidência técnica para declarar coleta de localização do dispositivo no Data Safety com base apenas nesses campos de local esportivo.
 
-## 4. Localização
+## 3. Coleta e finalidade
 
-O código atualmente analisado não identificou uso de `navigator.geolocation` nem rastreamento contínuo da localização do dispositivo.
+Os dados acima são coletados quando o usuário fornece ou gera informações por meio das funcionalidades do aplicativo e são usados para:
 
-O aplicativo armazena, quando cadastrados, endereço e coordenadas do **local esportivo da partida/grupo**.
+- criação e manutenção da conta;
+- identificação do usuário;
+- formação e administração de grupos;
+- organização de partidas;
+- controle de presença e lista de espera;
+- formação de times;
+- resultados, estatísticas, avaliações e ranking;
+- organização/conferência de rateios e pagamentos via Pix;
+- exibição de informações necessárias a integrantes autorizados dos grupos e participantes das partidas.
 
-Esses dados representam o local do jogo, não um histórico de localização física contínua do usuário. A classificação no Play Console deve ser confirmada conforme a definição vigente de cada categoria.
+Não foi identificado propósito de publicidade comportamental.
 
-## 5. Informações financeiras / Pix
+## 4. Compartilhamento e provedores
 
-**Dados identificados:**
-- situação de pagamento do rateio;
-- chave Pix, quando cadastrada pelo responsável;
-- nome do recebedor;
-- cidade do recebedor.
+O aplicativo utiliza Supabase para autenticação, banco de dados e armazenamento e Vercel para hospedagem.
 
-**Finalidade:** organização e conferência do rateio das partidas.
+Esses serviços atuam como infraestrutura do aplicativo. A resposta de **compartilhamento** no Play Console deve seguir a definição vigente de service provider e as perguntas específicas do formulário; não deve ser presumido compartilhamento para publicidade ou venda de dados.
 
-> A categoria exata de informação financeira deve ser escolhida conforme as opções apresentadas pelo Play Console no momento do preenchimento.
+Dentro do próprio aplicativo, determinadas informações podem ser apresentadas a usuários autorizados de um grupo/partida como parte da funcionalidade do serviço.
 
-## 6. Atividade no aplicativo
-
-**Dados identificados:**
-- participação em grupos e partidas;
-- presença/lista de espera;
-- escalação/times;
-- resultados e estatísticas;
-- avaliações;
-- ranking.
-
-**Finalidade:** organização e funcionamento das partidas e grupos.
-
-## 7. Compartilhamento / provedores
-
-Os dados são processados pela infraestrutura usada pelo aplicativo, incluindo Supabase para autenticação, banco de dados e armazenamento e Vercel para hospedagem.
-
-O tratamento por provedores de infraestrutura em nome do desenvolvedor deve ser classificado de acordo com a definição vigente de **service provider** do Google Play Data Safety, sem presumir que isso seja compartilhamento para publicidade ou venda de dados.
-
-Dentro do próprio aplicativo, dados necessários à organização podem ser exibidos a integrantes autorizados de grupos e participantes de partidas. Isso deve ser considerado ao responder às perguntas de acesso/compartilhamento do formulário.
-
-## 8. Publicidade e analytics
-
-Na revisão atual do repositório não foram identificados SDKs de publicidade ou analytics como Google Analytics, AdSense ou Firebase Analytics.
-
-Isso deve ser revalidado caso novos SDKs, scripts, serviços de métricas ou componentes de terceiros sejam adicionados futuramente.
-
-## 9. Segurança
+## 5. Segurança
 
 Foram identificados:
 - autenticação;
-- controles de acesso no banco de dados;
-- políticas de acesso configuradas no Supabase;
+- políticas de controle de acesso no Supabase;
 - comunicação HTTPS/TLS;
-- fluxo protegido para exclusão da própria conta.
+- fluxo autenticado de exclusão da própria conta.
 
-## 10. Exclusão de conta
+## 6. Exclusão de conta e dados
 
 O aplicativo possui:
 
 - página pública: `/exclusao-conta`;
 - fluxo autenticado: `/exclusao-conta/confirmar`;
 - confirmação explícita antes da exclusão;
-- função de banco `public.delete_my_account()` restrita a usuários autenticados;
-- remoção dos dados pessoais associados à conta, preservando referências de grupos/partidas apenas quando necessário para não apagar a atividade de outros usuários.
+- função `public.delete_my_account()` restrita a usuários autenticados.
 
-A URL pública de referência para o Play Console é:
+A exclusão remove os dados pessoais associados à conta e os objetos de avatar pertencentes ao usuário. Referências necessárias para preservar a atividade de grupos/partidas de outros usuários são desvinculadas em vez de apagar a atividade coletiva.
 
-`https://futebol-society-app.vercel.app/exclusao-conta`
+> **Validação:** a estrutura, ACL e dependências da rotina foram auditadas. A execução destrutiva contra uma conta real não foi realizada; portanto, a validação end-to-end de exclusão permanece como teste controlado pendente.
 
-## 11. Política de privacidade
+## 7. URLs públicas
 
-URL pública:
-
+**Política de privacidade:**
 `https://futebol-society-app.vercel.app/privacidade`
 
-A política identifica o responsável pelo aplicativo, contato de privacidade, tipos de dados, finalidades, acesso/compartilhamento, segurança, retenção e exclusão.
+**Exclusão de conta:**
+`https://futebol-society-app.vercel.app/exclusao-conta`
 
-## 12. Pontos que ainda exigem decisão no Play Console
+As duas páginas estão publicadas e acessíveis publicamente.
 
-Antes da publicação, conferir diretamente no formulário vigente:
+## 8. Publicidade e analytics
 
-1. categoria exata para peso/fitness;
-2. categoria exata para dados de Pix/pagamento;
-3. tratamento da localização do local esportivo cadastrado;
-4. quais dados são coletados obrigatoriamente versus opcionalmente;
-5. se cada tipo de dado é coletado, compartilhado ou ambos segundo a definição do formulário;
-6. criptografia em trânsito;
-7. possibilidade de solicitação de exclusão;
-8. declaração de que o aplicativo não vende dados;
-9. todos os SDKs/serviços de terceiros efetivamente presentes no build enviado.
+Na revisão do repositório não foram identificados SDKs de publicidade ou analytics como Google Analytics, AdSense ou Firebase Analytics.
 
-## 13. Conclusão da pré-auditoria
+Essa conclusão deve ser revalidada contra o build final caso sejam adicionados novos scripts, SDKs ou serviços de terceiros.
 
-A infraestrutura necessária para as declarações de privacidade e exclusão de conta já está publicada em produção. O preenchimento do Data Safety deve ser feito somente após conferir as categorias do formulário atual do Play Console e confrontá-las com o build que será enviado.
+## 9. Checklist antes do envio ao Play Console
+
+- [x] Política de privacidade pública.
+- [x] Política de privacidade acessível dentro do aplicativo.
+- [x] Página pública de exclusão de conta.
+- [x] Caminho de exclusão dentro do aplicativo.
+- [x] Função de exclusão protegida por autenticação.
+- [x] Build Android assinado gerado em CI.
+- [x] Digital Asset Links publicados em produção.
+- [x] Target API 36 configurado no build Android.
+- [ ] Executar teste controlado de exclusão com conta descartável.
+- [ ] Conferir o formulário Data Safety vigente no Play Console contra o build final.
+- [ ] Confirmar classificação de Pix/pagamentos no formulário vigente.
+- [ ] Confirmar classificação de peso/dados esportivos como fitness.
+- [ ] Confirmar todas as declarações de coleta/compartilhamento para cada tipo de dado.
+- [ ] Preencher declaração de exclusão de dados no Play Console.
+- [ ] Preparar screenshots e demais assets da ficha da loja.
+
+## 10. Referências oficiais
+
+- Google Play — Dados do usuário: política de privacidade e exclusão de conta.
+- Google Play — Segurança dos dados: categorias e finalidades de dados.
+- Google Play — Requisitos de exclusão de contas.
+
+## 11. Conclusão
+
+A parte técnica necessária para privacidade, exclusão de conta, build Android assinado e associação do domínio com o aplicativo está preparada.
+
+O projeto ainda não deve ser tratado como **100% pronto para publicação** até concluir o teste controlado de exclusão e o preenchimento/conferência final do Data Safety no Play Console.
