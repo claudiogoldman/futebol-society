@@ -97,6 +97,7 @@ jobs:
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
           echo "Decoded keystore size: $(wc -c < android/android.keystore) bytes"
+          echo "Decoded keystore SHA-256: $(sha256sum android/android.keystore | awk '{print $1}')"
 
           keytool -list \
             -keystore android/android.keystore \
