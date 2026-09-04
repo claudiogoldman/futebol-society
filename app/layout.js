@@ -31,6 +31,11 @@ export default function RootLayout({ children }) {
       <body style={{ margin: 0 }}>
         {children}
         <WaitlistStatus />
+        <footer style={{ padding: '12px 16px 18px', textAlign: 'center', fontSize: 11, background: '#0B2417' }}>
+          <a href="/privacidade" style={{ color: '#B8CDBD', textDecoration: 'none' }}>Política de Privacidade</a>
+          {' · '}
+          <a href="/exclusao-conta" style={{ color: '#B8CDBD', textDecoration: 'none' }}>Exclusão de conta</a>
+        </footer>
       </body>
     </html>
   );
