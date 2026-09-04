@@ -94,10 +94,6 @@ jobs:
           test -s android/android.keystore
           echo "Decoded keystore size: $(wc -c < android/android.keystore) bytes"
           echo "Decoded keystore SHA-256: $(sha256sum android/android.keystore | awk '{print $1}')"
-
-          # Do not pre-validate the password with keytool here.
-          # Bubblewrap/Gradle is responsible for performing the actual signing.
-          # This avoids a separate PKCS12 validation path masking the real build error.
           echo "Signing keystore prepared"
 
       - name: Build signed App Bundle
@@ -127,23 +123,27 @@ jobs:
       - name: Generate signing fingerprint and Digital Asset Links
         if: env.SIGNING_ENABLED == 'true'
         shell: bash
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.BUBBLEWRAP_KEYSTORE_PASSWORD }}
         run: |
           set -euo pipefail
-          mkdir -p android-signing
+          mkdir -p android-signing/.well-known
 
-          SHA256=$(keytool -list -v \
-            -keystore android/android.keystore \
-            -alias society \
-            -storepass:env:BUBBLEWRAP_KEYSTORE_PASSWORD \
-            | awk -F': ' '/SHA256:/{print $2; exit}' \
+          APK="android/app-release-signed.apk"
+          test -s "${APK}"
+
+          APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner"
+          test -x "${APKSIGNER}"
+
+          echo "Validating signed APK"
+          "${APKSIGNER}" verify --verbose "${APK}"
+
+          SHA256=$("${APKSIGNER}" verify --print-certs "${APK}" \
+            | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' \
             | tr -d '\r')
 
           test -n "${SHA256}"
+          echo "Signing certificate SHA-256: ${SHA256}"
           echo "${SHA256}" > android-signing/sha256.txt
 
-          mkdir -p android-signing/.well-known
           cat > android-signing/.well-known/assetlinks.json <<EOF
           [
             {
@@ -157,6 +157,7 @@ jobs:
           ]
           EOF
 
+          python -m json.tool android-signing/.well-known/assetlinks.json >/dev/null
           echo "Digital Asset Links generated"
 
       - name: Upload signed AAB
