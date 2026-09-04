@@ -90,21 +90,15 @@ jobs:
           test -n "${BUBBLEWRAP_KEYSTORE_PASSWORD}"
           test -n "${BUBBLEWRAP_KEY_PASSWORD}"
 
-          echo "ANDROID_KEYSTORE_BASE64: present (${#ANDROID_KEYSTORE_BASE64} characters)"
-          echo "BUBBLEWRAP_KEYSTORE_PASSWORD length: ${#BUBBLEWRAP_KEYSTORE_PASSWORD} characters"
-          echo "BUBBLEWRAP_KEY_PASSWORD length: ${#BUBBLEWRAP_KEY_PASSWORD} characters"
-
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/android.keystore
           test -s android/android.keystore
           echo "Decoded keystore size: $(wc -c < android/android.keystore) bytes"
           echo "Decoded keystore SHA-256: $(sha256sum android/android.keystore | awk '{print $1}')"
 
-          keytool -list \
-            -keystore android/android.keystore \
-            -alias society \
-            -storepass:env:BUBBLEWRAP_KEYSTORE_PASSWORD >/dev/null
-
-          echo "Signing key loaded successfully"
+          # Do not pre-validate the password with keytool here.
+          # Bubblewrap/Gradle is responsible for performing the actual signing.
+          # This avoids a separate PKCS12 validation path masking the real build error.
+          echo "Signing keystore prepared"
 
       - name: Build signed App Bundle
         if: env.SIGNING_ENABLED == 'true'
