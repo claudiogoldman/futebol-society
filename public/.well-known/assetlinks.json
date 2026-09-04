@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.treinadorideal.futebolsociety",
+      "sha256_cert_fingerprints": [
+        "8F:F1:92:D4:8E:15:B4:81:F7:BD:0D:2E:38:DD:06:C3:E5:DA:F5:A0:D2:73:63:6D:F2:E7:9D:52:46:38:9A:76"
+      ]
+    }
+  }
+]
