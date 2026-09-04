@@ -20,6 +20,7 @@ export default function PrivacyPolicyPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>1. Sobre esta política</h2>
           <p style={textStyle}>Esta Política de Privacidade explica como o aplicativo Futebol Society trata informações relacionadas aos seus usuários. O aplicativo é destinado à organização de partidas de futebol society, grupos, presença, escalação, estatísticas, avaliações e rateio de custos.</p>
+          <p style={textStyle}>Responsável pelo aplicativo: Claudio Fernando Goldman. Contato de privacidade: claudio.goldman@gmail.com.</p>
           <p style={textStyle}>A política foi preparada considerando as funcionalidades e os dados atualmente utilizados pelo aplicativo. Alterações relevantes no tratamento de dados poderão resultar em atualização desta política.</p>
         </section>
 
@@ -74,7 +75,7 @@ export default function PrivacyPolicyPage() {
 
         <section style={sectionStyle}>
           <h2 style={headingStyle}>9. Contato de privacidade</h2>
-          <p style={textStyle}>Para dúvidas, solicitações relacionadas à privacidade ou pedidos de exclusão de conta e dados, utilize a página <a href="/exclusao-conta" style={{ color: '#0B2417', fontWeight: 700 }}>Exclusão de conta</a> ou o canal de contato indicado na página oficial do aplicativo na Google Play, informando o e-mail associado à conta e descrevendo a solicitação.</p>
+          <p style={textStyle}>O responsável pelo aplicativo é Claudio Fernando Goldman. Para dúvidas, solicitações relacionadas à privacidade ou pedidos de exclusão de conta e dados, entre em contato pelo e-mail <a href="mailto:claudio.goldman@gmail.com" style={{ color: '#0B2417', fontWeight: 700 }}>claudio.goldman@gmail.com</a> ou utilize a página <a href="/exclusao-conta" style={{ color: '#0B2417', fontWeight: 700 }}>Exclusão de conta</a>.</p>
         </section>
 
         <section style={{ ...sectionStyle, marginBottom: 0 }}>
