@@ -64,7 +64,7 @@ export default function PrivacyPolicyPage() {
         <section style={sectionStyle}>
           <h2 style={headingStyle}>7. Retenção e exclusão</h2>
           <p style={textStyle}>Os dados são mantidos enquanto forem necessários para disponibilizar as funcionalidades do serviço, cumprir obrigações legais ou resolver questões de segurança e integridade. Quando a conta for excluída, os dados pessoais associados deverão ser removidos ou tratados de forma compatível com as obrigações legais aplicáveis.</p>
-          <p style={textStyle}>Solicitações de exclusão de conta e dados podem ser encaminhadas pelo canal de contato disponibilizado na página do aplicativo na Google Play. A solicitação será analisada para identificar a conta e os dados relacionados e realizar a exclusão aplicável.</p>
+          <p style={textStyle}>O usuário pode solicitar a exclusão da conta e dos dados pessoais associados na página <a href="/exclusao-conta" style={{ color: '#0B2417', fontWeight: 700 }}>Exclusão de conta</a>. A solicitação será validada e processada pelo canal informado nessa página.</p>
         </section>
 
         <section style={sectionStyle}>
@@ -74,7 +74,7 @@ export default function PrivacyPolicyPage() {
 
         <section style={sectionStyle}>
           <h2 style={headingStyle}>9. Contato de privacidade</h2>
-          <p style={textStyle}>Para dúvidas, solicitações relacionadas à privacidade ou pedidos de exclusão de conta e dados, utilize o canal de contato indicado na página oficial do aplicativo na Google Play, informando o e-mail associado à conta e descrevendo a solicitação.</p>
+          <p style={textStyle}>Para dúvidas, solicitações relacionadas à privacidade ou pedidos de exclusão de conta e dados, utilize a página <a href="/exclusao-conta" style={{ color: '#0B2417', fontWeight: 700 }}>Exclusão de conta</a> ou o canal de contato indicado na página oficial do aplicativo na Google Play, informando o e-mail associado à conta e descrevendo a solicitação.</p>
         </section>
 
         <section style={{ ...sectionStyle, marginBottom: 0 }}>
