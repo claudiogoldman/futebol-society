@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - '.github/workflows/refactor-society-pix-helpers.yml'
+      - 'app/society-page.js'
+      - 'lib/domain/pix.js'
 
 permissions:
   contents: write
@@ -17,40 +19,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Integrate Pix helpers
+      - name: Restore and integrate Society helpers
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path('app/society-page.js')
           s = path.read_text(encoding='utf-8')
 
-          old_import = "import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';"
-          new_import = old_import + "\nimport { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';"
+          formatter_import = "import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';"
+          pix_import = "import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';"
           if "from '../lib/domain/pix'" not in s:
-              if old_import not in s:
+              if formatter_import not in s:
                   raise SystemExit('Society formatter import not found')
-              s = s.replace(old_import, new_import, 1)
+              s = s.replace(formatter_import, formatter_import + "\n" + pix_import, 1)
+
+          if "from '../components/chat/GameChat'" not in s:
+              position_import = "import PositionTags from '../components/players/PositionTags';"
+              if position_import not in s:
+                  raise SystemExit('PositionTags import not found')
+              s = s.replace(position_import, position_import + "\nimport GameChat from '../components/chat/GameChat';", 1)
 
           start = s.find('// ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------')
-          end_marker = '\n\n\nfunction StarRating'
-          end = s.find(end_marker, start)
+          end = s.find('\n\n\nfunction StarRating', start)
           if start < 0 or end < 0:
               raise SystemExit('Pix helper block boundaries not found')
 
-          replacement = '// ---------- pix helpers (domain) ----------'
-          s = s[:start] + replacement + s[end:]
-
+          s = s[:start] + '// ---------- pix helpers (domain) ----------' + s[end:]
           path.write_text(s, encoding='utf-8')
-          print('Pix helpers integrated into society-page.js')
           PY
 
       - name: Validate
         run: |
           node --check app/society-page.js
-          test -f lib/domain/pix.js
+          node --check lib/domain/pix.js
           grep -q "from '../lib/domain/pix'" app/society-page.js
+          grep -q "from '../components/chat/GameChat'" app/society-page.js
           ! grep -q '^function crc16' app/society-page.js
           ! grep -q '^function generatePixCode' app/society-page.js
+          ! grep -q '^function pixKeyType' app/society-page.js
+          ! grep -q '^function pixKeyWarning' app/society-page.js
           git diff --check
 
       - name: Commit and remove one-time workflow
