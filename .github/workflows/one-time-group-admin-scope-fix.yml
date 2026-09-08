@@ -1,0 +1,39 @@
+name: One-time group admin scope fix
+
+on:
+  push:
+    paths:
+      - '.github/scripts/fix_group_admin_scope.py'
+      - '.github/workflows/one-time-group-admin-scope-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply scoped admin patch
+        run: python .github/scripts/fix_group_admin_scope.py
+
+      - name: Validate changed JavaScript
+        run: |
+          node --check app/society-page.js
+          grep -q "setGroupMemberRole as serviceSetGroupMemberRole" app/society-page.js
+          ! grep -q "toggleAdmin(p.id" app/society-page.js
+
+      - name: Commit patch and remove one-time tooling
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/scripts/fix_group_admin_scope.py .github/workflows/one-time-group-admin-scope-fix.yml
+          git add app/society-page.js
+          git add -u .github/scripts/fix_group_admin_scope.py .github/workflows/one-time-group-admin-scope-fix.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: scope group admin management to selected group"
+          git push
