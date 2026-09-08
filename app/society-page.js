@@ -12,7 +12,7 @@ import PositionTags from '../components/players/PositionTags';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setAdmin as serviceSetAdmin, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -1712,9 +1712,15 @@ function MainApp({ session }) {
     return true;
   };
 
-  const toggleAdmin = async (userId, isAdmin) => {
-    const { error } = await serviceSetAdmin(userId, isAdmin);
-    if (error) { alert('Não foi possível alterar a administração: ' + error.message); return false; }
+  const toggleGroupAdmin = async (groupId, userId, isAdmin) => {
+    if (!groupId) { alert('Selecione um grupo específico para alterar o administrador.'); return false; }
+    const group = groups.find((g) => String(g.id) === String(groupId));
+    if (!group || String(group.createdBy) !== String(myId)) {
+      alert('Somente o dono do grupo pode alterar os administradores.');
+      return false;
+    }
+    const { error } = await serviceSetGroupMemberRole(groupId, userId, isAdmin ? 'admin' : 'member');
+    if (error) { alert('Não foi possível alterar a administração do grupo: ' + error.message); return false; }
     await loadAll();
     return true;
   };
@@ -1778,6 +1784,9 @@ function MainApp({ session }) {
     );
     return profiles.filter((p) => p.id !== myId && memberIds.has(p.id));
   }, [profiles, groupMembers, myId, myGroupIds, elencoGroupFilter]);
+  const selectedElencoGroup = useMemo(() => (elencoGroupFilter === 'all' ? null : groups.find((g) => String(g.id) === String(elencoGroupFilter)) || null), [groups, elencoGroupFilter]);
+  const canManageSelectedGroupAdmins = !!selectedElencoGroup && String(selectedElencoGroup.createdBy) === String(myId);
+
 
   if (loading) {
     return (
@@ -1953,13 +1962,21 @@ function MainApp({ session }) {
                         <PositionTags player={p} />
                         {p.nationality_code ? <span aria-label={p.nationality_code} style={{ marginRight: 5 }}>{countryFlag(p.nationality_code)}</span> : null}
                         {p.name}
-                        {p.is_admin && <span className="sf-admin-tag" title="Admin">ADMIN</span>}
+                        {(() => {
+                          const membership = elencoGroupFilter !== 'all'
+                            ? groupMembers.find((m) => String(m.group_id) === String(elencoGroupFilter) && String(m.user_id) === String(p.id))
+                            : null;
+                          return membership?.role === 'admin' ? <span className="sf-admin-tag" title="Administrador deste grupo">ADMIN</span> : null;
+                        })()}
                       </div>
                       <StarRating value={p.rating} readOnly onChange={() => {}} />
                       {playerMeta(p) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(p)}</div>}
-                      {me?.is_admin && (
-                        <button className="sf-admin-toggle" onClick={() => toggleAdmin(p.id, !p.is_admin)}>
-                          {p.is_admin ? 'Remover admin' : 'Tornar admin'}
+                      {canManageSelectedGroupAdmins && p.id !== selectedElencoGroup.createdBy && (
+                        <button className="sf-admin-toggle" onClick={() => {
+                          const membership = groupMembers.find((m) => String(m.group_id) === String(elencoGroupFilter) && String(m.user_id) === String(p.id));
+                          toggleGroupAdmin(elencoGroupFilter, p.id, membership?.role !== 'admin');
+                        }}>
+                          {groupMembers.find((m) => String(m.group_id) === String(elencoGroupFilter) && String(m.user_id) === String(p.id))?.role === 'admin' ? 'Remover admin' : 'Tornar admin'}
                         </button>
                       )}
                     </div>
@@ -1967,7 +1984,8 @@ function MainApp({ session }) {
                 ))}
                 <p className="sf-muted-sm sf-roster-hint">
                   O elenco mostra somente jogadores dos grupos dos quais você participa. Use o filtro acima para ver um grupo específico.
-                  {me?.is_admin ? ' Você é admin: pode editar partidas de qualquer organizador e indicar outros admins.' : ''}
+                  {canManageSelectedGroupAdmins ? ' Você é o dono deste grupo e pode indicar ou remover administradores deste grupo.' : ''}
+                  {elencoGroupFilter === 'all' ? ' Para administrar o papel de um membro, selecione um grupo específico.' : ''}
                 </p>
               </>
             )}
