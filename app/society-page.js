@@ -265,6 +265,65 @@ function EvaluationSection({ game, myId, onSaveRatings }) {
 
 // ---------- my profile card (positions I play) ----------
 
+function AdminProfileEditor({ player, onClose, onSave }) {
+  const [weight, setWeight] = useState(player.weight_kg ?? '');
+  const [age, setAge] = useState(player.age ?? '');
+  const [preferredFoot, setPreferredFoot] = useState(player.preferred_foot || '');
+  const [positions, setPositions] = useState(Array.isArray(player.positions) ? player.positions : []);
+  const [saving, setSaving] = useState(false);
+
+  const togglePosition = (pos) => {
+    setPositions((current) => current.includes(pos) ? current.filter((p) => p !== pos) : [...current, pos]);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        weight_kg: weight === '' ? null : Number(weight),
+        age: age === '' ? null : Number.parseInt(age, 10),
+        preferred_foot: preferredFoot || null,
+        positions,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="sf-modal-backdrop" onClick={onClose}>
+      <div className="sf-modal" role="dialog" aria-modal="true" aria-labelledby="sf-admin-profile-title" onClick={(e) => e.stopPropagation()}>
+        <div className="sf-modal-title" id="sf-admin-profile-title">Completar perfil</div>
+        <div className="sf-muted-sm">Administrador do app preenchendo informações conhecidas para melhorar o sorteio.</div>
+        <div className="sf-h3" style={{ marginTop: 6 }}>{player.name}</div>
+        <label className="sf-field-label">Peso (kg)</label>
+        <input type="number" min="30" max="200" className="sf-input" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="ex: 78" />
+        <label className="sf-field-label">Idade</label>
+        <input type="number" min="10" max="100" className="sf-input" value={age} onChange={(e) => setAge(e.target.value)} placeholder="ex: 34" />
+        <label className="sf-field-label">Pé preferencial</label>
+        <select className="sf-input" value={preferredFoot} onChange={(e) => setPreferredFoot(e.target.value)}>
+          <option value="">Não informado</option>
+          <option value="direito">Direito</option>
+          <option value="esquerdo">Esquerdo</option>
+          <option value="ambidestro">Ambidestro</option>
+        </select>
+        <label className="sf-field-label">Posições que joga</label>
+        <div className="sf-position-pills">
+          {POSITION_ORDER.map((pos) => (
+            <button type="button" key={pos} className={`sf-pos-pill ${positions.includes(pos) ? 'sf-pos-pill-on' : ''} ${pos === 'goleiro' ? 'sf-pos-pill-gk' : ''}`} onClick={() => togglePosition(pos)}>
+              {pos === 'goleiro' && <Hand size={12} />} {POSITION_LABELS[pos]}
+            </button>
+          ))}
+        </div>
+        <div className="sf-modal-actions">
+          <button type="button" className="sf-btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button type="button" className="sf-btn-primary" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar informações'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MyProfileCard({ me, onUpdate }) {
   const positions = Array.isArray(me.positions) ? me.positions : [];
   const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
@@ -486,6 +545,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         <div>
           <div className="sf-eyebrow">{formatDatePtBr(game.date)}</div>
           <div className="sf-h2">{game.local || 'Local a definir'}</div>
+          <div className="sf-muted-sm">Criada por {roster.find((p) => String(p.id) === String(game.createdBy))?.name || '—'}</div>
         </div>
         {canManage && (
           <button type="button" aria-label="Gestão da partida" title="Gestão da partida" className="sf-game-management-fab" onClick={() => setManagementOpen(true)}>
@@ -582,7 +642,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
         )}
         <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
-          {roster.filter((p) => game.confirmed.includes(p.id)).map((p) => {
+          {activePlayers.map((p) => {
             const on = game.confirmed.includes(p.id);
             const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);
             return (
@@ -590,7 +650,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                 <span className="sf-rsvp-check">{on && !onWaitlist ? <Check size={14} /> : null}</span>
                 <span className="sf-rsvp-name">
                   <PositionTags player={p} />
-                  {p.name}{p.id === myId ? ' (você)' : ''}
+                  <button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: p }))}>{p.name}</button>{p.id === myId ? ' (você)' : ''}
                 </span>
                 {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
                 <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
@@ -1147,7 +1207,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
-              <span className="sf-rsvp-name">{m.name}{m.id === myId ? ' (você)' : ''}{m.id === group.createdBy ? ' · dono' : ''}{m.role === 'admin' && m.id !== group.createdBy ? ' · admin' : ''}</span>
+              <span className="sf-rsvp-name"><button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: m }))}>{m.name}</button>{m.id === myId ? ' (você)' : ''}{m.id === group.createdBy ? ' · criador do grupo' : ''}{m.role === 'admin' && m.id !== group.createdBy ? ' · admin' : ''}</span>
               {canManage && m.id !== group.createdBy && m.id !== myId && (
                 <button
                   type="button"
@@ -1211,6 +1271,7 @@ function MainApp({ session }) {
   const [showNewGame, setShowNewGame] = useState(false);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [viewingCardPlayer, setViewingCardPlayer] = useState(null);
+  const [editingProfilePlayer, setEditingProfilePlayer] = useState(null);
   const [newDate, setNewDate] = useState('');
   const [newLocal, setNewLocal] = useState('');
   const [newLocationAddress, setNewLocationAddress] = useState('');
@@ -1239,6 +1300,16 @@ function MainApp({ session }) {
   const [newGroupCost, setNewGroupCost] = useState('');
 
   const me = profiles.find((p) => p.id === myId);
+
+  const updateProfileForAdmin = async (userId, fields) => {
+    if (!me?.is_admin || !userId) return false;
+    const allowed = ['preferred_foot', 'weight_kg', 'age', 'positions', 'nationality_code', 'rating'];
+    const payload = Object.fromEntries(Object.entries(fields).filter(([key]) => allowed.includes(key)));
+    const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
+    if (error) { alert('Não foi possível completar o perfil: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
 
   const loadAll = useCallback(async () => {
     const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
@@ -1315,6 +1386,12 @@ function MainApp({ session }) {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    const handler = (event) => { if (event.detail) setViewingCardPlayer(event.detail); };
+    window.addEventListener('sf-open-player', handler);
+    return () => window.removeEventListener('sf-open-player', handler);
+  }, []);
 
   // if we arrived via a per-match invite link (?join=token, or one stashed
   // before the Google redirect), join that match and jump straight to it
@@ -1904,6 +1981,9 @@ function MainApp({ session }) {
                       </div>
                       <StarRating value={p.rating} readOnly onChange={() => {}} />
                       {playerMeta(p) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(p)}</div>}
+                      {me?.is_admin && (!p.age || !p.weight_kg || !Array.isArray(p.positions) || p.positions.length === 0) && (
+                        <button type="button" className="sf-admin-toggle" onClick={() => setEditingProfilePlayer(p)}>Completar perfil</button>
+                      )}
                       {canManageSelectedGroupAdmins && p.id !== selectedElencoGroup.createdBy && (
                         <button className="sf-admin-toggle" onClick={() => {
                           const membership = groupMembers.find((m) => String(m.group_id) === String(elencoGroupFilter) && String(m.user_id) === String(p.id));
@@ -2129,9 +2209,24 @@ function MainApp({ session }) {
             <div className="sf-h3" style={{ marginTop: 14 }}>{viewingCardPlayer.name}</div>
             {playerMeta(viewingCardPlayer) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(viewingCardPlayer)}</div>}
             <StarRating value={viewingCardPlayer.rating} readOnly size={18} onChange={() => {}} />
+            {me?.is_admin && (!viewingCardPlayer.age || !viewingCardPlayer.weight_kg || !Array.isArray(viewingCardPlayer.positions) || viewingCardPlayer.positions.length === 0) && (
+              <button type="button" className="sf-btn-primary" onClick={() => { setEditingProfilePlayer(viewingCardPlayer); setViewingCardPlayer(null); }}>Completar perfil</button>
+            )}
             <button className="sf-btn-ghost" style={{ marginTop: 14 }} onClick={() => setViewingCardPlayer(null)}>Fechar</button>
           </div>
         </div>
+      )}
+
+      {editingProfilePlayer && (
+        <AdminProfileEditor
+          player={editingProfilePlayer}
+          onClose={() => setEditingProfilePlayer(null)}
+          onSave={async (fields) => {
+            const ok = await updateProfileForAdmin(editingProfilePlayer.id, fields);
+            if (ok) setEditingProfilePlayer(null);
+            return ok;
+          }}
+        />
       )}
     </div>
   );
@@ -2241,7 +2336,7 @@ const CSS = `
   .sf-detail-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
   .sf-detail-topbar > div:nth-child(2) { flex: 1; }
 
-  .sf-rsvp-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+  .sf-rsvp-list { display: flex; flex-direction: column; gap: 6px; }
   .sf-rsvp-row { display: flex; align-items: center; gap: 10px; background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; color: var(--chalk); text-align: left; }
   .sf-rsvp-on { border-color: var(--floodlight); background: rgba(255,197,61,0.08); }
   .sf-rsvp-me { border-color: var(--team-b); }
@@ -2250,6 +2345,8 @@ const CSS = `
   .sf-rsvp-check { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--chalk-dim); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sf-rsvp-on .sf-rsvp-check { background: var(--floodlight); border-color: var(--floodlight); color: var(--pitch-dark); }
   .sf-rsvp-name { flex: 1; font-size: 13px; }
+  .sf-player-link { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: none; }
+  .sf-player-link:hover, .sf-player-link:focus-visible { color: var(--floodlight); text-decoration: underline; outline: none; }
 
   .sf-stars { display: flex; gap: 2px; }
 
