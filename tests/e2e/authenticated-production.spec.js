@@ -1,5 +1,22 @@
 const { test, expect } = require('@playwright/test');
 
+async function expectAuthenticatedApp(page) {
+  const navigation = page.getByRole('button', { name: /partidas/i });
+
+  if (await navigation.isVisible().catch(() => false)) return;
+
+  const visibleText = await page.locator('body').innerText().catch(() => '');
+  if (/entrar|login|google/i.test(visibleText)) {
+    throw new Error(
+      'Autenticação E2E não foi aceita pela produção: a aplicação retornou a tela de login. O PLAYWRIGHT_AUTH_STATE_B64 precisa ser renovado; não há evidência, neste teste, de falha no código funcional.'
+    );
+  }
+
+  throw new Error(
+    `Aplicação autenticada não identificada na produção. Conteúdo visível: ${visibleText.slice(0, 500)}`
+  );
+}
+
 test.describe('Produção — auditoria autenticada básica', () => {
   test.skip(!process.env.PLAYWRIGHT_AUTH_STATE, 'Sessão Playwright autenticada não configurada');
 
@@ -9,14 +26,11 @@ test.describe('Produção — auditoria autenticada básica', () => {
 
     await page.goto('/', { waitUntil: 'networkidle' });
     await expect(page.locator('body')).not.toBeEmpty();
+    await expectAuthenticatedApp(page);
 
-    // A aplicação usa Google OAuth via Supabase. O storageState fornece a
-    // sessão; a presença da navegação autenticada é o indicador real de que
-    // a sessão foi aceita pela aplicação. Não dependemos de um botão de
-    // logout específico, que pode variar com a UI.
-    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /grupos/i })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /elenco/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /grupos/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /elenco/i })).toBeVisible();
 
     const visibleText = await page.locator('body').innerText();
     expect(visibleText).toMatch(/(grupo|partida|jogador|elenco|ranking)/i);
