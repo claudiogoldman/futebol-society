@@ -22,6 +22,10 @@ O primeiro incremento do chat é um espaço de conversa persistente associado à
 
 O cliente utiliza Supabase Realtime para INSERT, UPDATE e DELETE.
 
+### Integração na tela da partida
+
+A integração do componente `GameChat` na tela `GameDetail` é aplicada automaticamente pela rotina controlada da branch `feat/game-chat-integration`, preservando a integração fora da produção até validação do build e dos testes.
+
 ## Fora do escopo desta versão
 
 - Chat privado por equipe.
