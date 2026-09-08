@@ -1,4 +1,4 @@
-name: Integrate game chat
+name: Integrate Society helpers
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   integrate:
-    if: github.event.head_commit.message != 'refactor(chat): integrate GameChat into game detail'
+    if: github.event.head_commit.message != 'refactor: integrate Society Pix helpers'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,43 +20,47 @@ jobs:
         with:
           node-version: 22
 
-      - name: Integrate GameChat
+      - name: Integrate Pix helpers
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('app/society-page.js')
-          s = p.read_text()
-          old_import = "import PositionTags from '../components/players/PositionTags';"
-          new_import = old_import + "\nimport GameChat from '../components/chat/GameChat';"
-          if 'components/chat/GameChat' not in s:
-              if old_import not in s:
-                  raise SystemExit('PositionTags import marker not found')
-              s = s.replace(old_import, new_import, 1)
+          s = p.read_text(encoding='utf-8')
+          formatter_import = "import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';"
+          pix_import = "import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';"
+          if "from '../lib/domain/pix'" not in s:
+              if formatter_import not in s:
+                  raise SystemExit('Society formatter import marker not found')
+              s = s.replace(formatter_import, formatter_import + "\n" + pix_import, 1)
 
-          marker = '      <section id="sf-game-location-card" className="sf-card">'
-          chat = '''      <section className="sf-card sf-game-chat-card">\n        <GameChat\n          gameId={game.id}\n          userId={myId}\n          playerNames={Object.fromEntries(roster.map((player) => [player.id, player.name]))}\n        />\n      </section>\n\n'''
-          if 'sf-game-chat-card' not in s:
-              if marker not in s:
-                  raise SystemExit('Game location section marker not found')
-              s = s.replace(marker, chat + marker, 1)
-          p.write_text(s)
+          start = s.find('// ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------')
+          end = s.find('\n\n\nfunction StarRating', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Pix helper block boundaries not found')
+          s = s[:start] + '// ---------- pix helpers (domain) ----------' + s[end:]
+          p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Validate integration
+      - name: Validate refactor
         run: |
-          test -f components/chat/GameChat.js
-          grep -q "components/chat/GameChat" app/society-page.js
-          grep -q "sf-game-chat-card" app/society-page.js
-          npm ci
-          npm run build
+          test -f lib/domain/pix.js
+          node --check app/society-page.js
+          node --check lib/domain/pix.js
+          grep -q "from '../lib/domain/pix'" app/society-page.js
+          ! grep -q '^function crc16' app/society-page.js
+          ! grep -q '^function generatePixCode' app/society-page.js
+          ! grep -q '^function pixKeyType' app/society-page.js
+          ! grep -q '^function pixKeyWarning' app/society-page.js
+          git diff --check
 
-      - name: Commit integration and remove temporary workflow
+      - name: Commit refactor and remove temporary workflow
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .github/workflows/integrate-game-chat.yml
-          git add app/society-page.js .github/workflows/integrate-game-chat.yml
-          git commit -m "refactor(chat): integrate GameChat into game detail"
+          rm -f .github/workflows/integrate-game-chat.yml .github/tmp-pix-trigger.txt
+          git add app/society-page.js
+          git add -u .github/workflows/integrate-game-chat.yml .github/tmp-pix-trigger.txt
+          git commit -m "refactor: integrate Society Pix helpers"
           git push origin HEAD:main
