@@ -28,7 +28,7 @@ jobs:
           else
             python3 scripts/one-shot-player-ux.py
             rm -f scripts/one-shot-player-ux.py
-            git show d40529ac5852d4975a07624f9874da57c7471331:.github/workflows/playwright-production.yml > .github/workflows/playwright-production.yml
+            git show 01bb05eb35f9f418946621ff33760edcaf42356f:.github/workflows/playwright-production.yml > .github/workflows/playwright-production.yml
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add app/society-page.js scripts/one-shot-player-ux.py .github/workflows/playwright-production.yml
