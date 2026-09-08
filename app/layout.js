@@ -1,5 +1,6 @@
 import './group-edit-fix.css';
 import './ui-audit-fix.css';
+import './game-chat.css';
 import WaitlistStatus from './waitlist-status';
 
 export const metadata = {
