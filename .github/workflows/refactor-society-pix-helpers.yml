@@ -1,0 +1,65 @@
+name: Refactor Society Pix helpers
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refactor-society-pix-helpers.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Integrate Pix helpers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/society-page.js')
+          s = path.read_text(encoding='utf-8')
+
+          old_import = "import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';"
+          new_import = old_import + "\nimport { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';"
+          if "from '../lib/domain/pix'" not in s:
+              if old_import not in s:
+                  raise SystemExit('Society formatter import not found')
+              s = s.replace(old_import, new_import, 1)
+
+          start = s.find('// ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------')
+          end_marker = '\n\n\nfunction StarRating'
+          end = s.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Pix helper block boundaries not found')
+
+          replacement = '// ---------- pix helpers (domain) ----------'
+          s = s[:start] + replacement + s[end:]
+
+          path.write_text(s, encoding='utf-8')
+          print('Pix helpers integrated into society-page.js')
+          PY
+
+      - name: Validate
+        run: |
+          node --check app/society-page.js
+          test -f lib/domain/pix.js
+          grep -q "from '../lib/domain/pix'" app/society-page.js
+          ! grep -q '^function crc16' app/society-page.js
+          ! grep -q '^function generatePixCode' app/society-page.js
+          git diff --check
+
+      - name: Commit and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/refactor-society-pix-helpers.yml
+          git add app/society-page.js
+          git add -u .github/workflows/refactor-society-pix-helpers.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: integrate Society Pix helpers"
+          git push
