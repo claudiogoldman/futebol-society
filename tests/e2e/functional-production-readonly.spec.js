@@ -1,5 +1,22 @@
 const { test, expect } = require('@playwright/test');
 
+async function expectAuthenticatedApp(page) {
+  const navigation = page.getByRole('button', { name: /partidas/i });
+
+  if (await navigation.isVisible().catch(() => false)) return;
+
+  const visibleText = await page.locator('body').innerText().catch(() => '');
+  if (/entrar|login|google/i.test(visibleText)) {
+    throw new Error(
+      'Autenticação E2E não foi aceita pela produção: a aplicação retornou a tela de login. O PLAYWRIGHT_AUTH_STATE_B64 precisa ser renovado; não há evidência, neste teste, de falha no código funcional.'
+    );
+  }
+
+  throw new Error(
+    `Aplicação autenticada não identificada na produção. Conteúdo visível: ${visibleText.slice(0, 500)}`
+  );
+}
+
 test.describe('Produção — auditoria funcional autenticada (somente leitura)', () => {
   test.skip(!process.env.PLAYWRIGHT_AUTH_STATE, 'Sessão Playwright autenticada não configurada');
 
@@ -8,7 +25,7 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
     await page.goto('/', { waitUntil: 'networkidle' });
-    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
+    await expectAuthenticatedApp(page);
 
     for (const tabName of ['Partidas', 'Grupos', 'Elenco']) {
       await page.getByRole('button', { name: new RegExp(tabName, 'i') }).click();
@@ -23,7 +40,7 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
     await page.goto('/', { waitUntil: 'networkidle' });
-    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
+    await expectAuthenticatedApp(page);
 
     await page.getByRole('button', { name: /partidas/i }).click();
     const newGameButton = page.getByRole('button', { name: /^\s*Nova partida\s*$/i }).last();
@@ -54,8 +71,6 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
       options.map((option) => ({ value: option.value, text: option.textContent?.trim() || '' }))
     );
 
-    // The first option is the explicit "Não definido" fallback. When the
-    // selected group has members, the UI must expose them as organizer choices.
     expect(organizerOptions.length).toBeGreaterThan(1);
     expect(organizerOptions.slice(1).every((option) => option.value)).toBeTruthy();
 
