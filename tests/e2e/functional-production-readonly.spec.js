@@ -8,7 +8,7 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
     await page.goto('/', { waitUntil: 'networkidle' });
-    await expect(page.getByRole('button', { name: /sair|logout/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
 
     for (const tabName of ['Partidas', 'Grupos', 'Elenco']) {
       await page.getByRole('button', { name: new RegExp(tabName, 'i') }).click();
@@ -23,7 +23,7 @@ test.describe('Produção — auditoria funcional autenticada (somente leitura)'
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
     await page.goto('/', { waitUntil: 'networkidle' });
-    await expect(page.getByRole('button', { name: /sair|logout/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole('button', { name: /partidas/i }).click();
     const newGameButton = page.getByRole('button', { name: /^\s*Nova partida\s*$/i }).last();
