@@ -1,1 +1,0 @@
-temporary trigger for the Society Pix helper refactor; removed by the one-time workflow.
