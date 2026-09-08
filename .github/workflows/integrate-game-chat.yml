@@ -1,0 +1,32 @@
+name: Integrate game chat
+
+on:
+  push:
+    branches:
+      - feat/game-chat-integration
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ !contains(github.event.head_commit.message, 'chore(chat): integrate GameChat into GameDetail') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/game-chat-integration
+          fetch-depth: 0
+
+      - name: Apply integration
+        run: python scripts/integrate-game-chat.py
+
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(chat): integrate GameChat into GameDetail"
+          git push origin HEAD:feat/game-chat-integration
