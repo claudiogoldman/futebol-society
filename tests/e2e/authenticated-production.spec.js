@@ -10,9 +10,13 @@ test.describe('Produção — auditoria autenticada básica', () => {
     await page.goto('/', { waitUntil: 'networkidle' });
     await expect(page.locator('body')).not.toBeEmpty();
 
-    // A aplicação usa Google OAuth via Supabase; a autenticação já é fornecida
-    // pelo storageState configurado no Playwright.
-    await expect(page.getByRole('button', { name: /sair|logout/i })).toBeVisible({ timeout: 15_000 });
+    // A aplicação usa Google OAuth via Supabase. O storageState fornece a
+    // sessão; a presença da navegação autenticada é o indicador real de que
+    // a sessão foi aceita pela aplicação. Não dependemos de um botão de
+    // logout específico, que pode variar com a UI.
+    await expect(page.getByRole('button', { name: /partidas/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /grupos/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /elenco/i })).toBeVisible({ timeout: 15_000 });
 
     const visibleText = await page.locator('body').innerText();
     expect(visibleText).toMatch(/(grupo|partida|jogador|elenco|ranking)/i);
