@@ -9,9 +9,11 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
 import PositionTags from '../components/players/PositionTags';
+import GameChat from '../components/chat/GameChat';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
+import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
@@ -86,76 +88,7 @@ function PlayerCard({ player, compact }) {
 // Positions are preferences only: a player can be assigned to another slot when
 // needed to complete both teams. Players without positions are distributed by
 // the normal rating balance and receive fallback positions in the pitch view.
-// ---------- pix "copia e cola" generator (BR Code / EMV standard, no gateway needed) ----------
-
-function crc16(payload) {
-  let crc = 0xffff;
-  for (let i = 0; i < payload.length; i++) {
-    crc ^= payload.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j++) {
-      crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
-      crc &= 0xffff;
-    }
-  }
-  return crc.toString(16).toUpperCase().padStart(4, '0');
-}
-
-function tlv(id, value) {
-  const len = value.length.toString().padStart(2, '0');
-  return `${id}${len}${value}`;
-}
-
-// strip accents / non-ascii and clamp length — required by the BR Code spec
-function pixSanitize(str, maxLen) {
-  const clean = (str || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9 ]/g, '')
-    .trim();
-  return (clean || 'NA').slice(0, maxLen);
-}
-
-function generatePixCode({ key, receiverName, city, amount, txid }) {
-  if (!key) return null;
-  const merchantAccount = tlv('00', 'br.gov.bcb.pix') + tlv('01', key.trim());
-  const additionalData = tlv('05', pixSanitize(txid || '***', 25));
-  let payload =
-    tlv('00', '01') +
-    tlv('26', merchantAccount) +
-    tlv('52', '0000') +
-    tlv('53', '986') +
-    (amount > 0 ? tlv('54', amount.toFixed(2)) : '') +
-    tlv('58', 'BR') +
-    tlv('59', pixSanitize(receiverName, 25)) +
-    tlv('60', pixSanitize(city || 'BRASIL', 15)) +
-    tlv('62', additionalData);
-  payload += '6304';
-  return payload + crc16(payload);
-}
-
-// identifies which kind of Pix key was entered, just to label it clearly in the UI
-function pixKeyType(key) {
-  if (!key) return null;
-  const k = key.trim();
-  if (/^\+55\d{10,11}$/.test(k)) return 'Telefone';
-  if (/^\d{11}$/.test(k)) return 'CPF';
-  if (/^\d{14}$/.test(k)) return 'CNPJ';
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(k)) return 'E-mail';
-  if (/^[0-9a-fA-F-]{32,36}$/.test(k)) return 'Chave aleatória';
-  return 'Chave Pix';
-}
-
-// a bare 11-digit number is ambiguous between CPF and a Brazilian phone
-// (both have 11 digits) — phone keys are only valid with the +55 country code,
-// so we warn instead of guessing wrong.
-function pixKeyWarning(key) {
-  if (!key) return null;
-  const k = key.trim();
-  if (/^\d{10,11}$/.test(k)) {
-    return 'Se isso for um telefone, precisa começar com +55 (ex: +5551999998888) — só números o Pix não reconhece como telefone.';
-  }
-  return null;
-}
-
+// ---------- pix helpers (domain) ----------
 
 
 function StarRating({ value, onChange, size = 16, readOnly = false }) {
