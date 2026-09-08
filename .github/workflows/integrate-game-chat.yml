@@ -1,0 +1,62 @@
+name: Integrate game chat
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.head_commit.message != 'refactor(chat): integrate GameChat into game detail'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Integrate GameChat
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old_import = "import PositionTags from '../components/players/PositionTags';"
+          new_import = old_import + "\nimport GameChat from '../components/chat/GameChat';"
+          if 'components/chat/GameChat' not in s:
+              if old_import not in s:
+                  raise SystemExit('PositionTags import marker not found')
+              s = s.replace(old_import, new_import, 1)
+
+          marker = '      <section id="sf-game-location-card" className="sf-card">'
+          chat = '''      <section className="sf-card sf-game-chat-card">\n        <GameChat\n          gameId={game.id}\n          userId={myId}\n          playerNames={Object.fromEntries(roster.map((player) => [player.id, player.name]))}\n        />\n      </section>\n\n'''
+          if 'sf-game-chat-card' not in s:
+              if marker not in s:
+                  raise SystemExit('Game location section marker not found')
+              s = s.replace(marker, chat + marker, 1)
+          p.write_text(s)
+          PY
+
+      - name: Validate integration
+        run: |
+          test -f components/chat/GameChat.js
+          grep -q "components/chat/GameChat" app/society-page.js
+          grep -q "sf-game-chat-card" app/society-page.js
+          npm ci
+          npm run build
+
+      - name: Commit integration and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/integrate-game-chat.yml
+          git add app/society-page.js .github/workflows/integrate-game-chat.yml
+          git commit -m "refactor(chat): integrate GameChat into game detail"
+          git push origin HEAD:main
