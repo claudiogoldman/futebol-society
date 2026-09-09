@@ -1,7 +1,9 @@
 import './game-chat.css';
 import './group-edit-fix.css';
 import './ui-audit-fix.css';
+import './notifications.css';
 import WaitlistStatus from './waitlist-status';
+import NotificationBell from '../components/notifications/NotificationBell';
 
 export const metadata = {
   title: 'Futebol Society — seu futebol, organizado',
@@ -31,6 +33,7 @@ export default function RootLayout({ children }) {
     <html lang="pt-BR">
       <body style={{ margin: 0 }}>
         {children}
+        <NotificationBell />
         <WaitlistStatus />
         <footer style={{ padding: '12px 16px 18px', textAlign: 'center', fontSize: 11, background: '#0B2417' }}>
           <a href="/privacidade" style={{ color: '#B8CDBD', textDecoration: 'none' }}>Política de Privacidade</a>
