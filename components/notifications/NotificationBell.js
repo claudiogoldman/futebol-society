@@ -46,7 +46,6 @@ export default function NotificationBell() {
       setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, read_at: new Date().toISOString() } : entry));
     }
     setOpen(false);
-    if (item.game_id) window.location.href = `/?game=${item.game_id}`;
   }
 
   async function readAll() {
