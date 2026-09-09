@@ -1,7 +1,8 @@
 name: One-time chat visibility fix
 on:
-  push:
-    branches: [fix/game-chat-confirmed-visibility]
+  pull_request:
+    branches: [main]
+    types: [opened]
 permissions:
   contents: write
 jobs:
@@ -9,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - name: Apply minimal chat visibility gate
         shell: bash
         run: |
@@ -31,4 +34,4 @@ jobs:
           git add app/society-page.js .github/workflows/one-time-chat-gate.yml
           git diff --cached --check
           git commit -m 'fix: show game chat only to confirmed players'
-          git push
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
