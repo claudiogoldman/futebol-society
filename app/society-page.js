@@ -523,6 +523,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
     ? generatePixCode({ key: activePixKey, receiverName: activePixReceiver, city: activePixCity, amount: rateio, txid: game.id.slice(0, 8) })
     : null;
   const [pixCopied, setPixCopied] = useState(false);
+  const playerNames = useMemo(() => Object.fromEntries(roster.map((p) => [p.id, p.name])), [roster]);
 
   const bumpGoal = (id, delta) => {
     setScorers((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
@@ -989,6 +990,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       {game.result && hasTeams && (
         <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
       )}
+
+      <GameChat gameId={game.id} userId={myId} playerNames={playerNames} />
 
       <button className="sf-btn-whatsapp" onClick={() => onShare(game, activePlayers, waitlistPlayers, rateio)}>
         <Share2 size={16} /> Compartilhar no WhatsApp
