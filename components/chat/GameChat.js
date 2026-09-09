@@ -1,13 +1,23 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { listGameChatMessages, sendGameChatMessage, subscribeToGameChat } from '../../lib/services/game-chat-service';
+import {
+  deleteGameChatMessage,
+  listGameChatMessages,
+  sendGameChatMessage,
+  subscribeToGameChat,
+  updateGameChatMessage,
+} from '../../lib/services/game-chat-service';
 
 export default function GameChat({ gameId, userId, playerNames = {} }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
   const endRef = useRef(null);
 
@@ -52,6 +62,50 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
     setSending(false);
   }
 
+  function startEditing(message) {
+    setError('');
+    setEditingId(message.id);
+    setEditingText(message.message);
+  }
+
+  function cancelEditing() {
+    if (savingEdit) return;
+    setEditingId(null);
+    setEditingText('');
+  }
+
+  async function handleEdit(messageId) {
+    const value = editingText.trim();
+    if (!value || savingEdit) return;
+    setSavingEdit(true);
+    setError('');
+    const { data, error: editError } = await updateGameChatMessage(messageId, userId, value);
+    if (editError) {
+      setError(editError.message || 'Não foi possível editar a mensagem.');
+    } else if (data) {
+      setMessages((current) => current.map((item) => item.id === data.id ? data : item));
+      setEditingId(null);
+      setEditingText('');
+    }
+    setSavingEdit(false);
+  }
+
+  async function handleDelete(messageId) {
+    if (deletingId) return;
+    if (!window.confirm('Excluir esta mensagem?')) return;
+
+    setDeletingId(messageId);
+    setError('');
+    const { error: deleteError } = await deleteGameChatMessage(messageId, userId);
+    if (deleteError) {
+      setError(deleteError.message || 'Não foi possível excluir a mensagem.');
+    } else {
+      setMessages((current) => current.filter((item) => item.id !== messageId));
+      if (editingId === messageId) cancelEditing();
+    }
+    setDeletingId(null);
+  }
+
   return (
     <section className="sf-chat" aria-label="Chat da partida">
       <div className="sf-chat-header">
@@ -67,11 +121,49 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
         {messages.map((item) => {
           const own = item.user_id === userId;
           const name = names[item.user_id] || (own ? 'Você' : 'Jogador');
+          const editing = editingId === item.id;
+          const deleting = deletingId === item.id;
           return (
             <div className={`sf-chat-message${own ? ' sf-chat-message-own' : ''}`} key={item.id}>
               <div className="sf-chat-message-author">{name}</div>
-              <div className="sf-chat-message-text">{item.message}</div>
-              <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time>
+              {editing ? (
+                <div className="sf-chat-edit-form">
+                  <input
+                    value={editingText}
+                    onChange={(event) => setEditingText(event.target.value)}
+                    maxLength={2000}
+                    aria-label="Editar mensagem"
+                    disabled={savingEdit}
+                    autoFocus
+                  />
+                  <div className="sf-chat-message-actions">
+                    <button type="button" onClick={() => handleEdit(item.id)} disabled={!editingText.trim() || savingEdit}>
+                      {savingEdit ? 'Salvando…' : 'Salvar'}
+                    </button>
+                    <button type="button" onClick={cancelEditing} disabled={savingEdit}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="sf-chat-message-text">{item.message}</div>
+                  <div className="sf-chat-message-meta">
+                    <time dateTime={item.updated_at || item.created_at}>
+                      {new Date(item.updated_at || item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </time>
+                    {item.updated_at && item.updated_at !== item.created_at && <span>editada</span>}
+                    {own && (
+                      <span className="sf-chat-message-actions">
+                        <button type="button" onClick={() => startEditing(item)} disabled={deleting} aria-label={`Editar mensagem de ${name}`}>
+                          Editar
+                        </button>
+                        <button type="button" onClick={() => handleDelete(item.id)} disabled={deleting} aria-label={`Excluir mensagem de ${name}`}>
+                          {deleting ? 'Excluindo…' : 'Excluir'}
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           );
         })}
