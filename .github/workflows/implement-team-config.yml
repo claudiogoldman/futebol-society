@@ -1,5 +1,8 @@
 name: Implement team configuration
 on:
+  push:
+    paths:
+      - '.github/workflows/implement-team-config.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -9,66 +12,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Patch society page
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
-          p=Path('app/society-page.js')
-          s=p.read_text()
-          original=s
+          p=Path('app/society-page.js'); s=p.read_text(); original=s
           def once(label, pattern, repl, flags=0):
               global s
               ns,n=re.subn(pattern,repl,s,count=1,flags=flags)
-              if n!=1:
-                  raise SystemExit(f'PATCH FAILED: {label} ({n} matches)')
+              if n!=1: raise SystemExit(f'PATCH FAILED: {label} ({n} matches)')
               s=ns
-          # service import
           once('service import', r"setGameMaxPlayers, setGameTeams,", "setGameMaxPlayers, setGameTeamConfig, setGameTeams,")
-          # new-game state
           once('new game states', r"const \[newMaxPlayers, setNewMaxPlayers\] = useState\(''\);", "const [newMaxPlayers, setNewMaxPlayers] = useState('');\n  const [newPlayersPerTeam, setNewPlayersPerTeam] = useState('5');\n  const [newReservesPerTeam, setNewReservesPerTeam] = useState('0');")
-          # load games config
           once('game config mapping', r"maxPlayers: g\.max_players \|\| null,", "maxPlayers: g.max_players || null,\n          playersPerTeam: g.players_per_team || Math.max(1, Math.floor((g.max_players || 10) / 2)),\n          reservesPerTeam: g.reserves_per_team || 0,")
-          # load group config
           once('group config mapping', r"defaultMaxPlayers: g\.default_max_players \|\| null,", "defaultMaxPlayers: g.default_max_players || null,\n          defaultPlayersPerTeam: g.default_players_per_team || Math.max(1, Math.floor((g.default_max_players || 10) / 2)),\n          defaultReservesPerTeam: g.default_reserves_per_team || 0,")
-          # new-game create payload: replace max_players field with derived config while retaining compatibility field
           once('create game payload', r"max_players: maxPlayers,", "max_players: (Math.max(1, parseInt(newPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newReservesPerTeam, 10) || 0)) * 2,\n      players_per_team: Math.max(1, parseInt(newPlayersPerTeam, 10) || 5),\n      reserves_per_team: Math.max(0, parseInt(newReservesPerTeam, 10) || 0),")
-          # reset after create
           once('reset team config', r"setNewMaxPlayers\(''\);", "setNewMaxPlayers('');\n    setNewPlayersPerTeam('5');\n    setNewReservesPerTeam('0');")
-          # group opener inherits format
           once('open group defaults', r"setNewMaxPlayers\(group\.defaultMaxPlayers \? String\(group\.defaultMaxPlayers\) : ''\);", "setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');\n    setNewPlayersPerTeam(String(group.defaultPlayersPerTeam || 5));\n    setNewReservesPerTeam(String(group.defaultReservesPerTeam || 0));")
-          # group create payload: add defaults next to default_max_players
-          once('group create payload', r"default_max_players: newGroupMaxPlayers,", "default_max_players: newGroupMaxPlayers,\n      default_players_per_team: Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0),")
-          # group state: insert alongside max players state
           once('group create states', r"const \[newGroupMaxPlayers, setNewGroupMaxPlayers\] = useState\(''\);", "const [newGroupMaxPlayers, setNewGroupMaxPlayers] = useState('');\n  const [newGroupPlayersPerTeam, setNewGroupPlayersPerTeam] = useState('5');\n  const [newGroupReservesPerTeam, setNewGroupReservesPerTeam] = useState('0');")
-          # group detail states
+          once('group create payload', r"default_max_players: newGroupMaxPlayers,", "default_max_players: (Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2,\n      default_players_per_team: Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0),")
           once('group detail states', r"const \[maxPlayersDraft, setMaxPlayersDraft\] = useState\(group\.defaultMaxPlayers \|\| ''\);", "const [maxPlayersDraft, setMaxPlayersDraft] = useState(group.defaultMaxPlayers || '');\n  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(group.defaultPlayersPerTeam || 5);\n  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(group.defaultReservesPerTeam || 0);")
-          # group detail sync
           once('group detail sync', r"setMaxPlayersDraft\(group\.defaultMaxPlayers \? String\(group\.defaultMaxPlayers\) : ''\);", "setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');\n    setPlayersPerTeamDraft(String(group.defaultPlayersPerTeam || 5));\n    setReservesPerTeamDraft(String(group.defaultReservesPerTeam || 0));")
-          # group save payload
           once('group save payload', r"default_max_players: maxPlayersDraft \? parseInt\(maxPlayersDraft, 10\) : null,", "default_max_players: (Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2,\n      default_players_per_team: Math.max(1, parseInt(playersPerTeamDraft, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0),")
-          # game detail handler prop
           once('game detail prop', r"onSetMaxPlayers,", "onSetMaxPlayers, onSetTeamConfig,")
-          # game detail draft states
           once('game detail config states', r"const \[maxPlayersDraft, setMaxPlayersDraft\] = useState\(game\.maxPlayers \|\| ''\);", "const [maxPlayersDraft, setMaxPlayersDraft] = useState(game.maxPlayers || '');\n  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(game.playersPerTeam || 5);\n  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(game.reservesPerTeam || 0);")
-          # draw handler: replace call with config-aware call. This is the main-app handler, not the UI button.
           once('draw handler', r"const \{ teamA, teamB \} = drawTeams\(confirmedPlayers\);", "const currentGame = games.find((g) => g.id === gameId);\n    const { teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: currentGame?.playersPerTeam || 5, reservesPerTeam: currentGame?.reservesPerTeam || 0 });")
           once('draw set teams', r"await setGameTeams\(gameId, teamA\.map\(\(p\) => p\.id\), teamB\.map\(\(p\) => p\.id\)\);", "await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));")
-          # add main handler for saving team config next to max-player handler
           once('team config handler', r"const handleSetMaxPlayers = async \(gameId, maxPlayers\) => \{", "const handleSetTeamConfig = async (gameId, playersPerTeam, reservesPerTeam) => {\n    const result = await setGameTeamConfig(gameId, playersPerTeam, reservesPerTeam);\n    if (result.error) { alert(result.error.message); return false; }\n    await loadAll();\n    return true;\n  };\n\n  const handleSetMaxPlayers = async (gameId, maxPlayers) => {")
-          # pass handler into GameDetail invocation
           once('game detail invocation', r"onSetMaxPlayers=\{handleSetMaxPlayers\}", "onSetMaxPlayers={handleSetMaxPlayers}\n        onSetTeamConfig={handleSetTeamConfig}")
           p.write_text(s)
-          print('changed', len(s)-len(original), 'bytes')
           PY
           git diff --check
-          git diff -- app/society-page.js | head -n 220
-      - name: Commit and push
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/society-page.js
           git diff --cached --quiet && exit 1
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat: wire configurable team vacancies into UI'
           git push origin main
