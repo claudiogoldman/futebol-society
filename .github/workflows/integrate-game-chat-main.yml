@@ -1,0 +1,110 @@
+name: Integrate game chat into main-based branch
+
+on:
+  push:
+    branches:
+      - feat/game-chat-main-integration
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Wire GameChat into GameDetail
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('app/society-page.js')
+          text = page.read_text()
+
+          marker = "  const [pixCopied, setPixCopied] = useState(false);\n"
+          addition = marker + "  const playerNames = useMemo(() => Object.fromEntries(roster.map((p) => [p.id, p.name])), [roster]);\n"
+          if "const playerNames = useMemo(() => Object.fromEntries(roster.map((p) => [p.id, p.name]))" not in text:
+              if marker not in text:
+                  raise SystemExit('GameDetail state anchor not found')
+              text = text.replace(marker, addition, 1)
+
+          marker = "      {game.result && hasTeams && (\n        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n      )}\n\n      <button className=\"sf-btn-whatsapp\""
+          replacement = "      {game.result && hasTeams && (\n        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n      )}\n\n      <GameChat gameId={game.id} userId={myId} playerNames={playerNames} />\n\n      <button className=\"sf-btn-whatsapp\""
+          if "<GameChat gameId={game.id} userId={myId} playerNames={playerNames} />" not in text:
+              if marker not in text:
+                  raise SystemExit('GameDetail render anchor not found')
+              text = text.replace(marker, replacement, 1)
+
+          page.write_text(text)
+          PY
+
+      - name: Add chat styles
+        run: |
+          cat > app/game-chat.css <<'EOF'
+          .sf-chat {
+            margin-top: 12px;
+            padding: 14px;
+            border: 1px solid rgba(184, 205, 189, 0.16);
+            border-radius: 14px;
+            background: var(--pitch-dark, #0B2417);
+          }
+          .sf-chat-header { margin-bottom: 10px; }
+          .sf-chat-subtitle { margin-top: 3px; font-size: 12px; opacity: 0.7; }
+          .sf-chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 4px 2px 8px;
+          }
+          .sf-chat-empty { padding: 20px 8px; text-align: center; font-size: 13px; opacity: 0.7; }
+          .sf-chat-message {
+            align-self: flex-start;
+            max-width: 82%;
+            padding: 8px 10px;
+            border-radius: 12px 12px 12px 4px;
+            background: rgba(255, 255, 255, 0.07);
+          }
+          .sf-chat-message-own {
+            align-self: flex-end;
+            border-radius: 12px 12px 4px 12px;
+            background: rgba(255, 197, 61, 0.14);
+          }
+          .sf-chat-message-author { font-size: 11px; font-weight: 700; margin-bottom: 3px; opacity: 0.8; }
+          .sf-chat-message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.35; }
+          .sf-chat-message time { display: block; margin-top: 4px; font-size: 10px; opacity: 0.55; text-align: right; }
+          .sf-chat-error { margin: 6px 0; font-size: 12px; color: #ff9b9b; }
+          .sf-chat-form { display: flex; gap: 8px; margin-top: 8px; }
+          .sf-chat-form input { flex: 1; min-width: 0; }
+          .sf-chat-form button { flex: 0 0 auto; }
+          EOF
+
+      - name: Import chat stylesheet
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/layout.js')
+          text = p.read_text()
+          if "import './game-chat.css';" not in text:
+              text = "import './game-chat.css';\n" + text
+              p.write_text(text)
+          PY
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js app/game-chat.css app/layout.js
+          if git diff --cached --quiet; then
+            echo "No integration changes needed"
+            exit 0
+          fi
+          git commit -m "feat(chat): render game chat in match detail"
+          git push
