@@ -15,6 +15,69 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Patch visual da quadra
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = """  const Marker = ({ p, x, y, color }) => {
+    const isGK = isGoleiro(p);
+    return (
+      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
+        <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
+        <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">
+          {displayName(p).trim().slice(0, 2).toUpperCase()}
+        </text>
+      </g>
+    );
+  };"""
+          new = """  const Marker = ({ p, x, y, color }) => {
+    const isGK = isGoleiro(p);
+    const initials = displayName(p).trim().slice(0, 2).toUpperCase();
+    const hasPhoto = !!p.avatar_url;
+    return (
+      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
+        {hasPhoto ? (
+          <>
+            <defs><clipPath id={`pitch-avatar-${p.id}`}><circle r="15" /></clipPath></defs>
+            <circle r="16.5" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
+            <image href={p.avatar_url} x="-15" y="-15" width="30" height="30" preserveAspectRatio="xMidYMid slice" clipPath={`url(#pitch-avatar-${p.id})`} />
+          </>
+        ) : (
+          <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
+        )}
+        {!hasPhoto && <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">{initials}</text>}
+        {hasPhoto && <text textAnchor="middle" y="27" fontSize="8" fontWeight="800" fill="#EDF6EE" fontFamily="Inter, sans-serif">{initials}</text>}
+      </g>
+    );
+  };"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          anchor = "      <line x1=\"4\" y1={H / 2} x2={W - 4} y2={H / 2} stroke=\"rgba(237,246,238,0.25)\" strokeWidth=\"1.5\" />"
+          zones = """      <g pointerEvents="none">
+        <rect x="6" y="6" width={W - 12} height="84" fill="rgba(237,246,238,0.05)" />
+        <rect x="6" y="90" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />
+        <rect x="6" y="190" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />
+        <rect x="6" y="280" width={W - 12} height="94" fill="rgba(237,246,238,0.05)" />
+        <text x="12" y="20" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">PIVÔ / ATAQUE</text>
+        <text x="12" y="105" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>
+        <text x="12" y="205" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>
+        <text x="12" y="295" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">DEFESA / FIXO / LÍBERO</text>
+        <text x={W - 12} y={H - 12} textAnchor="end" fontSize="8" fontWeight="700" fill="rgba(255,197,61,0.75)">GOLEIRO</text>
+      </g>
+"""
+          if anchor in s and 'PIVÔ / ATAQUE' not in s:
+              s = s.replace(anchor, zones + anchor, 1)
+          p.write_text(s)
+          PY
+      - name: Commit visual da quadra
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "feat(sorteio): quadra por áreas e fotos dos jogadores" || true
+          git push || true
       - name: Patch match CTA and WhatsApp message
         run: |
           python - <<'PY'
@@ -61,7 +124,6 @@ jobs:
     }
 
     msg += `\n🔗 *Ver partida:* ${window.location.origin}/?join=${game.inviteToken}\n`;
-
     msg += `\n⏳ *SUPLENTES — LISTA DE ESPERA*\n`;
     if (waitlistPlayers.length) {
       waitlistPlayers.forEach((p, index) => { msg += `${index + 1}. ${displayName(p)} — #${index + 1}\n`; });
@@ -69,7 +131,6 @@ jobs:
     } else {
       msg += `— Nenhum suplente no momento.\n`;
     }
-
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
