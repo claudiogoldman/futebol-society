@@ -1,0 +1,75 @@
+name: Wire profile nickname
+
+on:
+  push:
+    paths:
+      - '.github/nickname-patch-trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply nickname wiring
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          changes = 0
+
+          old = "const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];\n"
+          new = old + "\nfunction displayName(player) {\n  const nickname = typeof player?.nickname === 'string' ? player.nickname.trim() : '';\n  return nickname || player?.name || '?';\n}\n"
+          if 'function displayName(player)' not in s:
+              if old not in s: raise SystemExit('position anchor not found')
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "const firstName = (player.name || '?').trim().split(' ')[0];"
+          new = "const firstName = displayName(player).trim().split(' ')[0];"
+          if old in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "(p.name || '?').trim().slice(0, 2).toUpperCase()"
+          new = "displayName(p).trim().slice(0, 2).toUpperCase()"
+          if old in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "const [pixDraft, setPixDraft] = useState(me.pix_key || '');"
+          new = "const [pixDraft, setPixDraft] = useState(me.pix_key || '');\n  const [nicknameDraft, setNicknameDraft] = useState(me.nickname || '');"
+          if old in s and 'const [nicknameDraft, setNicknameDraft]' not in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = '<div className="sf-h3">{me.name} <span className="sf-me-tag">você</span></div>\n      <div className="sf-muted-sm" style={{ margin: \'12px 0 6px\' }}>Nacionalidade</div>'
+          new = '''<div className="sf-h3">{displayName(me)} <span className="sf-me-tag">você</span></div>\n      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Como você quer ser chamado?</div>\n      <input\n        type="text"\n        className="sf-input"\n        maxLength={40}\n        placeholder={me.name || 'Seu nome'}\n        value={nicknameDraft}\n        onChange={(e) => setNicknameDraft(e.target.value)}\n        onBlur={() => onUpdate({ nickname: nicknameDraft.trim() || null })}\n      />\n      <div className="sf-muted-sm" style={{ margin: '4px 0 6px' }}>Se preencher, este nome aparece no elenco, grupos, partidas, times, ranking e chat. Se deixar vazio, usamos seu nome da conta Google.</div>\n      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Nacionalidade</div>'''
+          if old in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "const profs = profilesRes.data || [];"
+          new = "const profs = (profilesRes.data || []).map((p) => ({ ...p, accountName: p.name, name: displayName(p) }));"
+          if old in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "const allowed = ['preferred_foot', 'weight_kg', 'age', 'positions', 'nationality_code', 'rating'];"
+          new = "const allowed = ['preferred_foot', 'weight_kg', 'age', 'positions', 'nationality_code', 'rating', 'nickname'];"
+          if old in s:
+              s = s.replace(old, new, 1); changes += 1
+
+          old = "const msg = `Fala ${p.name}! ⚽ Só lembrando: falta ${money(rateio)}"
+          if old in s: changes += 0
+
+          if changes < 6:
+              raise SystemExit(f'expected at least 6 changes, got {changes}')
+          p.write_text(s)
+          print(f'Applied {changes} nickname changes')
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git commit -m 'feat(profile): wire nickname as preferred display name'
+          git push
