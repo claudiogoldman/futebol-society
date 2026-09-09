@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply integration
-        run: python scripts/integrate-game-chat.py
+        run: python scripts/integrate-game-chat-v2.py
 
       - name: Commit integration
         run: |
