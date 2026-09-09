@@ -1,0 +1,36 @@
+name: Patch full match CTA
+
+on:
+  push:
+    paths:
+      - .github/full-message.patch
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch CTA
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = """        <button className=\"sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}\" onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed ? <><Check size={16} /> Você está confirmado</> : iAmWaitlisted ? <><span aria-hidden=\"true\">⏳</span> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}\n        </button>\n        {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (\n          <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>\n        )}"""
+          new = """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? <><Check size={16} /> Você está inscrito</>\n            : iAmWaitlisted\n              ? <><span aria-hidden=\"true\">⏳</span> Você está na lista de espera (#{myWaitlistPos + 1})</>\n              : maxPlayers && activePlayers.length >= maxPlayers\n                ? <><span aria-hidden=\"true\">⏳</span> Entrar na lista de espera</>\n                : 'Confirmar minha presença'}\n        </button>\n        {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (\n          <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>\n        )}"""
+          assert old in s, 'CTA block not found'
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "feat(partidas): orientar entrada na lista de espera" || exit 0
+          git push
