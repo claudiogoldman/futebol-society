@@ -991,7 +991,9 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
       )}
 
-      <GameChat gameId={game.id} userId={myId} playerNames={playerNames} />
+      {iAmConfirmed && (
+        <GameChat gameId={game.id} userId={myId} playerNames={playerNames} />
+      )}
 
       <button className="sf-btn-whatsapp" onClick={() => onShare(game, activePlayers, waitlistPlayers, rateio)}>
         <Share2 size={16} /> Compartilhar no WhatsApp
