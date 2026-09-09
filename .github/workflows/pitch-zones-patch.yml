@@ -1,0 +1,152 @@
+name: Patch pitch zones
+
+on:
+  push:
+    paths:
+      - .github/pitch-zones.patch
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Atualizar PitchView
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          start = s.find('function PitchView({ teamA, teamB }) {')
+          end = s.find('\n\n// ---------- login ----------', start)
+          assert start >= 0 and end > start, 'PitchView boundaries not found'
+          new = r'''function PitchView({ teamA, teamB }) {
+  const baseSlots = [
+    { pos: 'goleiro', x: 50, y: 90 },
+    { pos: 'fixo', x: 30, y: 72 },
+    { pos: 'libero', x: 70, y: 72 },
+    { pos: 'meio', x: 50, y: 54 },
+    { pos: 'ala_esquerdo', x: 20, y: 48 },
+    { pos: 'ala_direito', x: 80, y: 48 },
+    { pos: 'pivo', x: 50, y: 28 },
+  ];
+  const extraSlots = [
+    { x: 35, y: 60 }, { x: 65, y: 60 }, { x: 35, y: 38 }, { x: 65, y: 38 },
+    { x: 50, y: 40 }, { x: 50, y: 65 }, { x: 20, y: 62 }, { x: 80, y: 62 },
+  ];
+
+  const assignSlots = (team, mirrored) => {
+    const slots = baseSlots.map((s) => ({ ...s, y: mirrored ? 100 - s.y : s.y }));
+    const extras = extraSlots.map((s) => ({ ...s, y: mirrored ? 100 - s.y : s.y }));
+    const available = [...slots];
+    const assigned = [];
+    const positional = [];
+    const unpositioned = [];
+
+    team.forEach((player) => {
+      const positions = Array.isArray(player.positions) ? player.positions : [];
+      const known = positions.filter((p) => POSITION_LABELS[p]);
+      if (known.length) positional.push({ player, positions: known });
+      else unpositioned.push(player);
+    });
+
+    positional.sort((a, b) => {
+      const aGk = a.positions.includes('goleiro') ? 0 : 1;
+      const bGk = b.positions.includes('goleiro') ? 0 : 1;
+      return aGk - bGk;
+    });
+
+    positional.forEach(({ player, positions }) => {
+      const slotIndex = available.findIndex((slot) => positions.includes(slot.pos));
+      if (slotIndex >= 0) {
+        const [slot] = available.splice(slotIndex, 1);
+        assigned.push({ player, ...slot });
+      } else {
+        unpositioned.push(player);
+      }
+    });
+
+    unpositioned.forEach((player) => {
+      const slot = available.shift() || extras.shift();
+      if (slot) assigned.push({ player, ...slot });
+    });
+
+    team.slice(assigned.length).forEach((player, i) => {
+      const angle = (i / Math.max(1, team.length)) * Math.PI * 2;
+      const x = Math.max(10, Math.min(90, 50 + Math.cos(angle) * 34));
+      const rawY = 50 + Math.sin(angle) * 28;
+      const y = mirrored ? 100 - rawY : rawY;
+      assigned.push({ player, x, y });
+    });
+    return assigned;
+  };
+
+  const posA = assignSlots(teamA, false);
+  const posB = assignSlots(teamB, true);
+  const H = 380, W = 260;
+  const Zone = ({ y, h, label, opacity = 0.055 }) => (
+    <g pointerEvents="none">
+      <rect x="6" y={y} width={W - 12} height={h} fill="rgba(237,246,238,${opacity})" />
+      <text x="12" y={y + 15} fontSize="8" fontWeight="700" letterSpacing="1" fill="rgba(237,246,238,0.58)" fontFamily="Inter, sans-serif">{label}</text>
+    </g>
+  );
+  const Marker = ({ p, x, y, color }) => {
+    const isGK = isGoleiro(p);
+    const initials = displayName(p).trim().slice(0, 2).toUpperCase();
+    const hasPhoto = !!p.avatar_url;
+    return (
+      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
+        {hasPhoto ? (
+          <>
+            <defs>
+              <clipPath id={`pitch-avatar-${p.id}`}><circle r="15" /></clipPath>
+            </defs>
+            <circle r="16.5" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
+            <image href={p.avatar_url} x="-15" y="-15" width="30" height="30" preserveAspectRatio="xMidYMid slice" clipPath={`url(#pitch-avatar-${p.id})`} />
+          </>
+        ) : (
+          <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
+        )}
+        {!hasPhoto && (
+          <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">{initials}</text>
+        )}
+        {hasPhoto && (
+          <text textAnchor="middle" y="27" fontSize="8" fontWeight="800" fill="#EDF6EE" fontFamily="Inter, sans-serif">{initials}</text>
+        )}
+      </g>
+    );
+  };
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: 340, display: 'block', margin: '0 auto' }} aria-label="Quadra com áreas táticas e jogadores sorteados">
+      <rect x="4" y="4" width={W - 8} height={H - 8} rx="6" fill="#153A24" stroke="rgba(237,246,238,0.25)" strokeWidth="2" />
+      <Zone y="6" h="92" label="PIVÔ / ATAQUE" />
+      <Zone y="98" h="82" label="MEIO" />
+      <Zone y="180" h="82" label="MEIO" opacity={0.035} />
+      <Zone y="262" h="58" label="DEFESA · FIXO · LÍBERO" />
+      <Zone y="320" h="54" label="GOLEIRO" />
+      <line x1="4" y1={H / 2} x2={W - 4} y2={H / 2} stroke="rgba(237,246,238,0.28)" strokeWidth="1.5" />
+      <circle cx={W / 2} cy={H / 2} r="34" fill="none" stroke="rgba(237,246,238,0.28)" strokeWidth="1.5" />
+      <rect x={W / 2 - 45} y="4" width="90" height="34" fill="none" stroke="rgba(237,246,238,0.25)" strokeWidth="1.5" />
+      <rect x={W / 2 - 45} y={H - 38} width="90" height="34" fill="none" stroke="rgba(237,246,238,0.25)" strokeWidth="1.5" />
+      <text x="10" y="194" fontSize="7" fontWeight="800" fill="rgba(255,92,92,0.8)" fontFamily="Inter, sans-serif">TIME A</text>
+      <text x={W - 10} y="194" textAnchor="end" fontSize="7" fontWeight="800" fill="rgba(79,195,247,0.85)" fontFamily="Inter, sans-serif">TIME B</text>
+      {posA.map((pp, i) => <Marker key={'a' + i} p={pp.player} x={pp.x} y={pp.y} color="#FF5C5C" />)}
+      {posB.map((pp, i) => <Marker key={'b' + i} p={pp.player} x={pp.x} y={pp.y} color="#4FC3F7" />)}
+    </svg>
+  );
+}'''
+          # Resolve the template literal in Zone without interpolating at patch time.
+          new = new.replace('fill="rgba(237,246,238,${opacity})"', 'fill={`rgba(237,246,238,${opacity})`}')
+          p.write_text(s[:start] + new + s[end:])
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "feat(sorteio): quadra por áreas e fotos dos jogadores" || exit 0
+          git push
