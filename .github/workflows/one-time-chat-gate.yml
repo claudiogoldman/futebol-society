@@ -6,7 +6,6 @@ permissions:
   contents: write
 jobs:
   fix:
-    if: github.event.head_commit.message != 'fix: show game chat only to confirmed players'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +30,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/society-page.js .github/workflows/one-time-chat-gate.yml
           git diff --cached --check
-          git diff --cached --quiet && exit 0
           git commit -m 'fix: show game chat only to confirmed players'
           git push
