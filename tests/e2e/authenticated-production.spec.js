@@ -34,6 +34,24 @@ test.describe('Produção — auditoria autenticada básica', () => {
 
     const visibleText = await page.locator('body').innerText();
     expect(visibleText).toMatch(/(grupo|partida|jogador|elenco|ranking)/i);
+
+    const chat = page.getByRole('region', { name: /chat da partida/i });
+    if (await chat.isVisible().catch(() => false)) {
+      await expect(chat.getByRole('textbox', { name: 'Mensagem' })).toBeVisible();
+      await expect(chat.getByRole('button', { name: 'Enviar' })).toBeVisible();
+
+      const ownEditButtons = chat.getByRole('button', { name: /editar mensagem/i });
+      const ownDeleteButtons = chat.getByRole('button', { name: /excluir mensagem/i });
+      const editCount = await ownEditButtons.count();
+      const deleteCount = await ownDeleteButtons.count();
+
+      expect(editCount).toBe(deleteCount);
+      if (editCount > 0) {
+        await expect(ownEditButtons.first()).toBeVisible();
+        await expect(ownDeleteButtons.first()).toBeVisible();
+      }
+    }
+
     expect(pageErrors).toEqual([]);
   });
 });
