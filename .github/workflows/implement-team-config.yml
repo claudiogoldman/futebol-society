@@ -1,8 +1,6 @@
 name: Implement team configuration
 on:
   push:
-    paths:
-      - '.github/workflows/implement-team-config.yml'
   workflow_dispatch:
 permissions:
   contents: write
