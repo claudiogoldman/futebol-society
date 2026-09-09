@@ -660,10 +660,16 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           </div>
         )}
         <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>
-          {iAmConfirmed ? <><Check size={16} /> Você está confirmado</> : iAmWaitlisted ? <><span aria-hidden="true">⏳</span> Você tá na espera (#{myWaitlistPos + 1})</> : 'Confirmar minha presença'}
+          {iAmConfirmed
+            ? <><Check size={16} /> Você está inscrito</>
+            : iAmWaitlisted
+              ? <><span aria-hidden="true">⏳</span> Você está na lista de espera (#{myWaitlistPos + 1})</>
+              : maxPlayers && activePlayers.length >= maxPlayers
+                ? <><span aria-hidden="true">⏳</span> Entrar na lista de espera</>
+                : 'Confirmar minha presença'}
         </button>
-        {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
-          <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
+        {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (
+          <div className="sf-muted-sm" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>
         )}
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} role="tablist" aria-label="Filtro de participantes">
           {[
