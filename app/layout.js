@@ -1,3 +1,4 @@
+import './game-chat.css';
 import './group-edit-fix.css';
 import './ui-audit-fix.css';
 import WaitlistStatus from './waitlist-status';
