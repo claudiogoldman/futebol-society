@@ -21,6 +21,11 @@ import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameC
 const POSITION_LABELS = { goleiro: 'Goleiro', fixo: 'Fixo', libero: 'Líbero', meio: 'Meio', ala_esquerdo: 'Ala Esquerdo', ala_direito: 'Ala Direito', pivo: 'Pivô' };
 const POSITION_ORDER = ['goleiro', 'fixo', 'libero', 'meio', 'ala_esquerdo', 'ala_direito', 'pivo'];
 
+function displayName(player) {
+  const nickname = typeof player?.nickname === 'string' ? player.nickname.trim() : '';
+  return nickname || player?.name || '?';
+}
+
 // combines weight + age deviation from a "typical" player into one number,
 // used only to break near-ties in the rating balance so the draw doesn't
 // accidentally stack every heavy/young player on the same side.
@@ -60,7 +65,7 @@ function PlayerCard({ player, compact }) {
   const ovr = computeOVR(player);
   const tier = cardTier(ovr);
   const pos = primaryPositionAbbrev(player);
-  const firstName = (player.name || '?').trim().split(' ')[0];
+  const firstName = displayName(player).trim().split(' ')[0];
   return (
     <div className={`sf-pcard ${compact ? 'sf-pcard-compact' : ''}`} style={{ background: tier.grad, color: tier.text }}>
       <div className="sf-pcard-top">
@@ -182,7 +187,7 @@ function PitchView({ teamA, teamB }) {
       <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
         <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
         <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">
-          {(p.name || '?').trim().slice(0, 2).toUpperCase()}
+          {displayName(p).trim().slice(0, 2).toUpperCase()}
         </text>
       </g>
     );
@@ -330,6 +335,7 @@ function MyProfileCard({ me, onUpdate }) {
   const [ageDraft, setAgeDraft] = useState(me.age || '');
   const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
   const [pixDraft, setPixDraft] = useState(me.pix_key || '');
+  const [nicknameDraft, setNicknameDraft] = useState(me.nickname || '');
   const [ataDraft, setAtaDraft] = useState(me.attr_ata ?? 50);
   const [defDraft, setDefDraft] = useState(me.attr_def ?? 50);
   const [forDraft, setForDraft] = useState(me.attr_for ?? 50);
@@ -393,7 +399,18 @@ function MyProfileCard({ me, onUpdate }) {
           </div>
         </div>
       </div>
-      <div className="sf-h3">{me.name} <span className="sf-me-tag">você</span></div>
+      <div className="sf-h3">{displayName(me)} <span className="sf-me-tag">você</span></div>
+      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Como você quer ser chamado?</div>
+      <input
+        type="text"
+        className="sf-input"
+        maxLength={40}
+        placeholder={me.name || 'Seu nome'}
+        value={nicknameDraft}
+        onChange={(e) => setNicknameDraft(e.target.value)}
+        onBlur={() => onUpdate({ nickname: nicknameDraft.trim() || null })}
+      />
+      <div className="sf-muted-sm" style={{ margin: '4px 0 6px' }}>Se preencher, este nome aparece no elenco, grupos, partidas, times, ranking e chat. Se deixar vazio, usamos seu nome da conta Google.</div>
       <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Nacionalidade</div>
       <select
         className="sf-input"
@@ -1308,7 +1325,7 @@ function MainApp({ session }) {
 
   const updateProfileForAdmin = async (userId, fields) => {
     if (!me?.is_admin || !userId) return false;
-    const allowed = ['preferred_foot', 'weight_kg', 'age', 'positions', 'nationality_code', 'rating'];
+    const allowed = ['preferred_foot', 'weight_kg', 'age', 'positions', 'nationality_code', 'rating', 'nickname'];
     const payload = Object.fromEntries(Object.entries(fields).filter(([key]) => allowed.includes(key)));
     const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
     if (error) { alert('Não foi possível completar o perfil: ' + error.message); return false; }
@@ -1330,7 +1347,7 @@ function MainApp({ session }) {
       supabase.from('group_members').select('*'),
       supabase.from('group_locations').select('*').order('is_default', { ascending: false }).order('name'),
     ]);
-    const profs = profilesRes.data || [];
+    const profs = (profilesRes.data || []).map((p) => ({ ...p, accountName: p.name, name: displayName(p) }));
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
     const assembled = (gamesRes.data || []).map((g) => {
       // ordered by confirmed_at so the waitlist (anyone past max_players) is well defined
