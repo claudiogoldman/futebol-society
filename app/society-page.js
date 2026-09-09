@@ -503,6 +503,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [guestPositionDraft, setGuestPositionDraft] = useState('');
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamDraft, setTeamDraft] = useState({});
+  const [participantFilter, setParticipantFilter] = useState('todos');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -513,6 +514,11 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
   const waitlistIds = game.waitlist || [];
   const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const participantList = participantFilter === 'inscritos'
+    ? activePlayers
+    : participantFilter === 'suplentes'
+      ? waitlistPlayers
+      : [...activePlayers, ...waitlistPlayers.filter((p) => !activePlayers.some((a) => a.id === p.id))];
   const gkPays = game.goalkeeperPays !== false;
   const payingPlayers = gkPays ? activePlayers : activePlayers.filter((p) => !isGoleiro(p));
   const rateio = payingPlayers.length > 0 ? (game.cost || 0) / payingPlayers.length : 0;
@@ -659,24 +665,78 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         {!iAmConfirmed && maxPlayers && activePlayers.length >= maxPlayers && (
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Vagas lotadas — você entra na lista de espera.</div>
         )}
-        <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
-          {activePlayers.map((p) => {
-            const on = game.confirmed.includes(p.id);
-            const onWaitlist = waitlistPlayers.some((w) => w.id === p.id);
-            return (
-              <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''} ${onWaitlist ? 'sf-rsvp-waitlist' : ''}`}>
-                <span className="sf-rsvp-check">{on && !onWaitlist ? <Check size={14} /> : null}</span>
-                <span className="sf-rsvp-name">
-                  <PositionTags player={p} />
-                  <button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: p }))}>{p.name}</button>{p.id === myId ? ' (você)' : ''}
-                </span>
-                {onWaitlist && <span className="sf-waitlist-tag">espera #{waitlistPlayers.findIndex((w) => w.id === p.id) + 1}</span>}
-                <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
-                {canManage && on && p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}
-              </div>
-            );
-          })}
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }} role="tablist" aria-label="Filtro de participantes">
+          {[
+            ['inscritos', `Inscritos (${activePlayers.length}${maxPlayers ? `/${maxPlayers}` : ''})`],
+            ['suplentes', `Suplentes (${waitlistPlayers.length})`],
+            ['todos', `Todos (${activePlayers.length + waitlistPlayers.filter((p) => !activePlayers.some((a) => a.id === p.id)).length})`],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`sf-subtab ${participantFilter === value ? 'sf-subtab-on' : ''}`}
+              onClick={() => setParticipantFilter(value)}
+              role="tab"
+              aria-selected={participantFilter === value}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+        {participantFilter === 'todos' ? (
+          <>
+            <div className="sf-card-subtitle" style={{ marginTop: 12 }}>✅ Inscritos</div>
+            <div className="sf-rsvp-list" style={{ marginTop: 6 }}>
+              {activePlayers.map((p) => {
+                const on = game.confirmed.includes(p.id);
+                return (
+                  <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : ''} ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
+                    <span className="sf-rsvp-check">{on ? <Check size={14} /> : null}</span>
+                    <span className="sf-rsvp-name">
+                      <PositionTags player={p} />
+                      <button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: p }))}>{p.name}</button>{p.id === myId ? ' (você)' : ''}
+                    </span>
+                    <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+                    {canManage && on && p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="sf-card-subtitle" style={{ marginTop: 12 }}>⏳ Suplentes</div>
+            <div className="sf-rsvp-list" style={{ marginTop: 6 }}>
+              {waitlistPlayers.length ? waitlistPlayers.map((p, index) => (
+                <div key={p.id} className={`sf-rsvp-row sf-rsvp-waitlist ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
+                  <span className="sf-rsvp-check">⏳</span>
+                  <span className="sf-rsvp-name">
+                    <PositionTags player={p} />
+                    <button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: p }))}>{p.name}</button>{p.id === myId ? ' (você)' : ''}
+                  </span>
+                  <span className="sf-waitlist-tag">suplente #{index + 1}</span>
+                  <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+                </div>
+              )) : <div className="sf-muted-sm">Nenhum suplente.</div>}
+            </div>
+          </>
+        ) : (
+          <div className="sf-rsvp-list" style={{ marginTop: 10 }}>
+            {participantList.length ? participantList.map((p) => {
+              const on = activePlayers.some((a) => a.id === p.id);
+              const waitIndex = waitlistPlayers.findIndex((w) => w.id === p.id);
+              return (
+                <div key={p.id} className={`sf-rsvp-row ${on ? 'sf-rsvp-on' : 'sf-rsvp-waitlist'} ${p.id === myId ? 'sf-rsvp-me' : ''}`}>
+                  <span className="sf-rsvp-check">{on ? <Check size={14} /> : '⏳'}</span>
+                  <span className="sf-rsvp-name">
+                    <PositionTags player={p} />
+                    <button type="button" className="sf-player-link" onClick={() => window.dispatchEvent(new CustomEvent('sf-open-player', { detail: p }))}>{p.name}</button>{p.id === myId ? ' (você)' : ''}
+                  </span>
+                  {!on && <span className="sf-waitlist-tag">suplente #{waitIndex + 1}</span>}
+                  <StarRating value={p.rating} readOnly size={12} onChange={() => {}} />
+                  {canManage && on && p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}
+                </div>
+              );
+            }) : <div className="sf-muted-sm">Nenhum participante nesta categoria.</div>}
+          </div>
+        )}
         {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setManagementOpen(true)}><Users size={16} /> Adicionar jogador</button>}
       </section>
 
@@ -1760,12 +1820,10 @@ function MainApp({ session }) {
   const shareWhatsApp = (game, activePlayers, waitlistPlayers, rateio) => {
     let msg = `⚽ *Futebol Society* — ${formatDatePtBr(game.date)}\n`;
     if (game.local) msg += `📍 ${game.local}\n`;
-    msg += `\n✅ Confirmados (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
-    msg += activePlayers.map((p) => `• ${p.name}`).join('\n') || '—';
-    if (waitlistPlayers && waitlistPlayers.length > 0) {
-      msg += `\n\n⏳ Lista de espera:\n`;
-      msg += waitlistPlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
-    }
+    msg += `\n✅ *INSCRITOS* (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
+    msg += activePlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') || '—';
+    msg += `\n\n⏳ *SUPLENTES* (${waitlistPlayers?.length || 0}):\n`;
+    msg += waitlistPlayers?.length ? waitlistPlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') : '—';
     if (game.teamA && game.teamA.length > 0) {
       msg += `\n\n🔴 Time A: ${game.teamA.map((p) => p.name).join(', ')}`;
       msg += `\n🔵 Time B: ${game.teamB.map((p) => p.name).join(', ')}`;
@@ -1865,8 +1923,8 @@ function MainApp({ session }) {
                   <div className="sf-game-card-info">
                     <div className="sf-h3">{g.local || 'Local a definir'}</div>
                     <div className="sf-muted-sm">
-                      <Users size={12} /> {Math.min(g.confirmed.length, g.maxPlayers || Infinity)}{g.maxPlayers ? `/${g.maxPlayers}` : ''} confirmados
-                      {g.maxPlayers && g.confirmed.length > g.maxPlayers ? ` · ${g.confirmed.length - g.maxPlayers} na espera` : ''}
+                      <Users size={12} /> {Math.min(g.confirmed.length, g.maxPlayers || Infinity)}{g.maxPlayers ? `/${g.maxPlayers}` : ''} inscritos
+                      {(g.waitlist?.length || 0) > 0 ? ` · ${g.waitlist.length} suplente${g.waitlist.length === 1 ? '' : 's'}` : ''}
                       {gGroup ? ` · ${gGroup.name}` : ''}
                     </div>
                   </div>
