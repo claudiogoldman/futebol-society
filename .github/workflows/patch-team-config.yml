@@ -1,0 +1,136 @@
+name: Patch team configuration
+
+on:
+  push:
+    paths:
+      - .github/team-config.patch
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply team configuration UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          # Import the team configuration mutation.
+          old = "setGameMaxPlayers, setGameTeams, setGamePayment"
+          new = "setGameMaxPlayers, setGameTeamConfig, setGameTeams, setGamePayment"
+          assert old in s, 'service import anchor not found'
+          s = s.replace(old, new, 1)
+
+          # New-game configuration state.
+          old = "  const [newMaxPlayers, setNewMaxPlayers] = useState('');\n  const [newGameGroupId"
+          new = "  const [newMaxPlayers, setNewMaxPlayers] = useState('');\n  const [newPlayersPerTeam, setNewPlayersPerTeam] = useState('5');\n  const [newReservesPerTeam, setNewReservesPerTeam] = useState('0');\n  const [newGameGroupId"
+          assert old in s, 'new-game state anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Persist team configuration in loaded games.
+          old = "        maxPlayers: g.max_players || null,\n        pixKey:"
+          new = "        maxPlayers: g.max_players || null,\n        playersPerTeam: Number(g.players_per_team) || Math.max(1, Math.floor((g.max_players || 10) / 2)),\n        reservesPerTeam: Number(g.reserves_per_team) || 0,\n        pixKey:"
+          assert old in s, 'game mapping anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Keep role information on team members so reserves survive reloads/remanejos.
+          old = "      const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);\n      const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);"
+          new = "      const teamA = teamRows.filter((t) => t.team === 'A').sort((a, b) => (a.role === 'starter' ? 0 : 1) - (b.role === 'starter' ? 0 : 1)).map((t) => profileMap[t.user_id] ? { ...profileMap[t.user_id], _teamRole: t.role || 'starter' } : null).filter(Boolean);\n      const teamB = teamRows.filter((t) => t.team === 'B').sort((a, b) => (a.role === 'starter' ? 0 : 1) - (b.role === 'starter' ? 0 : 1)).map((t) => profileMap[t.user_id] ? { ...profileMap[t.user_id], _teamRole: t.role || 'starter' } : null).filter(Boolean);"
+          assert old in s, 'team mapping anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Add the team configuration mutation handler.
+          old = "  const setMaxPlayers = async (gameId, maxPlayers) => {\n    const { error } = await setGameMaxPlayers(gameId, maxPlayers);\n    if (error) { alert('Não foi possível alterar o limite de vagas: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };"
+          new = old + "\n\n  const setTeamConfig = async (gameId, playersPerTeam, reservesPerTeam) => {\n    const starters = Math.max(1, parseInt(playersPerTeam, 10) || 5);\n    const reserves = Math.max(0, parseInt(reservesPerTeam, 10) || 0);\n    const { error } = await setGameTeamConfig(gameId, starters, reserves);\n    if (error) { alert('Não foi possível alterar titulares/reservas: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };"
+          assert old in s, 'setMaxPlayers handler anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Draw now uses the configured total and persists starter/reserve roles.
+          old = "  const handleDraw = async (gameId, confirmedPlayers) => {\n    const { teamA, teamB } = drawTeams(confirmedPlayers);\n    const { error } = await setGameTeams(gameId, teamA.map((p) => p.id), teamB.map((p) => p.id));"
+          new = "  const handleDraw = async (gameId, confirmedPlayers) => {\n    const game = games.find((g) => g.id === gameId);\n    const { teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game?.playersPerTeam || 5, reservesPerTeam: game?.reservesPerTeam || 0 });\n    const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));"
+          assert old in s, 'draw handler anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Manual team remanejar preserves reserve role.
+          old = "    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B').map((p) => p.id);\n    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);"
+          new = "    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B' && p._teamRole !== 'reserve').map((p) => p.id);\n    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map((p) => p.id);\n    const teamAReserves = activePlayers.filter((p) => teamDraft[p.id] !== 'B' && p._teamRole === 'reserve').map((p) => p.id);\n    const teamBReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map((p) => p.id);"
+          assert old in s, 'manual team anchor not found'
+          s = s.replace(old, new, 1)
+          s = s.replace("const { error } = await setGameTeams(gameId, teamA, teamB);", "const { error } = await setGameTeams(gameId, teamA, teamB, teamAReserves, teamBReserves);", 1)
+
+          # GameDetail receives team-config mutation.
+          old = "onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails"
+          new = "onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails"
+          assert old in s, 'GameDetail props anchor not found'
+          s = s.replace(old, new, 1)
+
+          # GameDetail state/config and derived starter/reserve arrays.
+          old = "  const [maxPlayersDraft, setMaxPlayersDraft] = useState('');\n  const [pixDraft"
+          new = "  const [maxPlayersDraft, setMaxPlayersDraft] = useState('');\n  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(String(game.playersPerTeam || 5));\n  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(String(game.reservesPerTeam || 0));\n  const [pixDraft"
+          assert old in s, 'GameDetail state anchor not found'
+          s = s.replace(old, new, 1)
+          old = "  const hasTeams = game.teamA && game.teamA.length > 0;\n  const allPlayers = hasTeams ? [...game.teamA, ...game.teamB] : [];"
+          new = "  const hasTeams = game.teamA && game.teamA.length > 0;\n  const teamAStarters = hasTeams ? game.teamA.filter((p) => p._teamRole !== 'reserve').slice(0, game.playersPerTeam || 5) : [];\n  const teamBStarters = hasTeams ? game.teamB.filter((p) => p._teamRole !== 'reserve').slice(0, game.playersPerTeam || 5) : [];\n  const teamAReserves = hasTeams ? game.teamA.filter((p) => p._teamRole === 'reserve') : [];\n  const teamBReserves = hasTeams ? game.teamB.filter((p) => p._teamRole === 'reserve') : [];\n  const allPlayers = hasTeams ? [...game.teamA, ...game.teamB] : [];"
+          assert old in s, 'derived team anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Add configuration controls before the draw buttons.
+          old = "            {canManage && (\n              <div className=\"sf-modal-actions\">\n                <button className=\"sf-btn-primary\" onClick={() => onDraw(game.id, activePlayers)}>"
+          new = "            {canManage && (\n              <>\n                <div className=\"sf-card\" style={{ marginBottom: 10, padding: 10 }}>\n                  <div className=\"sf-card-subtitle\" style={{ marginTop: 0 }}>Formato da partida</div>\n                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>\n                    <label className=\"sf-field-label\">Titulares por time<select className=\"sf-input\" value={playersPerTeamDraft} onChange={(e) => setPlayersPerTeamDraft(e.target.value)}><option value=\"3\">3 × 3</option><option value=\"4\">4 × 4</option><option value=\"5\">5 × 5</option><option value=\"6\">6 × 6</option><option value=\"7\">7 × 7</option><option value=\"8\">8 × 8</option><option value=\"9\">9 × 9</option><option value=\"10\">10 × 10</option><option value=\"11\">11 × 11</option></select></label>\n                    <label className=\"sf-field-label\">Reservas por time<select className=\"sf-input\" value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)}>{Array.from({ length: 11 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></label>\n                  </div>\n                  <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Capacidade: {(Number(playersPerTeamDraft) + Number(reservesPerTeamDraft)) * 2} jogadores ({playersPerTeamDraft} titulares + {reservesPerTeamDraft} reservas por time).</div>\n                  <button type=\"button\" className=\"sf-btn-ghost\" style={{ marginTop: 8 }} onClick={() => onSetTeamConfig(game.id, playersPerTeamDraft, reservesPerTeamDraft)}>Salvar formato</button>\n                </div>\n              </>\n            )}\n            {canManage && (\n              <div className=\"sf-modal-actions\">\n                <button className=\"sf-btn-primary\" onClick={() => onDraw(game.id, activePlayers)}>"
+          assert old in s, 'draw controls anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Show only starters on pitch and reserves immediately below it.
+          s = s.replace("<PitchView teamA={game.teamA} teamB={game.teamB} />", "<PitchView teamA={teamAStarters} teamB={teamBStarters} />", 1)
+          old = "                <div className=\"sf-teams-legend\">\n                  <div><span className=\"sf-dot sf-dot-a\" /> Time A — {game.teamA.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>\n                  <div><span className=\"sf-dot sf-dot-b\" /> Time B — {game.teamB.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>\n                </div>"
+          new = "                <div className=\"sf-teams-legend\">\n                  <div><span className=\"sf-dot sf-dot-a\" /> Time A — {teamAStarters.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ') || '—'}</div>\n                  <div><span className=\"sf-dot sf-dot-b\" /> Time B — {teamBStarters.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ') || '—'}</div>\n                </div>\n                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>\n                  <div className=\"sf-card\" style={{ padding: 10, margin: 0 }}><div className=\"sf-card-subtitle\" style={{ marginTop: 0 }}>🪑 Reservas — Time A ({teamAReserves.length})</div>{teamAReserves.length ? teamAReserves.map((p, i) => <div key={p.id} className=\"sf-muted-sm\" style={{ marginTop: 5 }}>{i + 1}. {displayName(p)}</div>) : <div className=\"sf-muted-sm\" style={{ marginTop: 5 }}>Nenhum</div>}</div>\n                  <div className=\"sf-card\" style={{ padding: 10, margin: 0 }}><div className=\"sf-card-subtitle\" style={{ marginTop: 0 }}>🪑 Reservas — Time B ({teamBReserves.length})</div>{teamBReserves.length ? teamBReserves.map((p, i) => <div key={p.id} className=\"sf-muted-sm\" style={{ marginTop: 5 }}>{i + 1}. {displayName(p)}</div>) : <div className=\"sf-muted-sm\" style={{ marginTop: 5 }}>Nenhum</div>}</div>\n                </div>"
+          assert old in s, 'teams legend anchor not found'
+          s = s.replace(old, new, 1)
+
+          # New-game modal: configure format and derive capacity.
+          old = "            const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;"
+          # this anchor is in createGame and must be replaced separately below if present
+          if old in s:
+              s = s.replace(old, "            const configuredPlayers = Math.max(1, parseInt(newPlayersPerTeam, 10) || 5);\n    const configuredReserves = Math.max(0, parseInt(newReservesPerTeam, 10) || 0);\n    const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : (configuredPlayers + configuredReserves) * 2;", 1)
+          old = "      cost: newGameCost === '' ? 0 : Number(newGameCost),"
+          new = "      players_per_team: configuredPlayers,\n      reserves_per_team: configuredReserves,\n      cost: newGameCost === '' ? 0 : Number(newGameCost),"
+          assert old in s, 'create payload anchor not found'
+          s = s.replace(old, new, 1)
+          old = "            <label className=\"sf-field-label\">Limite de vagas (opcional)</label>\n            <input type=\"number\" min=\"1\" className=\"sf-input\" placeholder=\"Sem limite\" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />"
+          new = "            <label className=\"sf-field-label\">Formato da partida</label>\n            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>\n              <select className=\"sf-input\" value={newPlayersPerTeam} onChange={(e) => { setNewPlayersPerTeam(e.target.value); setNewMaxPlayers(String((Number(e.target.value) + Number(newReservesPerTeam || 0)) * 2)); }}><option value=\"3\">3 × 3</option><option value=\"4\">4 × 4</option><option value=\"5\">5 × 5</option><option value=\"6\">6 × 6</option><option value=\"7\">7 × 7</option><option value=\"8\">8 × 8</option><option value=\"9\">9 × 9</option><option value=\"10\">10 × 10</option><option value=\"11\">11 × 11</option></select>\n              <select className=\"sf-input\" value={newReservesPerTeam} onChange={(e) => { setNewReservesPerTeam(e.target.value); setNewMaxPlayers(String((Number(newPlayersPerTeam || 5) + Number(e.target.value)) * 2)); }}>{Array.from({ length: 11 }, (_, i) => <option key={i} value={i}>{i} reservas/time</option>)}</select>\n            </div>\n            <div className=\"sf-muted-sm\" style={{ marginTop: 4 }}>Capacidade total: {(Number(newPlayersPerTeam) + Number(newReservesPerTeam)) * 2} jogadores.</div>\n            <label className=\"sf-field-label\">Limite de vagas</label>\n            <input type=\"number\" min=\"2\" className=\"sf-input\" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />"
+          assert old in s, 'new game format UI anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Reset format state after creating a game.
+          old = "setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers('');"
+          new = "setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers('10'); setNewPlayersPerTeam('5'); setNewReservesPerTeam('0');"
+          assert old in s, 'new game reset anchor not found'
+          s = s.replace(old, new, 1)
+
+          # Reset/select defaults when changing group or opening a group game.
+          s = s.replace("setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '');", "setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '10'); setNewPlayersPerTeam(String(Math.max(1, Math.floor((g.defaultMaxPlayers || 10) / 2)))); setNewReservesPerTeam('0');", 1)
+          s = s.replace("setNewMaxPlayers('');\n            setNewGameCost('');", "setNewMaxPlayers('10');\n            setNewPlayersPerTeam('5'); setNewReservesPerTeam('0');\n            setNewGameCost('');", 1)
+          s = s.replace("setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');", "setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '10'); setNewPlayersPerTeam(String(Math.max(1, Math.floor((group.defaultMaxPlayers || 10) / 2)))); setNewReservesPerTeam('0');", 1)
+
+          # Pass handler to GameDetail instance.
+          old = "onSetCost={setCost} onSetGkPays={setGkPays} onSetMaxPlayers={setMaxPlayers} onSetGamePixDetails"
+          new = "onSetCost={setCost} onSetGkPays={setGkPays} onSetMaxPlayers={setMaxPlayers} onSetTeamConfig={setTeamConfig} onSetGamePixDetails"
+          assert old in s, 'GameDetail instance anchor not found'
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git commit -m "feat(partidas): configurar titulares e reservas no sorteio" || exit 0
+          git push
