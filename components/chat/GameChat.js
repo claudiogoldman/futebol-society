@@ -36,8 +36,13 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
   const [reactionBusy, setReactionBusy] = useState('');
   const [error, setError] = useState('');
   const endRef = useRef(null);
+  const messagesRef = useRef([]);
 
   const names = useMemo(() => playerNames || {}, [playerNames]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     let active = true;
@@ -63,7 +68,7 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
         setReactions((current) => current.filter((item) => item.message_id !== message.id));
       },
       ({ type, reaction }) => setReactions((current) => {
-        const belongsToCurrentGame = messages.some((item) => item.id === reaction.message_id);
+        const belongsToCurrentGame = messagesRef.current.some((item) => item.id === reaction.message_id);
         if (!belongsToCurrentGame) return current;
         if (type === 'INSERT' && !current.some((item) => item.id === reaction.id)) return [...current, reaction];
         if (type === 'DELETE') return current.filter((item) => item.id !== reaction.id);
