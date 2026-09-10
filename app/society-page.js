@@ -1434,8 +1434,8 @@ function MainApp({ session }) {
         .map((c) => c.user_id);
       const waitlist = (waitlistRes.data || []).filter((w) => w.game_id === g.id).sort((a, b) => new Date(a.queued_at) - new Date(b.queued_at) || String(a.id).localeCompare(String(b.id))).map((w) => w.user_id);
       const teamRows = (teamsRes.data || []).filter((t) => t.game_id === g.id);
-      const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);
-      const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);
+      const teamA = teamRows.filter((t) => t.team === 'A').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);
+      const teamB = teamRows.filter((t) => t.team === 'B').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);
       const payments = {};
       (paysRes.data || []).filter((p) => p.game_id === g.id).forEach((p) => { payments[p.user_id] = p.paid; });
       const scorers = {};
@@ -1608,17 +1608,19 @@ function MainApp({ session }) {
     const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
     if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
     if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
-    const { error } = const aStarters = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map(p => p.id);
-    const bStarters = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map(p => p.id);
-    const aReserves = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map(p => p.id);
-    const bReserves = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map(p => p.id);
-    await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);
+    const aStarters = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map((p) => p.id);
+    const bStarters = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map((p) => p.id);
+    const aReserves = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map((p) => p.id);
+    const bReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map((p) => p.id);
+    const { error } = await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);
     if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const handleDraw = async (gameId, confirmedPlayers) => {
+    const game = games.find((g) => g.id === gameId);
+    if (!game) { alert('Partida não encontrada.'); return false; }
     const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
