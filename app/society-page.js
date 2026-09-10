@@ -14,7 +14,7 @@ import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/doma
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -476,7 +476,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -491,7 +491,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [locationStateDraft, setLocationStateDraft] = useState(game.locationState || '');
   const [locationLatitudeDraft, setLocationLatitudeDraft] = useState(game.locationLatitude ?? '');
   const [locationLongitudeDraft, setLocationLongitudeDraft] = useState(game.locationLongitude ?? '');
-  const [maxPlayersDraft, setMaxPlayersDraft] = useState('');
+  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(game.playersPerTeam || 5);
+  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(game.reservesPerTeam || 0);
   const [pixDraft, setPixDraft] = useState(game.pixKey || '');
   const [pixReceiverDraft, setPixReceiverDraft] = useState('');
   const [pixCityDraft, setPixCityDraft] = useState('');
@@ -510,8 +511,10 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [myAssistsDraft, setMyAssistsDraft] = useState(game.assists?.[myId] || 0);
   // Confirmed participants and the persistent waitlist are separate sources of truth.
   const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
-  const maxPlayers = game.maxPlayers || null;
-  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;
+  const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
+  const reservesPerTeam = Math.max(0, Number(game.reservesPerTeam) || 0);
+  const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;
+  const activePlayers = confirmedPlayers.slice(0, maxPlayers);
   const waitlistIds = game.waitlist || [];
   const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
   const participantList = participantFilter === 'inscritos'
@@ -642,19 +645,18 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           <Users size={16} /> Confirmados ({activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''})
         </div>
         {canManage && (
-          <div className="sf-cost-row" style={{ marginBottom: 8 }}>
-            <span className="sf-muted">Limite de vagas</span>
+          <div className="sf-cost-row" style={{ marginBottom: 8, alignItems: 'center' }}>
+            <span className="sf-muted">Formato</span>
             {editingMaxPlayers ? (
-              <input
-                autoFocus type="number" min="1" className="sf-input-inline"
-                placeholder="Sem limite"
-                value={maxPlayersDraft}
-                onChange={(e) => setMaxPlayersDraft(e.target.value)}
-                onBlur={() => { onSetMaxPlayers(game.id, maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null); setEditingMaxPlayers(false); }}
-              />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <input autoFocus type="number" min="1" max="20" className="sf-input-inline" style={{ width: 70 }} value={playersPerTeamDraft} onChange={(e) => setPlayersPerTeamDraft(e.target.value)} />
+                <span>x</span>
+                <input type="number" min="0" max="10" className="sf-input-inline" style={{ width: 70 }} value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)} />
+                <button className="sf-btn-primary" type="button" onClick={async () => { await onSetTeamConfig(game.id, Number(playersPerTeamDraft), Number(reservesPerTeamDraft)); setEditingMaxPlayers(false); }}>Salvar</button>
+              </div>
             ) : (
-              <button className="sf-mono-value" onClick={() => { setMaxPlayersDraft(maxPlayers || ''); setEditingMaxPlayers(true); }}>
-                {maxPlayers ? `${maxPlayers} vagas · editar` : 'sem limite · definir'}
+              <button className="sf-mono-value" onClick={() => { setPlayersPerTeamDraft(playersPerTeam); setReservesPerTeamDraft(reservesPerTeam); setEditingMaxPlayers(true); }}>
+                {playersPerTeam}x{playersPerTeam} + {reservesPerTeam} reserva{reservesPerTeam === 1 ? '' : 's'} · {maxPlayers} vagas · editar
               </button>
             )}
           </div>
@@ -1367,7 +1369,8 @@ function MainApp({ session }) {
   const [newLocationState, setNewLocationState] = useState('');
   const [newLocationLatitude, setNewLocationLatitude] = useState('');
   const [newLocationLongitude, setNewLocationLongitude] = useState('');
-  const [newMaxPlayers, setNewMaxPlayers] = useState('');
+  const [newPlayersPerTeam, setNewPlayersPerTeam] = useState('5');
+  const [newReservesPerTeam, setNewReservesPerTeam] = useState('0');
   const [newGameGroupId, setNewGameGroupId] = useState(null);
   const [newGameOrganizerId, setNewGameOrganizerId] = useState('');
   const [groupLocations, setGroupLocations] = useState([]);
@@ -1441,7 +1444,7 @@ function MainApp({ session }) {
       return {
         id: g.id, date: g.date, local: g.local, locationAddress: g.location_address || null, locationCity: g.location_city || null, locationState: g.location_state || null, locationLatitude: g.location_latitude != null ? Number(g.location_latitude) : null, locationLongitude: g.location_longitude != null ? Number(g.location_longitude) : null, cost: Number(g.cost) || 0, goalkeeperPays: g.goalkeeper_pays !== false,
         createdBy: g.created_by,
-        maxPlayers: g.max_players || null,
+        maxPlayers: g.max_players || null, playersPerTeam: g.players_per_team || 5, reservesPerTeam: g.reserves_per_team || 0,
         pixKey: g.pix_key || null,
         pixOwnerId: g.pix_owner_id || null,
         inviteToken: g.invite_token,
@@ -1597,15 +1600,19 @@ function MainApp({ session }) {
     const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
     if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
     if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
-    const { error } = await setGameTeams(gameId, teamA, teamB);
+    const { error } = const aStarters = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map(p => p.id);
+    const bStarters = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map(p => p.id);
+    const aReserves = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map(p => p.id);
+    const bReserves = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map(p => p.id);
+    await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);
     if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
     await loadAll();
     return true;
   };
 
   const handleDraw = async (gameId, confirmedPlayers) => {
-    const { teamA, teamB } = drawTeams(confirmedPlayers);
-    const { error } = await setGameTeams(gameId, teamA.map((p) => p.id), teamB.map((p) => p.id));
+    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });
+    const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
     await loadAll();
     return true;
@@ -1698,9 +1705,11 @@ function MainApp({ session }) {
 
   const createGame = async () => {
     const date = newDate || new Date().toISOString().slice(0, 10);
-    const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;
+    const playersPerTeam = Math.max(1, parseInt(newPlayersPerTeam, 10) || 5);
+    const reservesPerTeam = Math.max(0, parseInt(newReservesPerTeam, 10) || 0);
+    const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;
     const { data, error } = await serviceCreateGame({
-      date, local: newLocal.trim(), location_address: newLocationAddress.trim() || null, location_city: newLocationCity.trim() || null, location_state: newLocationState.trim() || null, location_latitude: newLocationLatitude === '' ? null : Number(newLocationLatitude), location_longitude: newLocationLongitude === '' ? null : Number(newLocationLongitude), created_by: myId, max_players: maxPlayers, group_id: newGameGroupId || null,
+      date, local: newLocal.trim(), location_address: newLocationAddress.trim() || null, location_city: newLocationCity.trim() || null, location_state: newLocationState.trim() || null, location_latitude: newLocationLatitude === '' ? null : Number(newLocationLatitude), location_longitude: newLocationLongitude === '' ? null : Number(newLocationLongitude), created_by: myId, players_per_team: playersPerTeam, reserves_per_team: reservesPerTeam, max_players: maxPlayers, group_id: newGameGroupId || null,
       cost: newGameCost === '' ? 0 : Number(newGameCost),
       organizer_id: newGameOrganizerId || null,
       goalkeeper_pays: newGameGoalkeeperPays,
@@ -1709,7 +1718,8 @@ function MainApp({ session }) {
       pix_city: newGamePixCity.trim() || null,
     });
     if (error) { alert('Não deu pra criar a partida: ' + error.message); return; }
-    setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewMaxPlayers(''); setNewGameGroupId(null); setNewGameOrganizerId(''); setNewGameLocationId(''); setInlineLocationOpen(false); setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
+    setNewDate(''); setNewLocal(''); setNewLocationAddress(''); setNewLocationCity(''); setNewLocationState(''); setNewLocationLatitude(''); setNewLocationLongitude(''); setNewPlayersPerTeam('5');
+    setNewReservesPerTeam('0'); setNewGameGroupId(null); setNewGameOrganizerId(''); setNewGameLocationId(''); setInlineLocationOpen(false); setInlineLocationDraft({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
     setNewGameCost(''); setNewGameGoalkeeperPays(true); setNewGamePixKey(''); setNewGamePixReceiverName(''); setNewGamePixCity('');
     setShowNewGame(false);
     await loadAll();
@@ -2177,7 +2187,8 @@ function MainApp({ session }) {
           } else {
             setNewDate('');
             setNewLocal('');
-            setNewMaxPlayers('');
+            setNewPlayersPerTeam('5');
+    setNewReservesPerTeam('0');
             setNewGameCost('');
             setNewGameGoalkeeperPays(true);
             setNewGameOrganizerId('');
@@ -2246,8 +2257,11 @@ function MainApp({ session }) {
             <label className="sf-field-label">Latitude (opcional)</label><input type="number" step="any" className="sf-input" value={newLocationLatitude} onChange={(e) => setNewLocationLatitude(e.target.value)} />
             <label className="sf-field-label">Longitude (opcional)</label><input type="number" step="any" className="sf-input" value={newLocationLongitude} onChange={(e) => setNewLocationLongitude(e.target.value)} />
             <div className="sf-muted-sm">Geocodificação automática não foi identificada na infraestrutura atual; coordenadas podem ser informadas manualmente.</div>
-            <label className="sf-field-label">Limite de vagas (opcional)</label>
-            <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)} />
+            <label className="sf-field-label">Jogadores por time</label>
+            <input type="number" min="1" max="20" className="sf-input" value={newPlayersPerTeam} onChange={(e) => setNewPlayersPerTeam(e.target.value)} />
+            <label className="sf-field-label">Reservas por time</label>
+            <input type="number" min="0" max="10" className="sf-input" value={newReservesPerTeam} onChange={(e) => setNewReservesPerTeam(e.target.value)} />
+            <div className="sf-muted-sm">Vagas totais: {(Math.max(1, parseInt(newPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newReservesPerTeam, 10) || 0)) * 2}</div>
             <label className="sf-field-label">Custo da quadra</label><input type="number" min="0" step="0.01" className="sf-input" value={newGameCost} onChange={(e) => setNewGameCost(e.target.value)} />
             <label className="sf-field-label">Goleiro paga a quadra?</label><div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={newGameGoalkeeperPays ? 'sf-gk-toggle-on' : ''} onClick={() => setNewGameGoalkeeperPays(true)}>Sim</button><button type="button" className={!newGameGoalkeeperPays ? 'sf-gk-toggle-on' : ''} onClick={() => setNewGameGoalkeeperPays(false)}>Não</button></div>
             <label className="sf-field-label">Chave PIX</label><input className="sf-input" value={newGamePixKey} onChange={(e) => setNewGamePixKey(e.target.value)} />
