@@ -1,0 +1,37 @@
+name: Wire tactical pitch config
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch society page
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old_fn = "function PitchView({ teamA, teamB }) {\n  return <TacticalPitch teamA={teamA} teamB={teamB} />;\n}"
+          new_fn = "function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n  return (\n    <TacticalPitch\n      teamA={teamA}\n      teamB={teamB}\n      playersPerTeam={playersPerTeam}\n      reservesPerTeam={reservesPerTeam}\n    />\n  );\n}"
+          if old_fn in s:
+              s = s.replace(old_fn, new_fn, 1)
+          old_call = "<PitchView teamA={game.teamA} teamB={game.teamB} />"
+          new_call = "<PitchView teamA={game.teamA} teamB={game.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />"
+          if old_call in s:
+              s = s.replace(old_call, new_call, 1)
+          p.write_text(s)
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(pitch): pass match format to tactical pitch'
+          git push
