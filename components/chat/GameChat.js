@@ -63,6 +63,8 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
         setReactions((current) => current.filter((item) => item.message_id !== message.id));
       },
       ({ type, reaction }) => setReactions((current) => {
+        const belongsToCurrentGame = messages.some((item) => item.id === reaction.message_id);
+        if (!belongsToCurrentGame) return current;
         if (type === 'INSERT' && !current.some((item) => item.id === reaction.id)) return [...current, reaction];
         if (type === 'DELETE') return current.filter((item) => item.id !== reaction.id);
         return current;
