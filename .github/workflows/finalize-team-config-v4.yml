@@ -1,0 +1,98 @@
+name: Finalize team config v4
+
+on:
+  push:
+    paths:
+      - .github/workflows/finalize-team-config-v4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply team configuration UI
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          original = s
+
+          # Match-specific format save is already wired in GameDetail; expose the handler from MainApp.
+          if 'onSetTeamConfig={setGameTeamConfigHandler}' not in s:
+              anchor = "  const setMaxPlayers = async (gameId, maxPlayers) => {"
+              idx = s.index(anchor)
+              # Insert immediately before legacy max-player handler.
+              handler = """  const setGameTeamConfigHandler = async (gameId, playersPerTeam, reservesPerTeam) => {\n    const safePlayers = Math.max(1, parseInt(playersPerTeam, 10) || 5);\n    const safeReserves = Math.max(0, parseInt(reservesPerTeam, 10) || 0);\n    const { error } = await setGameTeamConfig(gameId, safePlayers, safeReserves);\n    if (error) { alert('Não foi possível alterar o formato da partida: ' + error.message); return false; }\n    await loadAll();\n    return true;\n  };\n\n"""
+              s = s[:idx] + handler + s[idx:]
+
+          # Pass the handler to GameDetail.
+          anchor = "            onSetMaxPlayers={setMaxPlayers}\n            onDraw={handleDraw}"
+          if anchor in s and 'onSetTeamConfig={setGameTeamConfigHandler}' not in s:
+              s = s.replace(anchor, "            onSetMaxPlayers={setMaxPlayers}\n            onSetTeamConfig={setGameTeamConfigHandler}\n            onDraw={handleDraw}", 1)
+
+          # Group default state: replace legacy total-vacancies-only state.
+          old = "  const [maxPlayersDraft, setMaxPlayersDraft] = useState(group.defaultMaxPlayers || '');"
+          new = "  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(group.defaultPlayersPerTeam || 5);\n  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(group.defaultReservesPerTeam || 0);"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          s = s.replace("    setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');", "    setPlayersPerTeamDraft(group.defaultPlayersPerTeam || 5);\n    setReservesPerTeamDraft(group.defaultReservesPerTeam || 0);", 1)
+
+          old = "      default_max_players: maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null,\n      default_cost: costDraft ? parseFloat(costDraft) : null,"
+          new = "      default_players_per_team: Math.max(1, parseInt(playersPerTeamDraft, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0),\n      default_max_players: (Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2,\n      default_cost: costDraft ? parseFloat(costDraft) : null,"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = "            <label className=\"sf-field-label\">Vagas padrão</label>\n            <input type=\"number\" min=\"1\" className=\"sf-input\" value={maxPlayersDraft} onChange={(e) => setMaxPlayersDraft(e.target.value)} />"
+          new = "            <label className=\"sf-field-label\">Jogadores por time</label>\n            <input type=\"number\" min=\"1\" max=\"20\" className=\"sf-input\" value={playersPerTeamDraft} onChange={(e) => setPlayersPerTeamDraft(e.target.value)} />\n            <label className=\"sf-field-label\">Reservas por time</label>\n            <input type=\"number\" min=\"0\" max=\"10\" className=\"sf-input\" value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)} />\n            <div className=\"sf-muted-sm\">Vagas totais padrão: {(Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2}</div>"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # MainApp group mapping must expose new defaults.
+          old = "      defaultLocal: g.default_local || '', defaultDayOfWeek: g.default_day_of_week,\n      defaultTime: g.default_time || '', defaultMaxPlayers: g.default_max_players || null,"
+          new = "      defaultLocal: g.default_local || '', defaultDayOfWeek: g.default_day_of_week,\n      defaultTime: g.default_time || '', defaultPlayersPerTeam: g.default_players_per_team || 5, defaultReservesPerTeam: g.default_reserves_per_team || 0,\n      defaultMaxPlayers: g.default_max_players || ((g.default_players_per_team || 5) + (g.default_reserves_per_team || 0)) * 2,"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # New group creation state and payload.
+          old = "  const [newGroupMaxPlayers, setNewGroupMaxPlayers] = useState('');\n  const [newGroupCost, setNewGroupCost] = useState('');"
+          new = "  const [newGroupPlayersPerTeam, setNewGroupPlayersPerTeam] = useState('5');\n  const [newGroupReservesPerTeam, setNewGroupReservesPerTeam] = useState('0');\n  const [newGroupCost, setNewGroupCost] = useState('');"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          s = s.replace("      default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,\n      default_cost: newGroupCost ? parseFloat(newGroupCost) : null,", "      default_players_per_team: Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0),\n      default_max_players: (Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2,\n      default_cost: newGroupCost ? parseFloat(newGroupCost) : null,", 1)
+          s = s.replace("setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');", "setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupPlayersPerTeam('5'); setNewGroupReservesPerTeam('0'); setNewGroupCost('');", 1)
+
+          old = "            <label className=\"sf-field-label\">Vagas padrão (opcional)</label>\n            <input type=\"number\" min=\"1\" className=\"sf-input\" placeholder=\"Sem limite\" value={newGroupMaxPlayers} onChange={(e) => setNewGroupMaxPlayers(e.target.value)} />"
+          new = "            <label className=\"sf-field-label\">Jogadores por time</label>\n            <input type=\"number\" min=\"1\" max=\"20\" className=\"sf-input\" value={newGroupPlayersPerTeam} onChange={(e) => setNewGroupPlayersPerTeam(e.target.value)} />\n            <label className=\"sf-field-label\">Reservas por time</label>\n            <input type=\"number\" min=\"0\" max=\"10\" className=\"sf-input\" value={newGroupReservesPerTeam} onChange={(e) => setNewGroupReservesPerTeam(e.target.value)} />\n            <div className=\"sf-muted-sm\">Vagas totais padrão: {(Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2}</div>"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # Group-to-new-game inheritance.
+          old = "    setNewLocal('');\n    setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');"
+          new = "    setNewLocal('');\n    setNewPlayersPerTeam(String(group.defaultPlayersPerTeam || 5));\n    setNewReservesPerTeam(String(group.defaultReservesPerTeam || 0));"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          # Selecting a group in the new-game modal should also inherit the format.
+          old = "            setNewLocal('');\n            setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '');\n            setNewGameCost"
+          new = "            setNewLocal('');\n            setNewPlayersPerTeam(String(g.defaultPlayersPerTeam || 5));\n            setNewReservesPerTeam(String(g.defaultReservesPerTeam || 0));\n            setNewGameCost"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          if s == original:
+              raise SystemExit('No frontend changes were found')
+          p.write_text(s)
+          print('team config UI changes applied')
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: finish configurable group and match format'
+          git push
