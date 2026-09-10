@@ -1,0 +1,48 @@
+name: Apply player preferred foot
+
+on:
+  push:
+    paths:
+      - '.github/workflows/profile-foot-apply.yml'
+      - '.github/profile-foot-apply.trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch player profile
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/society-page.js')
+          s=p.read_text()
+          original=s
+          state="  const [preferredFootDraft, setPreferredFootDraft] = useState(me.preferred_foot || '');"
+          anchor="  const [ageDraft, setAgeDraft] = useState(me.age || '');"
+          if 'const [preferredFootDraft' not in s:
+              if anchor not in s: raise SystemExit('MyProfileCard age state anchor not found')
+              s=s.replace(anchor, anchor+'\n'+state, 1)
+          ui_anchor='''        <div className="sf-physical-field">\n          <label className="sf-field-label">Idade</label>'''
+          ui='''        <div className="sf-physical-field">\n          <label className="sf-field-label">Idade</label>'''
+          if 'preferredFootDraft' not in s[s.find('function MyProfileCard'):s.find('function MyProfileCard')+30000]:
+              raise SystemExit('preferred foot state was not inserted')
+          marker='''          />\n        </div>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
+          block='''          />\n        </div>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
+          if 'Pé preferencial</div>\n        <select' not in s:
+              if marker not in s: raise SystemExit('WhatsApp insertion marker not found')
+              s=s.replace(marker, block, 1)
+          if s==original: raise SystemExit('No changes detected')
+          p.write_text(s)
+          PY
+      - name: Commit patched profile
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: add preferred foot to player profile'
+          git push
