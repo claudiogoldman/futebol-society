@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId } from 'react';
+import { calculateTeamBalance } from '../../lib/domain/game';
 
 const POSITION_LABELS = {
   goleiro: 'Goleiro',
@@ -113,6 +114,7 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
   const H = 400;
   const posA = assignSlots(teamA, false, playersPerTeam, reservesPerTeam);
   const posB = assignSlots(teamB, true, playersPerTeam, reservesPerTeam);
+  const balance = calculateTeamBalance(teamA, teamB);
   const gradientId = `tacticalPitchGrass-${useId().replace(/:/g, '')}`;
 
   return (
@@ -141,6 +143,19 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 10, opacity: .75 }}>
         {Object.entries(POSITION_LABELS).map(([key, label]) => <span key={key}>{label}</span>)}
+      </div>
+      <div style={{ marginTop: 12, padding: 10, border: '1px solid rgba(255,255,255,.12)', borderRadius: 10 }} aria-label="Pontuação de equilíbrio">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <strong>⚖️ Equilíbrio</strong>
+          <strong>{balance.balance.toFixed(0)}/100</strong>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 7, fontSize: 11 }}>
+          <span>Time A <strong>{balance.strengthA.toFixed(1)}</strong></span>
+          <span style={{ textAlign: 'right' }}>Time B <strong>{balance.strengthB.toFixed(1)}</strong></span>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 5, fontSize: 10, opacity: .8 }}>
+          Diferença {balance.difference.toFixed(1)} pontos · {balance.relativeDifference.toFixed(1)}% · {balance.classification}
+        </div>
       </div>
     </div>
   );
