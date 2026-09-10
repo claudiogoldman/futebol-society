@@ -1,20 +1,29 @@
 from pathlib import Path
+import re
 
 path = Path('app/society-page.js')
 text = path.read_text(encoding='utf-8')
 
-import_anchor = "import PositionTags from '../components/players/PositionTags';\n"
+# Integrate the chat import without depending on the exact surrounding imports.
 if "from '../components/chat/GameChat'" not in text:
-    if import_anchor not in text:
+    import_match = re.search(r"^import PositionTags from ['\"]\.\./components/players/PositionTags['\"];\s*$", text, re.MULTILINE)
+    if not import_match:
         raise SystemExit('GameChat import anchor not found; aborting without changes.')
-    text = text.replace(import_anchor, import_anchor + "import GameChat from '../components/chat/GameChat';\n", 1)
+    text = text[:import_match.end()] + "\nimport GameChat from '../components/chat/GameChat';" + text[import_match.end():]
 
-marker = "      <section className=\"sf-card\">\n        <div className=\"sf-card-title\">\n          <Users size={16} /> Confirmados"
-if "<GameChat" not in text:
-    chat = "      {iAmConfirmed && (\n        <GameChat\n          gameId={game.id}\n          userId={myId}\n          playerNames={Object.fromEntries(roster.map((p) => [p.id, p.name]))}\n        />\n      )}\n\n"
-    if marker not in text:
+# The previous version depended on an exact Confirmados markup string. Keep the
+# insertion anchored to the GameDetail confirmed-player card while tolerating
+# harmless JSX/formatting changes inside the title.
+if '<GameChat' not in text:
+    section_match = re.search(
+        r'(?s)(\s*<section className=[\"\']sf-card[\"\'](?:(?!<section className=[\"\']sf-card[\"\']).){0,3000}?Confirmados)'
+        , text,
+    )
+    if not section_match:
         raise SystemExit('GameDetail confirmed-section anchor not found; aborting without changes.')
-    text = text.replace(marker, chat + marker, 1)
+
+    chat = '''\n\n      {iAmConfirmed && (\n        <GameChat\n          gameId={game.id}\n          userId={myId}\n          playerNames={Object.fromEntries(roster.map((p) => [p.id, p.name]))}\n        />\n      )}'''
+    text = text[:section_match.start()] + chat + text[section_match.start():]
 
 path.write_text(text, encoding='utf-8')
 print('GameChat integration applied.')
