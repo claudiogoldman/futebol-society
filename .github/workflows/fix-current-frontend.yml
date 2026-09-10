@@ -1,0 +1,78 @@
+name: Fix current frontend
+
+on:
+  push:
+    paths:
+      - .github/workflows/fix-current-frontend.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply verified frontend repairs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app/society-page.js')
+          s = path.read_text()
+
+          old = """    const { error } = const aStarters = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map(p => p.id);\n    const bStarters = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map(p => p.id);\n    const aReserves = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map(p => p.id);\n    const bReserves = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map(p => p.id);\n    await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);\n    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }"""
+          new = """    const aStarters = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map((p) => p.id);\n    const bStarters = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map((p) => p.id);\n    const aReserves = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map((p) => p.id);\n    const bReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map((p) => p.id);\n    const { error } = await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);\n    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif "const { error } = const aStarters" in s:
+              raise SystemExit('Unexpected handleSaveTeams corruption shape')
+
+          old = """  const handleDraw = async (gameId, confirmedPlayers) => {\n    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });"""
+          new = """  const handleDraw = async (gameId, confirmedPlayers) => {\n    const game = games.find((g) => g.id === gameId);\n    if (!game) { alert('Partida não encontrada.'); return false; }\n    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = """            onSetMaxPlayers={setMaxPlayers}\n            onDraw={handleDraw}"""
+          new = """            onSetMaxPlayers={setMaxPlayers}\n            onSetTeamConfig={async (gameId, playersPerTeam, reservesPerTeam) => {\n              const total = (Math.max(1, Number(playersPerTeam) || 5) + Math.max(0, Number(reservesPerTeam) || 0)) * 2;\n              const { error } = await setGameTeamConfig(gameId, Number(playersPerTeam) || 5, Number(reservesPerTeam) || 0);\n              if (error) { alert('Não foi possível alterar o formato da partida: ' + error.message); return false; }\n              await loadAll();\n              return total;\n            }}\n            onDraw={handleDraw}"""
+          if old in s and "onSetTeamConfig=" not in s:
+              s = s.replace(old, new, 1)
+
+          old = """    const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes]"""
+          if old not in s:
+              raise SystemExit('loadAll anchor missing')
+
+          old = """      const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);\n      const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);"""
+          new = """      const teamA = teamRows.filter((t) => t.team === 'A').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);\n      const teamB = teamRows.filter((t) => t.team === 'B').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = """  const openNewGameForGroup = (group) => {\n    setNewGameGroupId(group.id);\n    setNewDate(nextDateForWeekday(group.defaultDayOfWeek));\n    setNewLocal('');\n    setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');"""
+          new = """  const openNewGameForGroup = (group) => {\n    setNewGameGroupId(group.id);\n    setNewDate(nextDateForWeekday(group.defaultDayOfWeek));\n    setNewLocal('');\n    const groupPlayers = Math.max(1, Number(group.defaultPlayersPerTeam) || 5);\n    const groupReserves = Math.max(0, Number(group.defaultReservesPerTeam) || 0);\n    setNewPlayersPerTeam(String(groupPlayers));\n    setNewReservesPerTeam(String(groupReserves));"""
+          if old in s:
+              s = s.replace(old, new, 1)
+          s = s.replace("setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');", "", 1)
+
+          old = """  const [newGroupMaxPlayers, setNewGroupMaxPlayers] = useState('');\n  const [newGroupCost, setNewGroupCost] = useState('');"""
+          new = """  const [newGroupPlayersPerTeam, setNewGroupPlayersPerTeam] = useState('5');\n  const [newGroupReservesPerTeam, setNewGroupReservesPerTeam] = useState('0');\n  const [newGroupCost, setNewGroupCost] = useState('');"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = """      default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,\n      default_cost: newGroupCost ? parseFloat(newGroupCost) : null,"""
+          new = """      default_players_per_team: Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5),\n      default_reserves_per_team: Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0),\n      default_max_players: (Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2,\n      default_cost: newGroupCost ? parseFloat(newGroupCost) : null,"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          s = s.replace("setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');", "setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupPlayersPerTeam('5'); setNewGroupReservesPerTeam('0'); setNewGroupCost('');", 1)
+
+          old = """            <label className=\"sf-field-label\">Vagas padrão (opcional)</label>\n            <input type=\"number\" min=\"1\" className=\"sf-input\" placeholder=\"Sem limite\" value={newGroupMaxPlayers} onChange={(e) => setNewGroupMaxPlayers(e.target.value)} />"""
+          new = """            <label className=\"sf-field-label\">Jogadores por time</label>\n            <input type=\"number\" min=\"1\" max=\"20\" className=\"sf-input\" value={newGroupPlayersPerTeam} onChange={(e) => setNewGroupPlayersPerTeam(e.target.value)} />\n            <label className=\"sf-field-label\">Reservas por time</label>\n            <input type=\"number\" min=\"0\" max=\"10\" className=\"sf-input\" value={newGroupReservesPerTeam} onChange={(e) => setNewGroupReservesPerTeam(e.target.value)} />\n            <div className=\"sf-muted-sm\">Vagas totais padrão: {(Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2}</div>"""
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          old = """    const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);"""
+          if old not in s:
+              raise SystemExit('chat mention source anchor missing')
+
+          path.write_text(s)
+          print('frontend repair applied')
