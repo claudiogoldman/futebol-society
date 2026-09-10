@@ -1,0 +1,72 @@
+name: Apply team configuration frontend
+
+on:
+  push:
+    paths:
+      - '.github/workflows/team-config-apply.yml'
+      - '.github/team-config-apply.trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch frontend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/society-page.js')
+          s=p.read_text()
+          original=s
+          s=s.replace('setGameCost, setGameGoalkeeperPays, setGamePixDetails', 'setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails')
+          s=s.replace("const [newMaxPlayers, setNewMaxPlayers] = useState('');", "const [newPlayersPerTeam, setNewPlayersPerTeam] = useState('5');\n  const [newReservesPerTeam, setNewReservesPerTeam] = useState('0');")
+          s=s.replace("const maxPlayers = newMaxPlayers ? parseInt(newMaxPlayers, 10) : null;", "const playersPerTeam = Math.max(1, parseInt(newPlayersPerTeam, 10) || 5);\n    const reservesPerTeam = Math.max(0, parseInt(newReservesPerTeam, 10) || 0);\n    const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;")
+          s=s.replace('created_by: myId, max_players: maxPlayers, group_id:', 'created_by: myId, players_per_team: playersPerTeam, reserves_per_team: reservesPerTeam, max_players: maxPlayers, group_id:')
+          s=s.replace("setNewMaxPlayers('');", "setNewPlayersPerTeam('5');\n    setNewReservesPerTeam('0');")
+          s=s.replace("value={newMaxPlayers} onChange={(e) => setNewMaxPlayers(e.target.value)}", "value={newPlayersPerTeam} onChange={(e) => setNewPlayersPerTeam(e.target.value)}")
+          s=s.replace('<label className="sf-field-label">Limite de vagas (opcional)</label>\n            <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newPlayersPerTeam} onChange={(e) => setNewPlayersPerTeam(e.target.value)} />', '<label className="sf-field-label">Jogadores por time</label>\n            <input type="number" min="1" max="20" className="sf-input" value={newPlayersPerTeam} onChange={(e) => setNewPlayersPerTeam(e.target.value)} />\n            <label className="sf-field-label">Reservas por time</label>\n            <input type="number" min="0" max="10" className="sf-input" value={newReservesPerTeam} onChange={(e) => setNewReservesPerTeam(e.target.value)} />\n            <div className="sf-muted-sm">Vagas totais: {(Math.max(1, parseInt(newPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newReservesPerTeam, 10) || 0)) * 2}</div>')
+          # GameDetail configuration state/derived capacity
+          s=s.replace("const [maxPlayersDraft, setMaxPlayersDraft] = useState('');", "const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(game.playersPerTeam || 5);\n  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(game.reservesPerTeam || 0);")
+          s=s.replace("const maxPlayers = game.maxPlayers || null;\n  const activePlayers = maxPlayers ? confirmedPlayers.slice(0, maxPlayers) : confirmedPlayers;", "const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);\n  const reservesPerTeam = Math.max(0, Number(game.reservesPerTeam) || 0);\n  const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;\n  const activePlayers = confirmedPlayers.slice(0, maxPlayers);")
+          s=s.replace("onSetCost, onSetGkPays, onSetMaxPlayers,", "onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig,")
+          # Replace management capacity editor with team configuration
+          old='''<div className="sf-cost-row" style={{ marginBottom: 8 }}>\n            <span className="sf-muted">Limite de vagas</span>\n            {editingMaxPlayers ? (\n              <input\n                autoFocus type="number" min="1" className="sf-input-inline"\n                placeholder="Sem limite"\n                value={maxPlayersDraft}\n                onChange={(e) => setMaxPlayersDraft(e.target.value)}\n                onBlur={() => { onSetMaxPlayers(game.id, maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null); setEditingMaxPlayers(false); }}\n              />\n            ) : (\n              <button className="sf-mono-value" onClick={() => { setMaxPlayersDraft(maxPlayers || ''); setEditingMaxPlayers(true); }}>\n                {maxPlayers ? `${maxPlayers} vagas · editar` : 'sem limite · definir'}\n              </button>\n            )}\n          </div>'''
+          new='''<div className="sf-cost-row" style={{ marginBottom: 8, alignItems: 'center' }}>\n            <span className="sf-muted">Formato</span>\n            {editingMaxPlayers ? (\n              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>\n                <input autoFocus type="number" min="1" max="20" className="sf-input-inline" style={{ width: 70 }} value={playersPerTeamDraft} onChange={(e) => setPlayersPerTeamDraft(e.target.value)} />\n                <span>x</span>\n                <input type="number" min="0" max="10" className="sf-input-inline" style={{ width: 70 }} value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)} />\n                <button className="sf-btn-primary" type="button" onClick={async () => { await onSetTeamConfig(game.id, Number(playersPerTeamDraft), Number(reservesPerTeamDraft)); setEditingMaxPlayers(false); }}>Salvar</button>\n              </div>\n            ) : (\n              <button className="sf-mono-value" onClick={() => { setPlayersPerTeamDraft(playersPerTeam); setReservesPerTeamDraft(reservesPerTeam); setEditingMaxPlayers(true); }}>\n                {playersPerTeam}x{playersPerTeam} + {reservesPerTeam} reserva{reservesPerTeam === 1 ? '' : 's'} · {maxPlayers} vagas · editar\n              </button>\n            )}\n          </div>'''
+          s=s.replace(old,new)
+          # Load game config fields
+          s=s.replace('maxPlayers: g.max_players || null,', 'maxPlayers: g.max_players || null, playersPerTeam: g.players_per_team || 5, reservesPerTeam: g.reserves_per_team || 0,')
+          # Draw with configured starters/reserves and persist role-aware arrays
+          s=s.replace("const { teamA, teamB } = drawTeams(confirmedPlayers);", "const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });")
+          s=s.replace("await setGameTeams(gameId, teamA.map((p) => p.id), teamB.map((p) => p.id));", "await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));")
+          # Save-team handler: preserve existing role when remapping sides
+          s=s.replace("await setGameTeams(gameId, teamA, teamB);", "const aStarters = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map(p => p.id);\n    const bStarters = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map(p => p.id);\n    const aReserves = activePlayers.filter(p => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map(p => p.id);\n    const bReserves = activePlayers.filter(p => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map(p => p.id);\n    await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);")
+          # Team load preserves role metadata
+          s=s.replace("return { ...profileMap[t.user_id], _teamRole: t.role || 'starter' };", "return { ...profileMap[t.user_id], _teamRole: t.role || 'starter' };")
+          # Add handler near max players handler
+          needle="const handleSetMaxPlayers = async (gameId, maxPlayers) => {"
+          if needle in s and 'const handleSetTeamConfig = async' not in s:
+            idx=s.index(needle)
+            # insert before existing handler
+            s=s[:idx]+"const handleSetTeamConfig = async (gameId, playersPerTeam, reservesPerTeam) => {\n    const { error } = await setGameTeamConfig(gameId, playersPerTeam, reservesPerTeam);\n    if (error) { alert(error.message || 'Não foi possível salvar o formato da partida.'); return false; }\n    await loadAll();\n    return true;\n  };\n\n  "+s[idx:]
+          # Pass handler to GameDetail
+          s=s.replace('<GameDetail ', '<GameDetail ')
+          # JSX prop exact common form
+          s=s.replace('onSetMaxPlayers={handleSetMaxPlayers}', 'onSetMaxPlayers={handleSetMaxPlayers} onSetTeamConfig={handleSetTeamConfig}')
+          if s==original:
+            raise SystemExit('No changes detected')
+          p.write_text(s)
+          PY
+      - name: Commit patched frontend
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: integrate configurable team format in matches'
+          git push
