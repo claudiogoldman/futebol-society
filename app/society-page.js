@@ -9,6 +9,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
 import PositionTags from '../components/players/PositionTags';
+import GameChat from '../components/chat/GameChat';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
@@ -619,6 +620,14 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           <div className="sf-modal-actions"><button className="sf-btn-ghost" onClick={() => setEditingLocation(false)}>Cancelar</button><button className="sf-btn-primary" onClick={() => { onSetGameLocation(game.id, { local: locationNameDraft.trim() || null, locationAddress: locationAddressDraft.trim() || null, locationCity: locationCityDraft.trim() || null, locationState: locationStateDraft.trim() || null, locationLatitude: locationLatitudeDraft === '' ? null : Number(locationLatitudeDraft), locationLongitude: locationLongitudeDraft === '' ? null : Number(locationLongitudeDraft) }); setEditingLocation(false); }}>Salvar</button></div>
         </>}
       </section>
+
+      {iAmConfirmed && (
+        <GameChat
+          gameId={game.id}
+          userId={myId}
+          playerNames={Object.fromEntries(roster.map((p) => [p.id, p.name]))}
+        />
+      )}
 
       <section className="sf-card">
         <div className="sf-card-title">
