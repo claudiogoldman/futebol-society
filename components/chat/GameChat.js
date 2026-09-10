@@ -84,7 +84,6 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
     const partial = normalize(match[1]);
     const options = Object.entries(names)
       .filter(([id, name]) => id !== userId && normalize(name).startsWith(partial))
-      .slice(0, 6)
       .map(([id, name]) => ({ id, name }));
     setMentionOptions(options);
   }
