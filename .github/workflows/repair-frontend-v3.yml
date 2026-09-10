@@ -1,0 +1,56 @@
+name: Repair frontend v3
+
+on:
+  push:
+    paths:
+      - .github/workflows/repair-frontend-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+
+          bad = "const { error } = const aStarters"
+          if bad in s:
+              start = s.index("    const { error } = const aStarters")
+              marker = "    if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }"
+              end = s.index(marker, start) + len(marker)
+              replacement = """    const aStarters = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map((p) => p.id);
+              const bStarters = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map((p) => p.id);
+              const aReserves = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map((p) => p.id);
+              const bReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map((p) => p.id);
+              const { error } = await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);
+              if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }"""
+              s = s[:start] + replacement + s[end:]
+
+          draw_start = s.index("  const handleDraw = async (gameId, confirmedPlayers) => {")
+          draw_end = s.index("\n  const togglePaid", draw_start)
+          draw_block = s[draw_start:draw_end]
+          if "const game = games.find((g) => g.id === gameId);" not in draw_block:
+              draw_block = draw_block.replace("  const handleDraw = async (gameId, confirmedPlayers) => {\n", "  const handleDraw = async (gameId, confirmedPlayers) => {\n    const game = games.find((g) => g.id === gameId);\n    if (!game) { alert('Partida não encontrada.'); return false; }\n", 1)
+              s = s[:draw_start] + draw_block + s[draw_end:]
+
+          s = s.replace("const teamA = teamRows.filter((t) => t.team === 'A').map((t) => profileMap[t.user_id]).filter(Boolean);", "const teamA = teamRows.filter((t) => t.team === 'A').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);", 1)
+          s = s.replace("const teamB = teamRows.filter((t) => t.team === 'B').map((t) => profileMap[t.user_id]).filter(Boolean);", "const teamB = teamRows.filter((t) => t.team === 'B').map((t) => { const p = profileMap[t.user_id]; return p ? { ...p, _teamRole: t.role || 'starter' } : null; }).filter(Boolean);", 1)
+
+          p.write_text(s)
+          print('repair committed to workspace')
+
+      - name: Commit repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: repair match team save and draw'
+          git push
