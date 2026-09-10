@@ -333,6 +333,7 @@ function MyProfileCard({ me, onUpdate }) {
   const positions = Array.isArray(me.positions) ? me.positions : [];
   const [weightDraft, setWeightDraft] = useState(me.weight_kg || '');
   const [ageDraft, setAgeDraft] = useState(me.age || '');
+  const [preferredFootDraft, setPreferredFootDraft] = useState(me.preferred_foot || '');
   const [phoneDraft, setPhoneDraft] = useState(me.phone || '');
   const [pixDraft, setPixDraft] = useState(me.pix_key || '');
   const [nicknameDraft, setNicknameDraft] = useState(me.nickname || '');
@@ -455,7 +456,14 @@ function MyProfileCard({ me, onUpdate }) {
           />
         </div>
       </div>
-      <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp (opcional — permite que te cobrem o rateio direto no seu zap)</div>
+              <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>
+        <select className="sf-input" value={preferredFootDraft} onChange={(e) => setPreferredFootDraft(e.target.value)} onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}>
+          <option value="">Não informado</option>
+          <option value="direito">Direito / Destro</option>
+          <option value="esquerdo">Esquerdo / Canhoto</option>
+          <option value="ambidestro">Ambidestro</option>
+        </select>
+<div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp (opcional — permite que te cobrem o rateio direto no seu zap)</div>
       <input
         type="tel" className="sf-input" placeholder="5511999999999 (DDI+DDD+número, só números)"
         value={phoneDraft}
