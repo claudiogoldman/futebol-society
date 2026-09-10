@@ -19,11 +19,14 @@ jobs:
           from pathlib import Path
           p = Path('app/society-page.js')
           s = p.read_text()
-          old = "function PitchView({ teamA, teamB }) {\n    return <TacticalPitch teamA={teamA} teamB={teamB} />;\n  }"
-          new = "function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n    return (\n      <TacticalPitch\n        teamA={teamA}\n        teamB={teamB}\n        playersPerTeam={playersPerTeam}\n        reservesPerTeam={reservesPerTeam}\n      />\n    );\n  }"
-          if old not in s:
-              raise SystemExit('PitchView marker not found; aborting without changes')
-          s = s.replace(old, new, 1)
+          old_fn = "function PitchView({ teamA, teamB }) {\n  return <TacticalPitch teamA={teamA} teamB={teamB} />;\n}"
+          new_fn = "function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n  return (\n    <TacticalPitch\n      teamA={teamA}\n      teamB={teamB}\n      playersPerTeam={playersPerTeam}\n      reservesPerTeam={reservesPerTeam}\n    />\n  );\n}"
+          if old_fn in s:
+              s = s.replace(old_fn, new_fn, 1)
+          old_call = "<PitchView teamA={game.teamA} teamB={game.teamB} />"
+          new_call = "<PitchView teamA={game.teamA} teamB={game.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />"
+          if old_call in s:
+              s = s.replace(old_call, new_call, 1)
           p.write_text(s)
       - name: Commit
         run: |
