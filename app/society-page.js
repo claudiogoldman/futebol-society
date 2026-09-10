@@ -1102,7 +1102,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [nameDraft, setNameDraft] = useState(group.name);
   const [dayDraft, setDayDraft] = useState(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
   const [timeDraft, setTimeDraft] = useState(group.defaultTime);
-  const [maxPlayersDraft, setMaxPlayersDraft] = useState(group.defaultMaxPlayers || '');
+  const [playersPerTeamDraft, setPlayersPerTeamDraft] = useState(group.defaultPlayersPerTeam || 5);
+  const [reservesPerTeamDraft, setReservesPerTeamDraft] = useState(group.defaultReservesPerTeam || 0);
   const [costDraft, setCostDraft] = useState(group.defaultCost || '');
   const [locationDraft, setLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
   const [editingLocationId, setEditingLocationId] = useState(null);
@@ -1123,7 +1124,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     setNameDraft(group.name || '');
     setDayDraft(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
     setTimeDraft(group.defaultTime || '');
-    setMaxPlayersDraft(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
+    setPlayersPerTeamDraft(group.defaultPlayersPerTeam || 5);
+    setReservesPerTeamDraft(group.defaultReservesPerTeam || 0);
     setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');
     setEditingLocationId(null);
     setGoalkeeperPaysDraft(group.defaultGoalkeeperPays !== false);
@@ -1163,7 +1165,9 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       default_local: group.defaultLocal || null,
       default_day_of_week: dayDraft !== '' ? parseInt(dayDraft, 10) : null,
       default_time: timeDraft || null,
-      default_max_players: maxPlayersDraft ? parseInt(maxPlayersDraft, 10) : null,
+      default_players_per_team: Math.max(1, parseInt(playersPerTeamDraft, 10) || 5),
+      default_reserves_per_team: Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0),
+      default_max_players: (Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2,
       default_cost: costDraft ? parseFloat(costDraft) : null,
       default_goalkeeper_pays: goalkeeperPaysDraft,
       default_pix_key: pixKeyDraft.trim() || null,
@@ -1238,8 +1242,11 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             </select>
             <label className="sf-field-label">Horário padrão</label>
             <input type="time" className="sf-input" value={timeDraft} onChange={(e) => setTimeDraft(e.target.value)} />
-            <label className="sf-field-label">Vagas padrão</label>
-            <input type="number" min="1" className="sf-input" value={maxPlayersDraft} onChange={(e) => setMaxPlayersDraft(e.target.value)} />
+            <label className="sf-field-label">Jogadores por time</label>
+            <input type="number" min="1" max="20" className="sf-input" value={playersPerTeamDraft} onChange={(e) => setPlayersPerTeamDraft(e.target.value)} />
+            <label className="sf-field-label">Reservas por time</label>
+            <input type="number" min="0" max="10" className="sf-input" value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)} />
+            <div className="sf-muted-sm">Vagas totais padrão: {(Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2}</div>
             <label className="sf-field-label">Goleiro paga a quadra?</label>
             <div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(true)}>Sim</button><button type="button" className={!goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(false)}>Não</button></div>
             <label className="sf-field-label">Organizador padrão das partidas</label>
@@ -1395,7 +1402,8 @@ function MainApp({ session }) {
   const [newGroupLocal, setNewGroupLocal] = useState('');
   const [newGroupDay, setNewGroupDay] = useState('6');
   const [newGroupTime, setNewGroupTime] = useState('');
-  const [newGroupMaxPlayers, setNewGroupMaxPlayers] = useState('');
+  const [newGroupPlayersPerTeam, setNewGroupPlayersPerTeam] = useState('5');
+  const [newGroupReservesPerTeam, setNewGroupReservesPerTeam] = useState('0');
   const [newGroupCost, setNewGroupCost] = useState('');
 
   const me = profiles.find((p) => p.id === myId);
@@ -1469,7 +1477,8 @@ function MainApp({ session }) {
     setGroups((groupsRes.data || []).map((g) => ({
       id: g.id, name: g.name, createdBy: g.created_by, inviteToken: g.invite_token,
       defaultLocal: g.default_local || '', defaultDayOfWeek: g.default_day_of_week,
-      defaultTime: g.default_time || '', defaultMaxPlayers: g.default_max_players || null,
+      defaultTime: g.default_time || '', defaultPlayersPerTeam: g.default_players_per_team || 5, defaultReservesPerTeam: g.default_reserves_per_team || 0,
+      defaultMaxPlayers: g.default_max_players || ((g.default_players_per_team || 5) + (g.default_reserves_per_team || 0)) * 2,
       defaultCost: g.default_cost != null ? Number(g.default_cost) : null,
       defaultGoalkeeperPays: g.default_goalkeeper_pays !== false,
       defaultPixKey: g.default_pix_key || '',
@@ -1592,6 +1601,15 @@ function MainApp({ session }) {
   const setGameLocation = async (gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude }) => {
     const { error } = await serviceSetGameLocation(gameId, { local, locationAddress, locationCity, locationState, locationLatitude, locationLongitude });
     if (error) { alert('Não foi possível salvar o local da partida: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
+
+  const setGameTeamConfigHandler = async (gameId, playersPerTeam, reservesPerTeam) => {
+    const safePlayers = Math.max(1, parseInt(playersPerTeam, 10) || 5);
+    const safeReserves = Math.max(0, parseInt(reservesPerTeam, 10) || 0);
+    const { error } = await setGameTeamConfig(gameId, safePlayers, safeReserves);
+    if (error) { alert('Não foi possível alterar o formato da partida: ' + error.message); return false; }
     await loadAll();
     return true;
   };
@@ -1749,7 +1767,8 @@ function MainApp({ session }) {
     setNewGameGroupId(group.id);
     setNewDate(nextDateForWeekday(group.defaultDayOfWeek));
     setNewLocal('');
-    setNewMaxPlayers(group.defaultMaxPlayers ? String(group.defaultMaxPlayers) : '');
+    setNewPlayersPerTeam(String(group.defaultPlayersPerTeam || 5));
+    setNewReservesPerTeam(String(group.defaultReservesPerTeam || 0));
     setNewGameCost(group.defaultCost != null ? String(group.defaultCost) : '');
     setNewGameGoalkeeperPays(group.defaultGoalkeeperPays !== false);
     setNewGameOrganizerId(group.defaultOrganizerId || '');
@@ -1777,7 +1796,9 @@ function MainApp({ session }) {
       default_local: newGroupLocal.trim() || null,
       default_day_of_week: newGroupDay !== '' ? parseInt(newGroupDay, 10) : null,
       default_time: newGroupTime || null,
-      default_max_players: newGroupMaxPlayers ? parseInt(newGroupMaxPlayers, 10) : null,
+      default_players_per_team: Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5),
+      default_reserves_per_team: Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0),
+      default_max_players: (Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2,
       default_cost: newGroupCost ? parseFloat(newGroupCost) : null,
     });
     if (error) { alert('Não deu pra criar o grupo: ' + error.message); return; }
@@ -1789,7 +1810,7 @@ function MainApp({ session }) {
       const { error: memberError } = await serviceAddGroupMember(data.id, myId);
       if (memberError) console.error('failed to add self as member', memberError);
     }
-    setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupMaxPlayers(''); setNewGroupCost('');
+    setNewGroupName(''); setNewGroupLocal(''); setNewGroupDay('6'); setNewGroupTime(''); setNewGroupPlayersPerTeam('5'); setNewGroupReservesPerTeam('0'); setNewGroupCost('');
     setShowNewGroup(false);
     await loadAll();
     if (data) setSelectedGroupId(data.id);
@@ -1984,6 +2005,7 @@ function MainApp({ session }) {
             onSetGameOrganizer={setGameOrganizer}
             onSetGameLocation={setGameLocation}
             onSetMaxPlayers={setMaxPlayers}
+            onSetTeamConfig={setGameTeamConfigHandler}
             onDraw={handleDraw}
             onSaveTeams={handleSaveTeams}
             onTogglePaid={togglePaid}
@@ -2175,7 +2197,8 @@ function MainApp({ session }) {
             // The fields remain editable for this specific game.
             setNewDate(nextDateForWeekday(g.defaultDayOfWeek));
             setNewLocal('');
-            setNewMaxPlayers(g.defaultMaxPlayers ? String(g.defaultMaxPlayers) : '');
+            setNewPlayersPerTeam(String(g.defaultPlayersPerTeam || 5));
+            setNewReservesPerTeam(String(g.defaultReservesPerTeam || 0));
             setNewGameCost(g.defaultCost != null ? String(g.defaultCost) : '');
             setNewGameGoalkeeperPays(g.defaultGoalkeeperPays !== false);
             const defaultLocation = groupLocations.find((l) => String(l.group_id) === String(g.id) && l.is_default) || groupLocations.find((l) => String(l.group_id) === String(g.id));
@@ -2300,8 +2323,11 @@ function MainApp({ session }) {
             </select>
             <label className="sf-field-label">Horário padrão (opcional)</label>
             <input type="time" className="sf-input" value={newGroupTime} onChange={(e) => setNewGroupTime(e.target.value)} />
-            <label className="sf-field-label">Vagas padrão (opcional)</label>
-            <input type="number" min="1" className="sf-input" placeholder="Sem limite" value={newGroupMaxPlayers} onChange={(e) => setNewGroupMaxPlayers(e.target.value)} />
+            <label className="sf-field-label">Jogadores por time</label>
+            <input type="number" min="1" max="20" className="sf-input" value={newGroupPlayersPerTeam} onChange={(e) => setNewGroupPlayersPerTeam(e.target.value)} />
+            <label className="sf-field-label">Reservas por time</label>
+            <input type="number" min="0" max="10" className="sf-input" value={newGroupReservesPerTeam} onChange={(e) => setNewGroupReservesPerTeam(e.target.value)} />
+            <div className="sf-muted-sm">Vagas totais padrão: {(Math.max(1, parseInt(newGroupPlayersPerTeam, 10) || 5) + Math.max(0, parseInt(newGroupReservesPerTeam, 10) || 0)) * 2}</div>
             <label className="sf-field-label">Custo padrão da quadra (opcional)</label>
             <input type="number" min="0" className="sf-input" placeholder="ex: 170" value={newGroupCost} onChange={(e) => setNewGroupCost(e.target.value)} />
             <div className="sf-modal-actions">
