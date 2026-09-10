@@ -13,28 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Patch profile and visual da quadra
+      - name: Patch player profile
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('app/society-page.js')
-          s = p.read_text()
-          # Player profile: same preferred-foot choices already used by AdminProfileEditor.
+          p=Path('app/society-page.js')
+          s=p.read_text()
           if 'const [preferredFootDraft' not in s:
               anchor="  const [ageDraft, setAgeDraft] = useState(me.age || '');"
-              assert anchor in s, 'MyProfileCard age state anchor not found'
+              if anchor not in s: raise SystemExit('age state anchor missing')
               s=s.replace(anchor, anchor+"\n  const [preferredFootDraft, setPreferredFootDraft] = useState(me.preferred_foot || '');", 1)
           if 'value={preferredFootDraft}' not in s:
-              start=s.index('function MyProfileCard(')
-              end=s.find('\nfunction ', start+20)
-              assert end > start, 'MyProfileCard end not found'
-              part=s[start:end]
+              start=s.find('function MyProfileCard(')
               marker='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
-              assert marker in part, 'MyProfileCard WhatsApp marker not found'
+              pos=s.find(marker,start)
+              if start < 0 or pos < 0: raise SystemExit('MyProfileCard WhatsApp marker missing')
               block='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n'''
-              s=s[:start]+part.replace(marker,block+marker,1)+s[end:]
+              s=s[:pos]+block+s[pos:]
           p.write_text(s)
           PY
       - name: Commit profile patch
@@ -44,25 +39,4 @@ jobs:
           git add app/society-page.js
           git diff --cached --quiet && exit 0
           git commit -m "feat(profile): add preferred foot to player profile"
-          git push
-      - name: Patch match CTA and WhatsApp message
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('app/society-page.js')
-          s = p.read_text()
-          start = s.find('        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ?')
-          end = s.find("        <div style={{ display: 'flex', gap: 6, marginTop: 10", start)
-          if start >= 0 and end > start:
-              new_cta = """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? <><Check size={16} /> Você está inscrito</>\n            : iAmWaitlisted\n              ? <><span aria-hidden=\"true\">⏳</span> Você está na lista de espera (#{myWaitlistPos + 1})</>\n              : maxPlayers && activePlayers.length >= maxPlayers\n                ? <><span aria-hidden=\"true\">⏳</span> Entrar na lista de espera</>\n                : 'Confirmar minha presença'}\n        </button>\n        {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (\n          <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>\n        )}\n"""
-              s=s[:start]+new_cta+s[end:]
-          p.write_text(s)
-          PY
-      - name: Commit CTA patch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/society-page.js
-          git diff --cached --quiet && exit 0
-          git commit -m "feat(partidas): melhorar CTA de lista de espera"
           git push
