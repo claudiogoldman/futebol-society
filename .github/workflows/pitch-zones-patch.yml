@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Atualizar perfil do jogador
+      - name: Atualizar perfil do jogador e mencoes da partida
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -29,7 +29,11 @@ jobs:
               assert marker in part, 'WhatsApp marker not found in MyProfileCard'
               block='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n'''
               s=s[:start]+part.replace(marker,block+marker,1)+s[end:]
-          assert 'preferredFootDraft' in s
+          old="const playerNames = useMemo(() => Object.fromEntries(roster.map((p) => [p.id, p.name])), [roster]);"
+          new="const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);"
+          assert old in s, 'playerNames source not found'
+          s=s.replace(old,new,1)
+          assert new in s
           p.write_text(s)
           PY
       - name: Commit patch
@@ -38,5 +42,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/society-page.js
           git diff --cached --quiet && exit 0
-          git commit -m "feat(profile): add preferred foot to player profile"
+          git commit -m "fix(chat): restrict mentions to match roster"
           git push
