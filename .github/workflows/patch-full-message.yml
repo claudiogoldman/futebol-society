@@ -15,133 +15,54 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch visual da quadra
+      - name: Patch profile and visual da quadra
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('app/society-page.js')
           s = p.read_text()
-          old = """  const Marker = ({ p, x, y, color }) => {
-    const isGK = isGoleiro(p);
-    return (
-      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
-        <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
-        <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">
-          {displayName(p).trim().slice(0, 2).toUpperCase()}
-        </text>
-      </g>
-    );
-  };"""
-          new = """  const Marker = ({ p, x, y, color }) => {
-    const isGK = isGoleiro(p);
-    const initials = displayName(p).trim().slice(0, 2).toUpperCase();
-    const hasPhoto = !!p.avatar_url;
-    return (
-      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>
-        {hasPhoto ? (
-          <>
-            <defs><clipPath id={`pitch-avatar-${p.id}`}><circle r="15" /></clipPath></defs>
-            <circle r="16.5" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
-            <image href={p.avatar_url} x="-15" y="-15" width="30" height="30" preserveAspectRatio="xMidYMid slice" clipPath={`url(#pitch-avatar-${p.id})`} />
-          </>
-        ) : (
-          <circle r="15" fill={color} stroke={isGK ? '#FFC53D' : '#0B2417'} strokeWidth={isGK ? '3' : '2'} />
-        )}
-        {!hasPhoto && <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">{initials}</text>}
-        {hasPhoto && <text textAnchor="middle" y="27" fontSize="8" fontWeight="800" fill="#EDF6EE" fontFamily="Inter, sans-serif">{initials}</text>}
-      </g>
-    );
-  };"""
-          if old in s:
-              s = s.replace(old, new, 1)
-          anchor = "      <line x1=\"4\" y1={H / 2} x2={W - 4} y2={H / 2} stroke=\"rgba(237,246,238,0.25)\" strokeWidth=\"1.5\" />"
-          zones = """      <g pointerEvents="none">
-        <rect x="6" y="6" width={W - 12} height="84" fill="rgba(237,246,238,0.05)" />
-        <rect x="6" y="90" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />
-        <rect x="6" y="190" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />
-        <rect x="6" y="280" width={W - 12} height="94" fill="rgba(237,246,238,0.05)" />
-        <text x="12" y="20" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">PIVÔ / ATAQUE</text>
-        <text x="12" y="105" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>
-        <text x="12" y="205" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>
-        <text x="12" y="295" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">DEFESA / FIXO / LÍBERO</text>
-        <text x={W - 12} y={H - 12} textAnchor="end" fontSize="8" fontWeight="700" fill="rgba(255,197,61,0.75)">GOLEIRO</text>
-      </g>
-"""
-          if anchor in s and 'PIVÔ / ATAQUE' not in s:
-              s = s.replace(anchor, zones + anchor, 1)
+          # Player profile: same preferred-foot choices already used by AdminProfileEditor.
+          if 'const [preferredFootDraft' not in s:
+              anchor="  const [ageDraft, setAgeDraft] = useState(me.age || '');"
+              assert anchor in s, 'MyProfileCard age state anchor not found'
+              s=s.replace(anchor, anchor+"\n  const [preferredFootDraft, setPreferredFootDraft] = useState(me.preferred_foot || '');", 1)
+          if 'value={preferredFootDraft}' not in s:
+              start=s.index('function MyProfileCard(')
+              end=s.find('\nfunction ', start+20)
+              assert end > start, 'MyProfileCard end not found'
+              part=s[start:end]
+              marker='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
+              assert marker in part, 'MyProfileCard WhatsApp marker not found'
+              block='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n'''
+              s=s[:start]+part.replace(marker,block+marker,1)+s[end:]
           p.write_text(s)
           PY
-      - name: Commit visual da quadra
+      - name: Commit profile patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/society-page.js
-          git commit -m "feat(sorteio): quadra por áreas e fotos dos jogadores" || true
-          git push || true
+          git diff --cached --quiet && exit 0
+          git commit -m "feat(profile): add preferred foot to player profile"
+          git push
       - name: Patch match CTA and WhatsApp message
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('app/society-page.js')
           s = p.read_text()
-
           start = s.find('        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ?')
           end = s.find("        <div style={{ display: 'flex', gap: 6, marginTop: 10", start)
-          assert start >= 0 and end > start, 'CTA boundaries not found'
-          new_cta = """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? <><Check size={16} /> Você está inscrito</>\n            : iAmWaitlisted\n              ? <><span aria-hidden=\"true\">⏳</span> Você está na lista de espera (#{myWaitlistPos + 1})</>\n              : maxPlayers && activePlayers.length >= maxPlayers\n                ? <><span aria-hidden=\"true\">⏳</span> Entrar na lista de espera</>\n                : 'Confirmar minha presença'}\n        </button>\n        {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (\n          <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>\n        )}\n"""
-          s = s[:start] + new_cta + s[end:]
-
-          start = s.find('  const shareWhatsApp = (game, activePlayers, waitlistPlayers, rateio) => {')
-          end = s.find('  const shareGroupWhatsApp = (group) => {', start)
-          assert start >= 0 and end > start, 'WhatsApp share boundaries not found'
-          new_share = r'''  const shareWhatsApp = (game, activePlayers, waitlistPlayers, rateio) => {
-    const teamA = Array.isArray(game.teamA) ? game.teamA : [];
-    const teamB = Array.isArray(game.teamB) ? game.teamB : [];
-    const hasTeams = teamA.length > 0 || teamB.length > 0;
-    const teamNames = (team) => team.map((p, i) => `${i + 1}. ${displayName(p)}`).join('\n');
-    const pixKey = game.pixKey || '';
-    const pixReceiver = game.pixReceiverName || '';
-    const pixCity = game.pixCity || '';
-    const pixCode = pixKey ? generatePixCode({ key: pixKey, receiverName: pixReceiver || 'Society', city: pixCity || 'BRASIL', amount: Number(rateio || 0), txid: `JOGO${game.id}` }) : null;
-    const coleteTeam = game.coleteTeam === 'A' ? 'Time A' : game.coleteTeam === 'B' ? 'Time B' : null;
-
-    let msg = `⚽ *FUTEBOL SOCIETY — JOGATINA*\n\n`;
-    msg += `📅 ${formatDatePtBr(game.date)}\n`;
-    if (game.local) msg += `📍 ${game.local}\n`;
-
-    if (hasTeams) {
-      msg += `\n🔵 *TIME A*\n${teamNames(teamA) || '—'}\n\n`;
-      msg += `🟢 *TIME B*\n${teamNames(teamB) || '—'}\n`;
-      msg += `\n🦺 *COLETE:* ${coleteTeam || 'A definir'}\n`;
-    }
-
-    if (pixKey) {
-      msg += `\n💰 *PIX DA PARTIDA*\n`;
-      msg += `Valor: *${money(rateio || 0)}*\n`;
-      msg += `Chave: ${pixKey}\n`;
-      if (pixReceiver) msg += `Recebedor: ${pixReceiver}\n`;
-      if (pixCode) msg += `Código copia-e-cola: ${pixCode}\n`;
-    }
-
-    msg += `\n🔗 *Ver partida:* ${window.location.origin}/?join=${game.inviteToken}\n`;
-    msg += `\n⏳ *SUPLENTES — LISTA DE ESPERA*\n`;
-    if (waitlistPlayers.length) {
-      waitlistPlayers.forEach((p, index) => { msg += `${index + 1}. ${displayName(p)} — #${index + 1}\n`; });
-      msg += `\n📌 A ordem da lista de espera será respeitada caso surja alguma vaga.\n`;
-    } else {
-      msg += `— Nenhum suplente no momento.\n`;
-    }
-    window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
-'''
-          s = s[:start] + new_share + s[end:]
+          if start >= 0 and end > start:
+              new_cta = """        <button className={`sf-btn-primary ${(iAmConfirmed || iAmWaitlisted) ? 'sf-btn-toggle-on' : ''}`} onClick={() => onToggleMyRSVP(game.id)}>\n          {iAmConfirmed\n            ? <><Check size={16} /> Você está inscrito</>\n            : iAmWaitlisted\n              ? <><span aria-hidden=\"true\">⏳</span> Você está na lista de espera (#{myWaitlistPos + 1})</>\n              : maxPlayers && activePlayers.length >= maxPlayers\n                ? <><span aria-hidden=\"true\">⏳</span> Entrar na lista de espera</>\n                : 'Confirmar minha presença'}\n        </button>\n        {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (\n          <div className=\"sf-muted-sm\" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>\n        )}\n"""
+              s=s[:start]+new_cta+s[end:]
           p.write_text(s)
           PY
-      - name: Commit patch
+      - name: Commit CTA patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/society-page.js
-          git commit -m "feat(partidas): compartilhar times pix e lista de espera" || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "feat(partidas): melhorar CTA de lista de espera"
           git push
