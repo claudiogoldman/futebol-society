@@ -10,38 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Atualizar perfil e PitchView
+      - name: Atualizar perfil do jogador
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('app/society-page.js')
           s=p.read_text()
           original=s
-
-          # Player profile: preferred foot, persisted through the existing onUpdate flow.
           if 'const [preferredFootDraft' not in s:
               anchor="  const [ageDraft, setAgeDraft] = useState(me.age || '');"
-              if anchor not in s: raise SystemExit('MyProfileCard age state anchor not found')
+              assert anchor in s, 'age state not found'
               s=s.replace(anchor, anchor+"\n  const [preferredFootDraft, setPreferredFootDraft] = useState(me.preferred_foot || '');", 1)
           if 'value={preferredFootDraft}' not in s:
-              marker='''          />\n        </div>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
-              block='''          />\n        </div>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
-              if marker not in s: raise SystemExit('WhatsApp insertion marker not found')
-              s=s.replace(marker, block, 1)
-
-          # PitchView: add player photos/initials and tactical area shading if the old marker exists.
-          old_marker='''  const Marker = ({ p, x, y, color }) => {\n    const isGK = isGoleiro(p);\n    return (\n      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>\n        <circle r="15" fill={color} stroke={isGK ? "#FFC53D" : "#0B2417"} strokeWidth={isGK ? "3" : "2"} />\n        <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">\n          {displayName(p).trim().slice(0, 2).toUpperCase()}\n        </text>\n      </g>\n    );\n  };'''
-          new_marker='''  const Marker = ({ p, x, y, color }) => {\n    const isGK = isGoleiro(p);\n    const initials = displayName(p).trim().slice(0, 2).toUpperCase();\n    const hasPhoto = !!p.avatar_url;\n    return (\n      <g transform={`translate(${(x / 100) * W}, ${(y / 100) * H})`}>\n        {hasPhoto ? (\n          <>\n            <defs><clipPath id={`pitch-avatar-${p.id}`}><circle r="15" /></clipPath></defs>\n            <circle r="16.5" fill={color} stroke={isGK ? "#FFC53D" : "#0B2417"} strokeWidth={isGK ? "3" : "2"} />\n            <image href={p.avatar_url} x="-15" y="-15" width="30" height="30" preserveAspectRatio="xMidYMid slice" clipPath={`url(#pitch-avatar-${p.id})`} />\n          </>\n        ) : (\n          <circle r="15" fill={color} stroke={isGK ? "#FFC53D" : "#0B2417"} strokeWidth={isGK ? "3" : "2"} />\n        )}\n        {!hasPhoto && <text textAnchor="middle" dy="5" fontSize="12" fontWeight="700" fill="#0B2417" fontFamily="Inter, sans-serif">{initials}</text>}\n        {hasPhoto && <text textAnchor="middle" y="27" fontSize="8" fontWeight="800" fill="#EDF6EE" fontFamily="Inter, sans-serif">{initials}</text>}\n      </g>\n    );\n  };'''
-          if old_marker in s:
-              s=s.replace(old_marker,new_marker,1)
-          anchor='''      <line x1="4" y1={H / 2} x2={W - 4} y2={H / 2} stroke="rgba(237,246,238,0.25)" strokeWidth="1.5" />'''
-          if anchor in s and 'PIVÔ / ATAQUE' not in s:
-              zones='''      <g pointerEvents="none">\n        <rect x="6" y="6" width={W - 12} height="84" fill="rgba(237,246,238,0.05)" />\n        <rect x="6" y="90" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />\n        <rect x="6" y="190" width={W - 12} height="90" fill="rgba(237,246,238,0.025)" />\n        <rect x="6" y="280" width={W - 12} height="94" fill="rgba(237,246,238,0.05)" />\n        <text x="12" y="20" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">PIVÔ / ATAQUE</text>\n        <text x="12" y="105" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>\n        <text x="12" y="205" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">MEIO / ALAS</text>\n        <text x="12" y="295" fontSize="8" fontWeight="700" fill="rgba(237,246,238,0.58)">DEFESA / FIXO / LÍBERO</text>\n        <text x={W - 12} y={H - 12} textAnchor="end" fontSize="8" fontWeight="700" fill="rgba(255,197,61,0.75)">GOLEIRO</text>\n      </g>\n'''
-              s=s.replace(anchor,zones+anchor,1)
-
-          if s==original: raise SystemExit('No changes detected')
+              start=s.index('function MyProfileCard(')
+              end=s.index('\nfunction ', start+20)
+              part=s[start:end]
+              marker='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>WhatsApp'''
+              assert marker in part, 'WhatsApp marker not found in MyProfileCard'
+              block='''        <div className="sf-muted-sm" style={{ margin: '12px 0 6px' }}>Pé preferencial</div>\n        <select\n          className="sf-input"\n          value={preferredFootDraft}\n          onChange={(e) => setPreferredFootDraft(e.target.value)}\n          onBlur={() => onUpdate({ preferred_foot: preferredFootDraft || null })}\n        >\n          <option value="">Não informado</option>\n          <option value="direito">Direito / Destro</option>\n          <option value="esquerdo">Esquerdo / Canhoto</option>\n          <option value="ambidestro">Ambidestro</option>\n        </select>\n'''
+              s=s[:start]+part.replace(marker,block+marker,1)+s[end:]
+          assert 'preferredFootDraft' in s
           p.write_text(s)
           PY
       - name: Commit patch
@@ -50,5 +38,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/society-page.js
           git diff --cached --quiet && exit 0
-          git commit -m "feat(profile): add preferred foot and improve pitch" 
+          git commit -m "feat(profile): add preferred foot to player profile"
           git push
