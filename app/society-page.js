@@ -557,7 +557,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
     ? generatePixCode({ key: activePixKey, receiverName: activePixReceiver, city: activePixCity, amount: rateio, txid: game.id.slice(0, 8) })
     : null;
   const [pixCopied, setPixCopied] = useState(false);
-  const playerNames = useMemo(() => Object.fromEntries(roster.map((p) => [p.id, p.name])), [roster]);
+  const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);
 
   const bumpGoal = (id, delta) => {
     setScorers((s) => ({ ...s, [id]: Math.max(0, (s[id] || 0) + delta) }));
