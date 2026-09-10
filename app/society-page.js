@@ -114,8 +114,15 @@ function StarRating({ value, onChange, size = 16, readOnly = false }) {
   );
 }
 
-function PitchView({ teamA, teamB }) {
-  return <TacticalPitch teamA={teamA} teamB={teamB} />;
+function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {
+  return (
+    <TacticalPitch
+      teamA={teamA}
+      teamB={teamB}
+      playersPerTeam={playersPerTeam}
+      reservesPerTeam={reservesPerTeam}
+    />
+  );
 }
 
 // ---------- login ----------
@@ -706,7 +713,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                     </div>
                   </div>
                 )}
-                <PitchView teamA={game.teamA} teamB={game.teamB} />
+                <PitchView teamA={game.teamA} teamB={game.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />
                 <div className="sf-teams-legend">
                   <div><span className="sf-dot sf-dot-a" /> Time A — {game.teamA.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
                   <div><span className="sf-dot sf-dot-b" /> Time B — {game.teamB.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
