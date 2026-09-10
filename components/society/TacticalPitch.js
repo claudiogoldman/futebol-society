@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useId } from 'react';
 
 const POSITION_LABELS = {
   goleiro: 'Goleiro',
@@ -25,6 +25,7 @@ const STARTER_SLOTS = [
 const EXTRA_SLOTS = [
   { x: 35, y: 62 }, { x: 65, y: 62 }, { x: 35, y: 40 }, { x: 65, y: 40 },
   { x: 50, y: 40 }, { x: 50, y: 65 }, { x: 20, y: 62 }, { x: 80, y: 62 },
+  { x: 25, y: 30 }, { x: 75, y: 30 },
 ];
 
 function displayName(player) {
@@ -40,14 +41,16 @@ function avatar(player) {
   return player?.avatar_url || player?.photo_url || player?.photoUrl || null;
 }
 
-function assignSlots(players, mirrored) {
-  const starters = players.filter((p) => p?._teamRole !== 'reserve');
-  const reserves = players.filter((p) => p?._teamRole === 'reserve');
-  const available = STARTER_SLOTS.map((slot) => ({
+function assignSlots(players, mirrored, playersPerTeam, reservesPerTeam) {
+  const starterLimit = Math.max(0, Number(playersPerTeam) || 0);
+  const reserveLimit = Math.max(0, Number(reservesPerTeam) || 0);
+  const starters = players.filter((p) => p?._teamRole !== 'reserve').slice(0, starterLimit || players.length);
+  const reserves = players.filter((p) => p?._teamRole === 'reserve').slice(0, reserveLimit);
+  const available = STARTER_SLOTS.slice(0, Math.min(starterLimit || STARTER_SLOTS.length, STARTER_SLOTS.length)).map((slot) => ({
     ...slot,
     y: mirrored ? 100 - slot.y : slot.y,
   }));
-  const extras = EXTRA_SLOTS.map((slot) => ({
+  const extras = EXTRA_SLOTS.slice(0, Math.max(0, reserveLimit)).map((slot) => ({
     ...slot,
     y: mirrored ? 100 - slot.y : slot.y,
   }));
@@ -70,12 +73,12 @@ function assignSlots(players, mirrored) {
   });
 
   unpositioned.forEach((player) => {
-    const slot = available.shift() || extras.shift();
+    const slot = available.shift() || EXTRA_SLOTS.find((candidate) => !assigned.some((item) => item.x === candidate.x && item.y === (mirrored ? 100 - candidate.y : candidate.y)));
     if (slot) assigned.push({ player, ...slot, reserve: false });
   });
 
   reserves.forEach((player, index) => {
-    const slot = extras[index % extras.length] || { x: 50, y: 15 };
+    const slot = extras[index] || { x: 50, y: mirrored ? 85 : 15 };
     assigned.push({ player, ...slot, reserve: true });
   });
 
@@ -105,22 +108,23 @@ function Marker({ item, color, W, H }) {
   );
 }
 
-export default function TacticalPitch({ teamA = [], teamB = [] }) {
+export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam = 7, reservesPerTeam = 0 }) {
   const W = 280;
   const H = 400;
-  const posA = assignSlots(teamA, false);
-  const posB = assignSlots(teamB, true);
+  const posA = assignSlots(teamA, false, playersPerTeam, reservesPerTeam);
+  const posB = assignSlots(teamB, true, playersPerTeam, reservesPerTeam);
+  const gradientId = `tacticalPitchGrass-${useId().replace(/:/g, '')}`;
 
   return (
     <div style={{ width: '100%', maxWidth: 360, margin: '0 auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Campo tático com times A e B">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Campo tático com times A e B (${playersPerTeam} titulares + ${reservesPerTeam} reservas por time)`}>
         <defs>
-          <linearGradient id="tacticalPitchGrass" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#174A2B" />
             <stop offset="100%" stopColor="#0F3520" />
           </linearGradient>
         </defs>
-        <rect x="5" y="5" width={W - 10} height={H - 10} rx="8" fill="url(#tacticalPitchGrass)" stroke="rgba(255,255,255,.28)" strokeWidth="2" />
+        <rect x="5" y="5" width={W - 10} height={H - 10} rx="8" fill={`url(#${gradientId})`} stroke="rgba(255,255,255,.28)" strokeWidth="2" />
         <rect x="7" y="7" width={(W - 14) / 2} height={H - 14} fill="rgba(255,255,255,.025)" />
         <line x1="5" y1={H / 2} x2={W - 5} y2={H / 2} stroke="rgba(255,255,255,.32)" strokeWidth="1.5" />
         <circle cx={W / 2} cy={H / 2} r="34" fill="none" stroke="rgba(255,255,255,.32)" strokeWidth="1.5" />
