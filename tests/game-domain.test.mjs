@@ -1,20 +1,11 @@
 // Safe refactor validation marker.
 // Trigger the one-shot Teams extraction workflow after the test expectation correction.
-// Trigger attempt 5: trusted production workflow executes the guarded extraction.
+// Trigger attempt 6: hardened PitchView matching.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
 
 function players(count, attributes = {}) {
-  return Array.from({ length: count }, (_, index) => ({
-    id: `p${index + 1}`,
-    name: `Player ${index + 1}`,
-    positions: index % 6 === 0 ? ['goleiro'] : ['meio'],
-    attr_ata: 60,
-    attr_def: 60,
-    attr_for: 60,
-    attr_hab: 60,
-    ...attributes,
-  }));
+  return Array.from({ length: count }, (_, index) => ({ id: `p${index + 1}`, name: `Player ${index + 1}`, positions: index % 6 === 0 ? ['goleiro'] : ['meio'], attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60, ...attributes }));
 }
 
 const formats = [[5, 0], [5, 2], [5, 3], [6, 2], [7, 2]];
@@ -27,21 +18,15 @@ for (const [playersPerTeam, reservesPerTeam] of formats) {
   assert.equal(result.teamBStarters.length, playersPerTeam);
   assert.equal(result.teamAReserves.length, reservesPerTeam);
   assert.equal(result.teamBReserves.length, reservesPerTeam);
-  const ids = [...result.teamA, ...result.teamB].map((player) => player.id);
-  assert.equal(new Set(ids).size, total);
+  assert.equal(new Set([...result.teamA, ...result.teamB].map((player) => player.id)).size, total);
 }
-
 assert.equal(playerStrength({ attr_ata: 100, attr_def: 100, attr_for: 100, attr_hab: 100 }), 5);
 assert.equal(playerStrength({ attr_ata: 50, attr_def: 50, attr_for: 50, attr_hab: 50 }), 2.5);
 assert.equal(playerStrength({ rating: 4 }), 4);
 assert.equal(playerStrength({ attr_ata: 80, attr_def: 80, attr_for: 50, attr_hab: 50 }), 3.25);
-
 const balanced = drawTeams(players(10), () => 0.5, { playersPerTeam: 5, reservesPerTeam: 0, candidates: 20 });
-const balance = calculateTeamBalance(balanced.teamAStarters, balanced.teamBStarters);
-assert.ok(balance.balance >= 95, `expected balanced 5x5 squads, got ${balance.balance}`);
-
+assert.ok(calculateTeamBalance(balanced.teamAStarters, balanced.teamBStarters).balance >= 95);
 const limited = drawTeams(players(10), () => 0.5, { playersPerTeam: 6, reservesPerTeam: 2, candidates: 5 });
 assert.equal(limited.teamA.length + limited.teamB.length, 10);
 assert.equal(limited.teamAStarters.length + limited.teamBStarters.length + limited.teamAReserves.length + limited.teamBReserves.length, 10);
-
 console.log(`Game domain tests passed: ${formats.length} configurable formats + OVR + balance + under-capacity scenarios.`);
