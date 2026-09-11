@@ -57,10 +57,9 @@ export default function GroupDefaults({
   };
 
   const handleSave = async () => {
-    const parentSaved = await onSave?.();
-    if (parentSaved === false) return;
     const penaltySaved = await savePenalty();
-    if (penaltySaved) return;
+    if (!penaltySaved) return;
+    await onSave?.();
   };
 
   const penaltySummary = !penaltyEnabled
