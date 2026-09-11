@@ -22,22 +22,24 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           page = Path('app/society-page.js')
           source = page.read_text(encoding='utf-8')
           original = source
 
-          old_eval = """      {game.result && hasTeams && (\n        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n      )}"""
-          new_eval = """      {game.result && hasTeams && (\n        <section data-game-section=\"resultado\">\n          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n        </section>\n      )}"""
-          if old_eval not in source:
+          eval_pattern = r'(\{game\.result && hasTeams && \(\n\s*)<EvaluationSection game=\{game\} myId=\{myId\} onSaveRatings=\{onSaveRatings\} />'
+          eval_match = re.search(eval_pattern, source)
+          if not eval_match:
               raise SystemExit('EvaluationSection target not found')
-          source = source.replace(old_eval, new_eval, 1)
+          if 'data-game-section="resultado"' not in source[eval_match.start():eval_match.end() + 100]:
+              replacement = eval_match.group(1) + '<section data-game-section="resultado">\n' + eval_match.group(1) + '  <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n' + eval_match.group(1) + '</section>'
+              source = source[:eval_match.start()] + replacement + source[eval_match.end():]
 
-          old_pix = """      setPixDraft(game.pixKey || '');\n      setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');\n      setPixCityDraft(game.pixCity || '');"""
-          new_pix = """      setPixDraft(game.pixKey || '');\n      setPixOwnerDraft(game.pixOwnerId || '');\n      setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');\n      setPixCityDraft(game.pixCity || '');"""
-          if old_pix not in source:
+          pix_pattern = r"(setPixDraft\(game\.pixKey \|\| ''\);\n)(\s*)(setPixReceiverDraft\(game\.pixReceiverName \|\| organizer\?\.name \|\| ''\);)"
+          if not re.search(pix_pattern, source):
               raise SystemExit('PIX edit target not found')
-          source = source.replace(old_pix, new_pix, 1)
+          source = re.sub(pix_pattern, r"\1\2setPixOwnerDraft(game.pixOwnerId || '');\n\2\3", source, count=1)
 
           page.write_text(source, encoding='utf-8')
 
