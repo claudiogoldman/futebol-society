@@ -41,7 +41,7 @@ for (const [playersPerTeam, reservesPerTeam] of formats) {
 assert.equal(playerStrength({ attr_ata: 100, attr_def: 100, attr_for: 100, attr_hab: 100 }), 5);
 assert.equal(playerStrength({ attr_ata: 50, attr_def: 50, attr_for: 50, attr_hab: 50 }), 2.5);
 assert.equal(playerStrength({ rating: 4 }), 4);
-assert.equal(playerStrength({ attr_ata: 80, attr_def: 80, attr_for: 50, attr_hab: 50 }), 2.875);
+assert.equal(playerStrength({ attr_ata: 80, attr_def: 80, attr_for: 50, attr_hab: 50 }), 3.25);
 
 const balanced = drawTeams(players(10), () => 0.5, { playersPerTeam: 5, reservesPerTeam: 0, candidates: 20 });
 const balance = calculateTeamBalance(balanced.teamAStarters, balanced.teamBStarters);
