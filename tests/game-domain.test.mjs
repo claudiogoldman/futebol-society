@@ -1,6 +1,6 @@
 // Safe refactor validation marker.
 // Trigger the one-shot Teams extraction workflow after the test expectation correction.
-// Trigger attempt 4: simplified workflow without job condition.
+// Trigger attempt 5: trusted production workflow executes the guarded extraction.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
 
@@ -17,27 +17,18 @@ function players(count, attributes = {}) {
   }));
 }
 
-const formats = [
-  [5, 0],
-  [5, 2],
-  [5, 3],
-  [6, 2],
-  [7, 2],
-];
-
+const formats = [[5, 0], [5, 2], [5, 3], [6, 2], [7, 2]];
 for (const [playersPerTeam, reservesPerTeam] of formats) {
   const total = (playersPerTeam + reservesPerTeam) * 2;
   const result = drawTeams(players(total), () => 0.5, { playersPerTeam, reservesPerTeam, candidates: 10 });
-
-  assert.equal(result.teamA.length, playersPerTeam + reservesPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team A capacity`);
-  assert.equal(result.teamB.length, playersPerTeam + reservesPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team B capacity`);
-  assert.equal(result.teamAStarters.length, playersPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team A starters`);
-  assert.equal(result.teamBStarters.length, playersPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team B starters`);
-  assert.equal(result.teamAReserves.length, reservesPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team A reserves`);
-  assert.equal(result.teamBReserves.length, reservesPerTeam, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: Team B reserves`);
-
+  assert.equal(result.teamA.length, playersPerTeam + reservesPerTeam);
+  assert.equal(result.teamB.length, playersPerTeam + reservesPerTeam);
+  assert.equal(result.teamAStarters.length, playersPerTeam);
+  assert.equal(result.teamBStarters.length, playersPerTeam);
+  assert.equal(result.teamAReserves.length, reservesPerTeam);
+  assert.equal(result.teamBReserves.length, reservesPerTeam);
   const ids = [...result.teamA, ...result.teamB].map((player) => player.id);
-  assert.equal(new Set(ids).size, total, `${playersPerTeam}x${playersPerTeam}+${reservesPerTeam}: no duplicate players`);
+  assert.equal(new Set(ids).size, total);
 }
 
 assert.equal(playerStrength({ attr_ata: 100, attr_def: 100, attr_for: 100, attr_hab: 100 }), 5);
@@ -50,7 +41,7 @@ const balance = calculateTeamBalance(balanced.teamAStarters, balanced.teamBStart
 assert.ok(balance.balance >= 95, `expected balanced 5x5 squads, got ${balance.balance}`);
 
 const limited = drawTeams(players(10), () => 0.5, { playersPerTeam: 6, reservesPerTeam: 2, candidates: 5 });
-assert.equal(limited.teamA.length + limited.teamB.length, 10, 'never invent players when fewer than configured capacity are confirmed');
-assert.equal(limited.teamAStarters.length + limited.teamBStarters.length + limited.teamAReserves.length + limited.teamBReserves.length, 10, 'all available players remain assigned when below configured capacity');
+assert.equal(limited.teamA.length + limited.teamB.length, 10);
+assert.equal(limited.teamAStarters.length + limited.teamBStarters.length + limited.teamAReserves.length + limited.teamBReserves.length, 10);
 
 console.log(`Game domain tests passed: ${formats.length} configurable formats + OVR + balance + under-capacity scenarios.`);
