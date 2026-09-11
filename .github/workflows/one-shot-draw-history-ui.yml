@@ -20,27 +20,21 @@ jobs:
           new = old + "\nimport DrawHistory from '../components/society/DrawHistory';"
           assert old in s and "../components/society/DrawHistory" not in s
           s = s.replace(old, new, 1)
-
           old = "setGameTeams, setGamePayment, setPlayerStats"
           new = "setGameTeams, getGameDrawHistory, setValidGameDraw, setGamePayment, setPlayerStats"
           assert old in s
           s = s.replace(old, new, 1)
-
           old = "  const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);"
-          new = old + "\n  const [drawHistory, setDrawHistory] = useState([]);\n  const [drawHistoryLoading, setDrawHistoryLoading] = useState(false);\n  const [drawRestoring, setDrawRestoring] = useState(false);\n\n  const refreshDrawHistory = useCallback(async () => {\n    setDrawHistoryLoading(true);\n    try {\n      const { data, error } = await getGameDrawHistory(game.id);\n      if (!error) setDrawHistory(data || []);\n    } finally {\n      setDrawHistoryLoading(false);\n    }\n  }, [game.id]);\n\n  useEffect(() => { refreshDrawHistory(); }, [refreshDrawHistory]);\n\n  const handleDraw = async () => {\n    await onDraw(game.id, activePlayers);\n    await refreshDrawHistory();\n  };\n\n  const handleRestoreDraw = async (drawId) => {\n    if (drawRestoring) return;\n    setDrawRestoring(true);\n    try {\n      const { error } = await setValidGameDraw(game.id, drawId);\n      if (error) throw error;\n      await refreshDrawHistory();\n      window.location.reload();\n    } catch (error) {\n      window.alert(error?.message || 'Não foi possível recuperar o sorteio.');\n    } finally {\n      setDrawRestoring(false);\n    }\n  };"
+          new = old + "\n  const [drawHistory, setDrawHistory] = useState([]);\n  const [drawHistoryLoading, setDrawHistoryLoading] = useState(false);\n  const [drawRestoring, setDrawRestoring] = useState(false);\n  const refreshDrawHistory = useCallback(async () => { setDrawHistoryLoading(true); try { const { data, error } = await getGameDrawHistory(game.id); if (!error) setDrawHistory(data || []); } finally { setDrawHistoryLoading(false); } }, [game.id]);\n  useEffect(() => { refreshDrawHistory(); }, [refreshDrawHistory]);\n  const handleDraw = async () => { const ok = await onDraw(game.id, activePlayers); if (ok !== false) await refreshDrawHistory(); };\n  const handleRestoreDraw = async (drawId) => { if (drawRestoring) return; setDrawRestoring(true); try { const { error } = await setValidGameDraw(game.id, drawId); if (error) throw error; await refreshDrawHistory(); window.location.reload(); } catch (error) { window.alert(error?.message || 'Não foi possível recuperar o sorteio.'); } finally { setDrawRestoring(false); } };"
           assert old in s
           s = s.replace(old, new, 1)
-
           old = "onClick={() => onDraw(game.id, activePlayers)}"
-          new = "onClick={handleDraw}"
           assert old in s
-          s = s.replace(old, new, 1)
-
+          s = s.replace(old, "onClick={handleDraw}", 1)
           marker = "      {hasTeams && canRecordResult && ("
           insert = "      <DrawHistory history={drawHistory} roster={roster} canManage={canManage && !drawHistoryLoading && !drawRestoring} onRestore={handleRestoreDraw} />\n\n"
           assert marker in s
           s = s.replace(marker, insert + marker, 1)
-
           p.write_text(s)
           PY
       - name: Verify source integrity
@@ -57,3 +51,4 @@ jobs:
           git rm .github/workflows/one-shot-draw-history-ui.yml
           git commit -m 'chore: remove one-shot draw history patcher'
           git push
+# retrigger after workflow installation
