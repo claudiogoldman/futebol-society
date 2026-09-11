@@ -1,0 +1,138 @@
+name: One-shot Game Detail tabs integration
+
+on:
+  push:
+    branches:
+      - refactor/game-teams-integration
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ !contains(github.event.head_commit.message, '[game-detail-tabs-integrated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Integrate Game Detail tabs
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('app/society-page.js')
+          source = path.read_text(encoding='utf-8')
+          original = source
+
+          # 1) Add the extracted components to the existing GameDetail module.
+          source = source.replace(
+              "import TacticalPitch from '../components/society/TacticalPitch';",
+              "import TacticalPitch from '../components/society/TacticalPitch';\nimport GameTabs from '../components/society/GameTabs';\nimport GameTeamsSection from '../components/society/GameTeamsSection';"
+          )
+
+          # TacticalPitch is no longer rendered directly by GameDetail after this integration.
+          source = re.sub(
+              r"\nfunction PitchView\(\{ teamA, teamB, playersPerTeam, reservesPerTeam \}\) \{.*?\n\}\n",
+              "\n",
+              source,
+              count=1,
+              flags=re.S,
+          )
+
+          # 2) Introduce controlled state for the five Game Detail sections.
+          state_marker = "  const [participantFilter, setParticipantFilter] = useState('todos');"
+          state_replacement = state_marker + "\n  const [activeGameTab, setActiveGameTab] = useState('local');"
+          if "const [activeGameTab, setActiveGameTab]" not in source:
+              source = source.replace(state_marker, state_replacement, 1)
+
+          # 3) Give the detail root the active tab as a declarative UI state.
+          source = source.replace(
+              '<div className="sf-detail">\n      <div className="sf-detail-topbar">',
+              '<div className="sf-detail" data-game-tab={activeGameTab}>\n      <div className="sf-detail-topbar">',
+              1,
+          )
+
+          # 4) Insert the new tabs immediately after the management modal and before content.
+          management_end = "      )}\n\n      <section id=\"sf-game-location-card\""
+          tabs_block = "      )}\n\n      <GameTabs activeTab={activeGameTab} onChange={setActiveGameTab} />\n\n      <section id=\"sf-game-location-card\""
+          if "<GameTabs activeTab={activeGameTab}" not in source:
+              if management_end not in source:
+                  raise SystemExit('Could not locate GameDetail management-modal insertion point')
+              source = source.replace(management_end, tabs_block, 1)
+
+          # 5) Mark each primary section. CSS below uses these markers to keep the
+          # existing stateful JSX intact while making the extracted tabs functional.
+          source = source.replace(
+              '<section id="sf-game-location-card" className="sf-card">',
+              '<section id="sf-game-location-card" className="sf-card" data-game-section="local">',
+              1,
+          )
+
+          participants_marker = '<section className="sf-card">\n        <div className="sf-card-title">\n          <Users size={16} /> Confirmados'
+          participants_replacement = '<section className="sf-card" data-game-section="participantes">\n        <div className="sf-card-title">\n          <Users size={16} /> Confirmados'
+          if participants_marker not in source:
+              raise SystemExit('Could not locate participants section')
+          source = source.replace(participants_marker, participants_replacement, 1)
+
+          times_marker = '<section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
+          times_replacement = '<section data-game-section="times">\n        <GameTeamsSection\n          game={game}\n          activePlayers={activePlayers}\n          canManage={canManage}\n          hasTeams={hasTeams}\n          playersPerTeam={playersPerTeam}\n          reservesPerTeam={reservesPerTeam}\n          editingTeams={editingTeams}\n          teamDraft={teamDraft}\n          setTeamDraft={setTeamDraft}\n          setEditingTeams={setEditingTeams}\n          onDraw={onDraw}\n          onSaveTeams={onSaveTeams}\n          isGoalkeeper={isGoleiro}\n        />\n      </section>'
+          if times_marker not in source:
+              raise SystemExit('Could not locate legacy Times section')
+          source = source.replace(times_marker, times_replacement, 1)
+
+          # The replacement above must remove the entire old Times block, not just its opening.
+          # Locate the new component block and the following Rateio section, then keep only the wrapper.
+          new_times_start = source.index('      <section data-game-section="times">')
+          rateio_start = source.index('      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>', new_times_start)
+          source = source[:new_times_start] + times_replacement + '\n\n' + source[rateio_start:]
+
+          source = source.replace(
+              '<section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>',
+              '<section className="sf-card" data-game-section="rateio">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>',
+              1,
+          )
+
+          # 6) Mark the complete result area, including personal stats, final score,
+          # highlights and evaluations, without touching the chat that follows it.
+          result_start_marker = '      {hasTeams && game.result && !canManage && allPlayers.some((p) => p.id === myId) && ('
+          result_end_marker = '      {iAmConfirmed && ('
+          start = source.find(result_start_marker)
+          end = source.find(result_end_marker, start)
+          if start == -1 or end == -1:
+              raise SystemExit('Could not locate result area boundaries')
+          result_block = source[start:end]
+          result_block = re.sub(r'<section className="sf-card">', '<section className="sf-card" data-game-section="resultado">', result_block)
+          result_block = result_block.replace('<section className="sf-card sf-destaques-card">', '<section className="sf-card sf-destaques-card" data-game-section="resultado">')
+          source = source[:start] + result_block + source[end:]
+
+          # 7) Declarative visibility: the Chat component is deliberately outside
+          # the five tab sections and therefore remains independently accessible.
+          css_marker = '  .sf-detail-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }'
+          css_block = css_marker + "\n  .sf-detail[data-game-tab=\"local\"] [data-game-section]:not([data-game-section=\"local\"]),\n  .sf-detail[data-game-tab=\"participantes\"] [data-game-section]:not([data-game-section=\"participantes\"]),\n  .sf-detail[data-game-tab=\"times\"] [data-game-section]:not([data-game-section=\"times\"]),\n  .sf-detail[data-game-tab=\"rateio\"] [data-game-section]:not([data-game-section=\"rateio\"]),\n  .sf-detail[data-game-tab=\"resultado\"] [data-game-section]:not([data-game-section=\"resultado\"]) { display: none; }\n"
+          if '.sf-detail[data-game-tab="local"]' not in source:
+              if css_marker not in source:
+                  raise SystemExit('Could not locate Game Detail CSS marker')
+              source = source.replace(css_marker, css_block, 1)
+
+          if source == original:
+              raise SystemExit('No changes were made')
+
+          path.write_text(source, encoding='utf-8')
+
+      - name: Validate source and build
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Commit integrated refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js
+          git diff --cached --check
+          git commit -m "refactor(game-detail): integrate tabs and teams section [game-detail-tabs-integrated]"
+          git push origin HEAD:refactor/game-teams-integration
