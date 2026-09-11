@@ -65,11 +65,13 @@ jobs:
           assert n==1, f'PitchView regex matches: {n}'
           title='<div className="sf-card-title"><Shuffle size={16} /> Times</div>'
           rate='<div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          ti=s.index(title); i=s.rfind('<section className="sf-card">',0,ti)
-          ri=s.index(rate,ti); j=s.rfind('<section className="sf-card">',0,ri)
-          assert i>=0 and j>i
+          ti=s.index(title)
+          start=s.rfind('<section className="sf-card">',0,ti)
+          end=s.index(rate,ti)
+          section_start=start
+          assert section_start>=0 and end>section_start
           repl='''      <GameTeamsSection\n        game={game}\n        activePlayers={activePlayers}\n        canManage={canManage}\n        hasTeams={hasTeams}\n        playersPerTeam={playersPerTeam}\n        reservesPerTeam={reservesPerTeam}\n        editingTeams={editingTeams}\n        teamDraft={teamDraft}\n        setTeamDraft={setTeamDraft}\n        setEditingTeams={setEditingTeams}\n        onDraw={onDraw}\n        onSaveTeams={onSaveTeams}\n        isGoalkeeper={isGoleiro}\n      />\n\n'''
-          s=s[:i]+repl+s[j:]
+          s=s[:section_start]+repl+s[end-1:]
           marker="import GameChat from '../components/chat/GameChat';\n"
           assert marker in s
           s=s.replace(marker,marker+"import GameTeamsSection from '../components/society/GameTeamsSection';\n",1)
