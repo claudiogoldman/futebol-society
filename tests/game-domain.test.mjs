@@ -1,4 +1,4 @@
-// Refactor trigger: safe Teams extraction.
+// Safe refactor validation marker.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
 
