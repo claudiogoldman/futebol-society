@@ -16,20 +16,23 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           p = Path('app/society-page.js')
           s = p.read_text(encoding='utf-8')
+
           old_eval = '''      {game.result && hasTeams && (\n        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n      )}'''
           new_eval = '''      {game.result && hasTeams && (\n        <section data-game-section="resultado">\n          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n        </section>\n      )}'''
           if old_eval in s:
               s = s.replace(old_eval, new_eval, 1)
           elif new_eval not in s:
               raise SystemExit('EvaluationSection source block not found')
-          old_pix = "setPixDraft(game.pixKey || '');\n    setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');"
-          new_pix = "setPixDraft(game.pixKey || '');\n    setPixOwnerDraft(game.pixOwnerId || '');\n    setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');"
-          if old_pix in s:
-              s = s.replace(old_pix, new_pix, 1)
-          elif new_pix not in s:
-              raise SystemExit('PIX edit initialization block not found')
+
+          if 'setPixOwnerDraft(game.pixOwnerId || \'\');' not in s:
+              pattern = r"(?m)^(\s*)setPixDraft\(game\.pixKey \|\| ''\);\n(?=\1setPixReceiverDraft\()"
+              s, count = re.subn(pattern, r"\1setPixDraft(game.pixKey || '');\n\1setPixOwnerDraft(game.pixOwnerId || '');\n", s, count=1)
+              if count != 1:
+                  raise SystemExit('PIX edit initialization block not found')
+
           p.write_text(s, encoding='utf-8')
           PY
           npm ci --no-audit --no-fund
