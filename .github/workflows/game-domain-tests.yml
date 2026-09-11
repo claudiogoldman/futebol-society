@@ -28,9 +28,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm test
 
-  # ONE_SHOT_TEAMS_REFACTOR_START
   refactor-teams:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'chore: trigger teams refactor'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +72,7 @@ jobs:
           assert len(s) > 140000
           assert s.count('GameTeamsSection') == 2
           assert 'function PitchView' not in s
+          assert "TacticalPitch from '../components/society/TacticalPitch'" not in s
           PY
           git diff --check
           test $(wc -l < app/society-page.js) -gt 1800
@@ -87,11 +86,10 @@ jobs:
           from pathlib import Path
           p = Path('.github/workflows/game-domain-tests.yml')
           s = p.read_text()
-          start = s.index('  # ONE_SHOT_TEAMS_REFACTOR_START\n')
+          start = s.index('  refactor-teams:\n')
           s = s[:start].rstrip() + '\n'
           p.write_text(s)
           PY
           git add .github/workflows/game-domain-tests.yml
           git commit -m 'chore: remove one-shot teams refactor job'
           git push
-  # ONE_SHOT_TEAMS_REFACTOR_END
