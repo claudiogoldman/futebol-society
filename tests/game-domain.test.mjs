@@ -1,25 +1,11 @@
 // Safe refactor validation marker.
 // Trigger the one-shot Teams extraction workflow after the test expectation correction.
-// Trigger attempt 6: hardened PitchView matching.
+// Trigger attempt 7: robust section-boundary matching.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
-
-function players(count, attributes = {}) {
-  return Array.from({ length: count }, (_, index) => ({ id: `p${index + 1}`, name: `Player ${index + 1}`, positions: index % 6 === 0 ? ['goleiro'] : ['meio'], attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60, ...attributes }));
-}
-
+function players(count, attributes = {}) { return Array.from({ length: count }, (_, index) => ({ id: `p${index + 1}`, name: `Player ${index + 1}`, positions: index % 6 === 0 ? ['goleiro'] : ['meio'], attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60, ...attributes })); }
 const formats = [[5, 0], [5, 2], [5, 3], [6, 2], [7, 2]];
-for (const [playersPerTeam, reservesPerTeam] of formats) {
-  const total = (playersPerTeam + reservesPerTeam) * 2;
-  const result = drawTeams(players(total), () => 0.5, { playersPerTeam, reservesPerTeam, candidates: 10 });
-  assert.equal(result.teamA.length, playersPerTeam + reservesPerTeam);
-  assert.equal(result.teamB.length, playersPerTeam + reservesPerTeam);
-  assert.equal(result.teamAStarters.length, playersPerTeam);
-  assert.equal(result.teamBStarters.length, playersPerTeam);
-  assert.equal(result.teamAReserves.length, reservesPerTeam);
-  assert.equal(result.teamBReserves.length, reservesPerTeam);
-  assert.equal(new Set([...result.teamA, ...result.teamB].map((player) => player.id)).size, total);
-}
+for (const [playersPerTeam, reservesPerTeam] of formats) { const total = (playersPerTeam + reservesPerTeam) * 2; const result = drawTeams(players(total), () => 0.5, { playersPerTeam, reservesPerTeam, candidates: 10 }); assert.equal(result.teamA.length, playersPerTeam + reservesPerTeam); assert.equal(result.teamB.length, playersPerTeam + reservesPerTeam); assert.equal(result.teamAStarters.length, playersPerTeam); assert.equal(result.teamBStarters.length, playersPerTeam); assert.equal(result.teamAReserves.length, reservesPerTeam); assert.equal(result.teamBReserves.length, reservesPerTeam); assert.equal(new Set([...result.teamA, ...result.teamB].map((player) => player.id)).size, total); }
 assert.equal(playerStrength({ attr_ata: 100, attr_def: 100, attr_for: 100, attr_hab: 100 }), 5);
 assert.equal(playerStrength({ attr_ata: 50, attr_def: 50, attr_for: 50, attr_hab: 50 }), 2.5);
 assert.equal(playerStrength({ rating: 4 }), 4);
