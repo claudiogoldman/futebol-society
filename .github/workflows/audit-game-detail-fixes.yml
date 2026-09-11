@@ -1,0 +1,74 @@
+name: One-shot game detail audit fixes
+
+on:
+  push:
+    branches:
+      - refactor/game-teams-integration
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[audit-game-detail-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply confirmed fixes and clean temporary workflows
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          page = Path('app/society-page.js')
+          source = page.read_text(encoding='utf-8')
+          original = source
+
+          eval_pattern = r'(\{game\.result && hasTeams && \(\n\s*)<EvaluationSection game=\{game\} myId=\{myId\} onSaveRatings=\{onSaveRatings\} />'
+          eval_match = re.search(eval_pattern, source)
+          if not eval_match:
+              raise SystemExit('EvaluationSection target not found')
+          if 'data-game-section="resultado"' not in source[eval_match.start():eval_match.end() + 100]:
+              replacement = eval_match.group(1) + '<section data-game-section="resultado">\n' + eval_match.group(1) + '  <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n' + eval_match.group(1) + '</section>'
+              source = source[:eval_match.start()] + replacement + source[eval_match.end():]
+
+          pix_pattern = r"(setPixDraft\(game\.pixKey \|\| ''\);\n)(\s*)(setPixReceiverDraft\(game\.pixReceiverName \|\| organizer\?\.name \|\| ''\);)"
+          if not re.search(pix_pattern, source):
+              raise SystemExit('PIX edit target not found')
+          source = re.sub(pix_pattern, r"\1\2setPixOwnerDraft(game.pixOwnerId || '');\n\2\3", source, count=1)
+
+          page.write_text(source, encoding='utf-8')
+
+          for rel in [
+              '.github/workflows/audit-game-detail-fixes.yml',
+              '.github/workflows/fix-draw-history-sync.yml',
+              '.github/workflows/integrate-game-detail-tabs.yml',
+          ]:
+              p = Path(rel)
+              if p.exists():
+                  p.unlink()
+
+          if source == original:
+              raise SystemExit('No source changes were made')
+
+      - name: Validate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          git diff --check
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js .github/workflows
+          git diff --cached --check
+          git commit -m "fix(game-detail): close confirmed audit findings [audit-game-detail-fixed]"
+          git push origin HEAD:refactor/game-teams-integration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
