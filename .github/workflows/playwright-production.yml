@@ -12,18 +12,23 @@ jobs:
     name: Playwright — produção
     timeout-minutes: 30
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
+
       - name: Install dependencies
         run: npm ci
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
       - name: Run production smoke tests
         run: npx playwright test
         env:
@@ -31,6 +36,7 @@ jobs:
           PLAYWRIGHT_TEST_BASE_URL: https://futebol-society-app.vercel.app
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v5
@@ -40,61 +46,3 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 30
-
-  teams-extraction-once:
-    name: Teams extraction once
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Patch Teams section
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('app/society-page.js'); s=p.read_text()
-          assert len(s)>150000
-          if "import GameTeamsSection from '../components/society/GameTeamsSection';" in s:
-              raise SystemExit('already extracted')
-          imp="import TacticalPitch from '../components/society/TacticalPitch';\n"
-          assert s.count(imp)==1
-          s=s.replace(imp,'',1)
-          pattern=r"function PitchView\([\s\S]*?\n\}\n\n// ---------- login ----------\n"
-          s,n=re.subn(pattern,'// ---------- login ----------\n',s,count=1)
-          assert n==1, f'PitchView regex matches: {n}'
-          start_marker='\n      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
-          end_marker='\n      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          start=s.rfind(start_marker)+1
-          end=s.index(end_marker,start)+1
-          assert start>0 and end>start
-          repl='''      <GameTeamsSection\n        game={game}\n        activePlayers={activePlayers}\n        canManage={canManage}\n        hasTeams={hasTeams}\n        playersPerTeam={playersPerTeam}\n        reservesPerTeam={reservesPerTeam}\n        editingTeams={editingTeams}\n        teamDraft={teamDraft}\n        setTeamDraft={setTeamDraft}\n        setEditingTeams={setEditingTeams}\n        onDraw={onDraw}\n        onSaveTeams={onSaveTeams}\n        isGoalkeeper={isGoleiro}\n      />\n\n'''
-          s=s[:start]+repl+s[end:]
-          marker="import GameChat from '../components/chat/GameChat';\n"
-          assert marker in s
-          s=s.replace(marker,marker+"import GameTeamsSection from '../components/society/GameTeamsSection';\n",1)
-          p.write_text(s)
-          assert s.count('GameTeamsSection')==2 and 'function PitchView' not in s
-          PY
-          git diff --check
-      - name: Build
-        run: |
-          npm ci --no-audit --no-fund
-          npm run build
-      - name: Commit page and restore workflow
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/society-page.js
-          git commit -m 'refactor(teams): extract match teams section'
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('.github/workflows/playwright-production.yml'); s=p.read_text()
-          marker='\n  teams-extraction-once:'
-          assert marker in s
-          s=s[:s.index(marker)].rstrip()+'\n'
-          p.write_text(s)
-          PY
-          git add .github/workflows/playwright-production.yml
-          git commit -m 'chore: restore production workflow'
-          git push
