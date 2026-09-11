@@ -28,10 +28,10 @@ jobs:
               raise SystemExit('EvaluationSection source block not found')
 
           if 'setPixOwnerDraft(game.pixOwnerId || \'\');' not in s:
-              pattern = r"(?m)^(\s*)setPixDraft\(game\.pixKey \|\| ''\);\n(?=\1setPixReceiverDraft\()"
-              s, count = re.subn(pattern, r"\1setPixDraft(game.pixKey || '');\n\1setPixOwnerDraft(game.pixOwnerId || '');\n", s, count=1)
+              pattern = r"(?m)^(\s*)setPixDraft\(game\.pixKey \|\| ''\);"
+              s, count = re.subn(pattern, r"\1setPixDraft(game.pixKey || '');\n\1setPixOwnerDraft(game.pixOwnerId || '');", s, count=1)
               if count != 1:
-                  raise SystemExit('PIX edit initialization block not found')
+                  raise SystemExit('PIX edit initialization line not found')
 
           p.write_text(s, encoding='utf-8')
           PY
