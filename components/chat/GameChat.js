@@ -176,6 +176,116 @@ export default function GameChat({ gameId, userId, playerNames = {} }) {
 
   return (
     <section className="sf-chat" aria-label="Chat da partida">
+      <style>{`
+        .sf-chat {
+          background: rgba(11,36,23,0.42);
+          border: 1px solid rgba(237,246,238,0.14);
+          border-radius: 14px;
+          padding: 14px;
+          margin: 0 0 12px;
+          color: #EDF6EE;
+        }
+        .sf-chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .sf-chat-header strong { font-size: 16px; }
+        .sf-chat-subtitle { color: #8FB39C; font-size: 12px; margin-top: 3px; }
+        .sf-chat-messages {
+          min-height: 90px;
+          max-height: 300px;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 6px 2px 10px;
+        }
+        .sf-chat-empty { color: #8FB39C; font-size: 13px; text-align: center; padding: 26px 8px; }
+        .sf-chat-message {
+          align-self: flex-start;
+          max-width: 88%;
+          background: #143622;
+          border: 1px solid rgba(237,246,238,0.12);
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .sf-chat-message-own { align-self: flex-end; border-color: rgba(255,197,61,0.35); }
+        .sf-chat-message-author { color: #FFC53D; font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+        .sf-chat-message-text { font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .sf-chat-message-meta { display: flex; align-items: center; gap: 7px; color: #8FB39C; font-size: 10px; margin-top: 5px; }
+        .sf-chat-message-actions { display: inline-flex; align-items: center; gap: 6px; }
+        .sf-chat-message-actions button,
+        .sf-chat-reaction {
+          border: 0;
+          background: transparent;
+          color: #8FB39C;
+          font: inherit;
+          cursor: pointer;
+          padding: 2px 4px;
+        }
+        .sf-chat-message-actions button:hover,
+        .sf-chat-reaction:hover { color: #FFC53D; }
+        .sf-chat-reactions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; }
+        .sf-chat-reaction { font-size: 12px; border-radius: 8px; }
+        .sf-chat-reaction-active { background: rgba(255,197,61,0.12); color: #FFC53D; }
+        .sf-chat-form { display: flex; gap: 8px; align-items: flex-end; margin-top: 4px; }
+        .sf-chat-input-wrap { position: relative; flex: 1; min-width: 0; }
+        .sf-chat-input-wrap input,
+        .sf-chat-edit-form input {
+          box-sizing: border-box;
+          width: 100%;
+          min-height: 42px;
+          background: #0B2417;
+          border: 1px solid rgba(237,246,238,0.16);
+          border-radius: 9px;
+          color: #EDF6EE;
+          padding: 9px 11px;
+          font: 13px/1.3 Inter, sans-serif;
+          outline: none;
+        }
+        .sf-chat-input-wrap input:focus,
+        .sf-chat-edit-form input:focus { border-color: #FFC53D; }
+        .sf-chat-form > button {
+          min-height: 42px;
+          border: 0;
+          border-radius: 9px;
+          padding: 0 13px;
+          background: #FFC53D;
+          color: #0B2417;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .sf-chat-form > button:disabled { opacity: .45; cursor: default; }
+        .sf-chat-error { color: #FF6B6B; font-size: 11px; margin: 4px 0 8px; }
+        .sf-chat-mention-list {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: calc(100% + 5px);
+          z-index: 20;
+          background: #143622;
+          border: 1px solid rgba(237,246,238,0.16);
+          border-radius: 9px;
+          overflow: hidden;
+          box-shadow: 0 8px 20px rgba(0,0,0,.35);
+        }
+        .sf-chat-mention-list button {
+          display: block;
+          width: 100%;
+          padding: 9px 11px;
+          border: 0;
+          border-bottom: 1px solid rgba(237,246,238,0.08);
+          background: transparent;
+          color: #EDF6EE;
+          text-align: left;
+          cursor: pointer;
+        }
+        .sf-chat-mention-list button:hover { background: #1E4A2E; }
+        .sf-chat-edit-form { min-width: 210px; }
+        .sf-chat-edit-form .sf-chat-message-actions { margin-top: 5px; }
+        @media (max-width: 380px) {
+          .sf-chat { padding: 12px; }
+          .sf-chat-form { gap: 6px; }
+          .sf-chat-form > button { padding: 0 10px; }
+        }
+      `}</style>
       <div className="sf-chat-header">
         <div>
           <strong>💬 Chat da partida</strong>
