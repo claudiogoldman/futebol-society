@@ -52,14 +52,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           p=Path('app/society-page.js'); s=p.read_text()
           assert len(s)>150000
           if "import GameTeamsSection from '../components/society/GameTeamsSection';" in s:
               raise SystemExit('already extracted')
           imp="import TacticalPitch from '../components/society/TacticalPitch';\n"
           assert s.count(imp)==1; s=s.replace(imp,'',1)
-          pitch="function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n  return (\n    <TacticalPitch\n      teamA={teamA}\n      teamB={teamB}\n      playersPerTeam={playersPerTeam}\n      reservesPerTeam={reservesPerTeam}\n    />\n  );\n}\n"
-          assert s.count(pitch)==1; s=s.replace(pitch,'',1)
+          pattern=r"function PitchView\(\{ teamA, teamB, playersPerTeam, reservesPerTeam \}\) \{.*?\n\}\n\n// ---------- login ----------\n"
+          s2,n=re.subn(pattern,'// ---------- login ----------\n',s,count=1,flags=re.S)
+          assert n==1, f'PitchView regex matches: {n}'
+          s=s2
           a='      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
           b='      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
           i=s.index(a); j=s.index(b,i)
