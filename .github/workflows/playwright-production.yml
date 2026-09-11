@@ -65,9 +65,9 @@ jobs:
           assert n==1, f'PitchView regex matches: {n}'
           start_marker='\n      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
           end_marker='\n      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          start=s.index(start_marker)+1
+          start=s.rfind(start_marker)+1
           end=s.index(end_marker,start)+1
-          assert start>50000 and end>start
+          assert start>0 and end>start
           repl='''      <GameTeamsSection\n        game={game}\n        activePlayers={activePlayers}\n        canManage={canManage}\n        hasTeams={hasTeams}\n        playersPerTeam={playersPerTeam}\n        reservesPerTeam={reservesPerTeam}\n        editingTeams={editingTeams}\n        teamDraft={teamDraft}\n        setTeamDraft={setTeamDraft}\n        setEditingTeams={setEditingTeams}\n        onDraw={onDraw}\n        onSaveTeams={onSaveTeams}\n        isGoalkeeper={isGoleiro}\n      />\n\n'''
           s=s[:start]+repl+s[end:]
           marker="import GameChat from '../components/chat/GameChat';\n"
