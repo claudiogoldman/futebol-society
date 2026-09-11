@@ -1,0 +1,96 @@
+name: One-shot extract game teams
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-shot-extract-teams.yml'
+      - 'app/society-page.js'
+      - 'tests/game-domain.test.mjs'
+permissions:
+  contents: write
+jobs:
+  refactor:
+    if: github.event.head_commit.message != 'refactor(teams): extract match teams'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply safe extraction and test correction
+        shell: python
+        run: |
+          from pathlib import Path
+          page = Path('app/society-page.js')
+          text = page.read_text()
+          old_import = "import TacticalPitch from '../components/society/TacticalPitch';\n"
+          if old_import not in text:
+              raise SystemExit('Expected TacticalPitch import not found; aborting')
+          text = text.replace(old_import, '', 1)
+          start = text.find('function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {')
+          if start < 0:
+              raise SystemExit('Expected PitchView function not found; aborting')
+          end = text.find('\n}\n', start)
+          if end < 0:
+              raise SystemExit('PitchView end not found; aborting')
+          text = text[:start] + text[end + 3:]
+          marker = "      <section className=\"sf-card\">\n        <div className=\"sf-card-title\"><Shuffle size={16} /> Times</div>"
+          ms = text.find(marker)
+          if ms < 0:
+              raise SystemExit('Times section marker not found; aborting')
+          rate = text.find('      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>', ms)
+          if rate < 0:
+              raise SystemExit('Rateio marker not found; aborting')
+          replacement = '''      <GameTeamsSection
+            game={game}
+            activePlayers={activePlayers}
+            canManage={canManage}
+            hasTeams={hasTeams}
+            playersPerTeam={playersPerTeam}
+            reservesPerTeam={reservesPerTeam}
+            editingTeams={editingTeams}
+            teamDraft={teamDraft}
+            setTeamDraft={setTeamDraft}
+            setEditingTeams={setEditingTeams}
+            onDraw={onDraw}
+            onSaveTeams={onSaveTeams}
+            isGoalkeeper={isGoleiro}
+          />
+
+'''
+          text = text[:ms] + replacement + text[rate:]
+          chat_import = "import GameChat from '../components/chat/GameChat';\n"
+          if "import GameTeamsSection from '../components/society/GameTeamsSection';\n" not in text:
+              if chat_import not in text:
+                  raise SystemExit('GameChat import marker not found; aborting')
+              text = text.replace(chat_import, chat_import + "import GameTeamsSection from '../components/society/GameTeamsSection';\n", 1)
+          if text.count('GameTeamsSection') != 2:
+              raise SystemExit('Unexpected GameTeamsSection reference count')
+          if len(text.splitlines()) < 1800:
+              raise SystemExit('Unexpectedly short society page after extraction')
+          page.write_text(text)
+
+          test = Path('tests/game-domain.test.mjs')
+          tt = test.read_text()
+          bad = "assert.equal(playerStrength({ attr_ata: 80, attr_def: 80, attr_for: 50, attr_hab: 50 }), 2.875);"
+          good = "assert.equal(playerStrength({ attr_ata: 80, attr_def: 80, attr_for: 50, attr_hab: 50 }), 3.25);"
+          if bad in tt:
+              tt = tt.replace(bad, good, 1)
+          elif good not in tt:
+              raise SystemExit('Expected playerStrength assertion not found; aborting')
+          test.write_text(tt)
+      - name: Validate diff
+        run: |
+          git diff --check
+          grep -q "import GameTeamsSection from '../components/society/GameTeamsSection';" app/society-page.js
+          ! grep -q "import TacticalPitch from '../components/society/TacticalPitch';" app/society-page.js
+          ! grep -q "function PitchView" app/society-page.js
+          grep -q "3.25" tests/game-domain.test.mjs
+      - name: Commit refactor and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/society-page.js tests/game-domain.test.mjs .github/workflows/one-shot-extract-teams.yml
+          git rm .github/workflows/one-shot-extract-teams.yml
+          git commit -m "refactor(teams): extract match teams"
+          git push origin HEAD:main
