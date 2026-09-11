@@ -7,20 +7,20 @@ const POSITION_LABELS = {
   goleiro: 'Goleiro', fixo: 'Fixo', libero: 'Líbero', meio: 'Meio', ala_esquerdo: 'Ala E.', ala_direito: 'Ala D.', pivo: 'Pivô',
 };
 
-// Team A occupies the upper half and Team B the lower half. Each starter role
-// has a dedicated slot; duplicate/unrecognized roles use collision-free fallbacks.
+// Team A occupies the upper half and Team B the lower half. The innermost
+// starter slot is kept away from midfield so mirrored teams cannot overlap.
 const STARTER_SLOTS = [
-  { pos: 'goleiro', x: 50, y: 15 },
-  { pos: 'fixo', x: 22, y: 27 },
-  { pos: 'libero', x: 78, y: 27 },
-  { pos: 'meio', x: 50, y: 36 },
-  { pos: 'ala_esquerdo', x: 18, y: 45 },
-  { pos: 'ala_direito', x: 82, y: 45 },
-  { pos: 'pivo', x: 50, y: 47 },
+  { pos: 'goleiro', x: 50, y: 12 },
+  { pos: 'fixo', x: 22, y: 22 },
+  { pos: 'libero', x: 78, y: 22 },
+  { pos: 'meio', x: 50, y: 29 },
+  { pos: 'ala_esquerdo', x: 18, y: 35 },
+  { pos: 'ala_direito', x: 82, y: 35 },
+  { pos: 'pivo', x: 50, y: 42 },
 ];
 const FALLBACK_SLOTS = [
-  { x: 12, y: 18 }, { x: 88, y: 18 }, { x: 12, y: 36 }, { x: 88, y: 36 },
-  { x: 32, y: 47 }, { x: 68, y: 47 }, { x: 38, y: 22 }, { x: 62, y: 22 },
+  { x: 12, y: 18 }, { x: 88, y: 18 }, { x: 12, y: 33 }, { x: 88, y: 33 },
+  { x: 32, y: 42 }, { x: 68, y: 42 }, { x: 38, y: 20 }, { x: 62, y: 20 },
 ];
 
 function displayName(player) {
