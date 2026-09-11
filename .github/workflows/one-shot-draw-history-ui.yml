@@ -1,0 +1,59 @@
+name: One-shot draw history UI patch
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'feat(draw-history): integrate match history UI'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch match page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = "import TacticalPitch from '../components/society/TacticalPitch';"
+          new = old + "\nimport DrawHistory from '../components/society/DrawHistory';"
+          assert old in s and "../components/society/DrawHistory" not in s
+          s = s.replace(old, new, 1)
+
+          old = "setGameTeams, setGamePayment, setPlayerStats"
+          new = "setGameTeams, getGameDrawHistory, setValidGameDraw, setGamePayment, setPlayerStats"
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = "  const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);"
+          new = old + "\n  const [drawHistory, setDrawHistory] = useState([]);\n  const [drawHistoryLoading, setDrawHistoryLoading] = useState(false);\n  const [drawRestoring, setDrawRestoring] = useState(false);\n\n  const refreshDrawHistory = useCallback(async () => {\n    setDrawHistoryLoading(true);\n    try {\n      const { data, error } = await getGameDrawHistory(game.id);\n      if (!error) setDrawHistory(data || []);\n    } finally {\n      setDrawHistoryLoading(false);\n    }\n  }, [game.id]);\n\n  useEffect(() => { refreshDrawHistory(); }, [refreshDrawHistory]);\n\n  const handleDraw = async () => {\n    await onDraw(game.id, activePlayers);\n    await refreshDrawHistory();\n  };\n\n  const handleRestoreDraw = async (drawId) => {\n    if (drawRestoring) return;\n    setDrawRestoring(true);\n    try {\n      const { error } = await setValidGameDraw(game.id, drawId);\n      if (error) throw error;\n      await refreshDrawHistory();\n      window.location.reload();\n    } catch (error) {\n      window.alert(error?.message || 'Não foi possível recuperar o sorteio.');\n    } finally {\n      setDrawRestoring(false);\n    }\n  };"
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = "onClick={() => onDraw(game.id, activePlayers)}"
+          new = "onClick={handleDraw}"
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          marker = "      {hasTeams && canRecordResult && ("
+          insert = "      <DrawHistory history={drawHistory} roster={roster} canManage={canManage && !drawHistoryLoading && !drawRestoring} onRestore={handleRestoreDraw} />\n\n"
+          assert marker in s
+          s = s.replace(marker, insert + marker, 1)
+
+          p.write_text(s)
+          PY
+      - name: Verify source integrity
+        run: |
+          test $(wc -l < app/society-page.js) -gt 2000
+          grep -q "function GameDetail" app/society-page.js
+          grep -q "<DrawHistory" app/society-page.js
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js .github/workflows/one-shot-draw-history-ui.yml
+          git commit -m 'feat(draw-history): integrate match history UI'
+          git rm .github/workflows/one-shot-draw-history-ui.yml
+          git commit -m 'chore: remove one-shot draw history patcher'
+          git push
