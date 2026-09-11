@@ -764,6 +764,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                       className="sf-btn-ghost sf-pix-edit-toggle"
                       onClick={() => {
                         setPixDraft(game.pixKey || '');
+                        setPixOwnerDraft(game.pixOwnerId || '');
                         setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');
                         setPixCityDraft(game.pixCity || '');
                         setEditingPix(true);
@@ -968,7 +969,9 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       )}
 
       {game.result && hasTeams && (
-        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
+        <section data-game-section="resultado">
+          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
+        </section>
       )}
 
       {iAmConfirmed && (
