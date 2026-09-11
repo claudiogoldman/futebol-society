@@ -8,7 +8,7 @@ import { getGameDrawHistory, setValidGameDraw } from '../../lib/services/society
 
 export default function GameTeamsSection({
   game,
-  roster = activePlayers,
+  roster,
   activePlayers,
   canManage,
   hasTeams,
@@ -29,7 +29,7 @@ export default function GameTeamsSection({
 
   const playersById = useMemo(
     () => new Map(roster.map((player) => [String(player.id), player])),
-    [activePlayers]
+    [roster]
   );
 
   const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : [])
