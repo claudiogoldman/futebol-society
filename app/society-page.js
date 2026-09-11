@@ -11,6 +11,8 @@ import { NATIONALITIES, countryFlag } from '../lib/countries';
 import PositionTags from '../components/players/PositionTags';
 import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
+import GameTabs from '../components/society/GameTabs';
+import GameTeamsSection from '../components/society/GameTeamsSection';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
@@ -114,16 +116,6 @@ function StarRating({ value, onChange, size = 16, readOnly = false }) {
   );
 }
 
-function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {
-  return (
-    <TacticalPitch
-      teamA={teamA}
-      teamB={teamB}
-      playersPerTeam={playersPerTeam}
-      reservesPerTeam={reservesPerTeam}
-    />
-  );
-}
 
 // ---------- login ----------
 
@@ -433,6 +425,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamDraft, setTeamDraft] = useState({});
   const [participantFilter, setParticipantFilter] = useState('todos');
+  const [activeGameTab, setActiveGameTab] = useState('local');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -494,7 +487,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   };
 
   return (
-    <div className="sf-detail">
+    <div className="sf-detail" data-game-tab={activeGameTab}>
       <div className="sf-detail-topbar">
         <button className="sf-icon-btn" onClick={onBack}><ChevronLeft size={20} /></button>
         <div>
@@ -544,7 +537,9 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         </div>
       )}
 
-      <section id="sf-game-location-card" className="sf-card">
+      <GameTabs activeTab={activeGameTab} onChange={setActiveGameTab} />
+
+      <section id="sf-game-location-card" className="sf-card" data-game-section="local">
         <div className="sf-card-title"><Target size={16} /> Local da partida</div>
         {!editingLocation ? <>
           <div className="sf-cost-row"><span className="sf-muted">Nome</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{game.local || '—'}</span></div>
@@ -568,7 +563,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         </>}
       </section>
 
-      <section className="sf-card">
+      <section className="sf-card" data-game-section="participantes">
         <div className="sf-card-title">
           <Users size={16} /> Confirmados ({activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''})
         </div>
@@ -676,55 +671,27 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setManagementOpen(true)}><Users size={16} /> Adicionar jogador</button>}
       </section>
 
-      <section className="sf-card">
-        <div className="sf-card-title"><Shuffle size={16} /> Times</div>
-        {!hasTeams && !canManage ? (
-          <div className="sf-muted">O organizador ainda não sorteou os times.</div>
-        ) : activePlayers.length < 2 && !hasTeams ? (
-          <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
-        ) : (
-          <>
-            {canManage && (
-              <div className="sf-modal-actions">
-                <button className="sf-btn-primary" onClick={() => onDraw(game.id, activePlayers)}>
-                  <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
-                </button>
-                {hasTeams && !editingTeams && (
-                  <button className="sf-btn-ghost" onClick={() => { const draft = {}; [...(game.teamA || []), ...(game.teamB || [])].forEach((p) => { draft[p.id] = (game.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B'; }); setTeamDraft(draft); setEditingTeams(true); }}>Remanejar times</button>
-                )}
-              </div>
-            )}
-            {hasTeams && (
-              <>
-                {editingTeams && (
-                  <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
-                    <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Distribuição dos times</div>
-                    {[...(game.teamA || []), ...(game.teamB || [])].map((p) => (
-                      <div key={p.id} className="sf-cost-row">
-                        <span>{p.name}{isGoleiro(p) ? ' (GOL)' : ''}</span>
-                        <select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>
-                          <option value="A">Time A</option><option value="B">Time B</option>
-                        </select>
-                      </div>
-                    ))}
-                    <div className="sf-modal-actions">
-                      <button className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button>
-                      <button className="sf-btn-primary" onClick={async () => { const ok = await onSaveTeams(game.id, teamDraft, activePlayers); if (ok) setEditingTeams(false); }}>Salvar times</button>
-                    </div>
-                  </div>
-                )}
-                <PitchView teamA={game.teamA} teamB={game.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />
-                <div className="sf-teams-legend">
-                  <div><span className="sf-dot sf-dot-a" /> Time A — {game.teamA.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
-                  <div><span className="sf-dot sf-dot-b" /> Time B — {game.teamB.map((p) => isGoleiro(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
-                </div>
-              </>
-            )}
-          </>
-        )}
+      <section data-game-section="times">
+        <GameTeamsSection
+          game={game}
+          roster={roster}
+          activePlayers={activePlayers}
+          canManage={canManage}
+          hasTeams={hasTeams}
+          playersPerTeam={playersPerTeam}
+          reservesPerTeam={reservesPerTeam}
+          editingTeams={editingTeams}
+          teamDraft={teamDraft}
+          setTeamDraft={setTeamDraft}
+          setEditingTeams={setEditingTeams}
+          onDraw={onDraw}
+          onSaveTeams={onSaveTeams}
+          onGameRefresh={onGameRefresh}
+          isGoalkeeper={isGoleiro}
+        />
       </section>
 
-      <section className="sf-card">
+      <section className="sf-card" data-game-section="rateio">
         <div className="sf-card-title"><Wallet size={16} /> Rateio</div>
         <div className="sf-cost-row">
           <span className="sf-muted">Organizador</span>
@@ -797,6 +764,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                       className="sf-btn-ghost sf-pix-edit-toggle"
                       onClick={() => {
                         setPixDraft(game.pixKey || '');
+                        setPixOwnerDraft(game.pixOwnerId || '');
                         setPixReceiverDraft(game.pixReceiverName || organizer?.name || '');
                         setPixCityDraft(game.pixCity || '');
                         setEditingPix(true);
@@ -882,7 +850,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       </section>
 
       {hasTeams && game.result && !canManage && allPlayers.some((p) => p.id === myId) && (
-        <section className="sf-card">
+        <section className="sf-card" data-game-section="resultado">
           <div className="sf-card-title"><Trophy size={16} /> Meus gols e assistências</div>
           <div className="sf-card-subtitle">Informe apenas os seus números. O organizador pode corrigir o resultado quando necessário.</div>
           <div className="sf-score-row">
@@ -902,7 +870,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       )}
 
       {hasTeams && canRecordResult && (
-        <section className="sf-card">
+        <section className="sf-card" data-game-section="resultado">
           <div className="sf-card-title"><Trophy size={16} /> Resultado</div>
           <div className="sf-score-row">
             <div className="sf-score-box">
@@ -942,7 +910,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       )}
 
       {hasTeams && !canManage && game.result && (
-        <section className="sf-card">
+        <section className="sf-card" data-game-section="resultado">
           <div className="sf-card-title"><Trophy size={16} /> Resultado</div>
           <div className="sf-score-row">
             <div className="sf-score-box"><span className="sf-dot sf-dot-a" /> Time A<span className="sf-mono-value" style={{ fontSize: 22 }}>{game.result.scoreA}</span></div>
@@ -953,7 +921,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       )}
 
       {game.result && destaques && (destaques.mvp || destaques.artilheiro || destaques.passador || destaques.muro) && (
-        <section className="sf-card sf-destaques-card">
+        <section className="sf-card sf-destaques-card" data-game-section="resultado">
           <div className="sf-card-title"><Award size={16} /> Destaques da rodada</div>
           <div className="sf-destaques-grid">
             {destaques.mvp && (
@@ -1001,7 +969,9 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       )}
 
       {game.result && hasTeams && (
-        <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
+        <section data-game-section="resultado">
+          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />
+        </section>
       )}
 
       {iAmConfirmed && (
@@ -1928,6 +1898,7 @@ function MainApp({ session }) {
             onSetTeamConfig={setGameTeamConfigHandler}
             onDraw={handleDraw}
             onSaveTeams={handleSaveTeams}
+            onGameRefresh={loadAll}
             onTogglePaid={togglePaid}
             onSaveResult={saveResult}
             onSavePlayerStats={savePlayerStats}
@@ -2390,6 +2361,12 @@ const CSS = `
   .sf-card-subtitle { font-size: 12px; color: var(--chalk-dim); margin: 10px 0 6px; }
 
   .sf-detail-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .sf-detail[data-game-tab="local"] [data-game-section]:not([data-game-section="local"]),
+  .sf-detail[data-game-tab="participantes"] [data-game-section]:not([data-game-section="participantes"]),
+  .sf-detail[data-game-tab="times"] [data-game-section]:not([data-game-section="times"]),
+  .sf-detail[data-game-tab="rateio"] [data-game-section]:not([data-game-section="rateio"]),
+  .sf-detail[data-game-tab="resultado"] [data-game-section]:not([data-game-section="resultado"]) { display: none; }
+
   .sf-detail-topbar > div:nth-child(2) { flex: 1; }
 
   .sf-rsvp-list { display: flex; flex-direction: column; gap: 6px; }

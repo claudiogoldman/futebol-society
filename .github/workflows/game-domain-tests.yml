@@ -15,7 +15,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
 permissions:
-  contents: write
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,69 +27,3 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
-
-  refactor-teams:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Extract Teams section safely
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('app/society-page.js')
-          s = p.read_text()
-          assert len(s) > 150000, f'unexpected page size: {len(s)}'
-          imp = "import TacticalPitch from '../components/society/TacticalPitch';\n"
-          assert s.count(imp) == 1
-          s = s.replace(imp, '', 1)
-          pitch = "function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n  return (\n    <TacticalPitch\n      teamA={teamA}\n      teamB={teamB}\n      playersPerTeam={playersPerTeam}\n      reservesPerTeam={reservesPerTeam}\n    />\n  );\n}\n"
-          assert s.count(pitch) == 1
-          s = s.replace(pitch, '', 1)
-          start_marker = '      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
-          end_marker = '      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          start = s.index(start_marker)
-          end = s.index(end_marker, start)
-          replacement = '''      <GameTeamsSection
-        game={game}
-        activePlayers={activePlayers}
-        canManage={canManage}
-        hasTeams={hasTeams}
-        playersPerTeam={playersPerTeam}
-        reservesPerTeam={reservesPerTeam}
-        editingTeams={editingTeams}
-        teamDraft={teamDraft}
-        setTeamDraft={setTeamDraft}
-        setEditingTeams={setEditingTeams}
-        onDraw={onDraw}
-        onSaveTeams={onSaveTeams}
-        isGoalkeeper={isGoleiro}
-      />\n\n'''
-          s = s[:start] + replacement + s[end:]
-          marker = "import GameChat from '../components/chat/GameChat';\n"
-          assert marker in s and "import GameTeamsSection from '../components/society/GameTeamsSection';" not in s
-          s = s.replace(marker, marker + "import GameTeamsSection from '../components/society/GameTeamsSection';\n", 1)
-          p.write_text(s)
-          assert len(s) > 140000
-          assert s.count('GameTeamsSection') == 2
-          assert 'function PitchView' not in s
-          assert "TacticalPitch from '../components/society/TacticalPitch'" not in s
-          PY
-          git diff --check
-          test $(wc -l < app/society-page.js) -gt 1800
-      - name: Commit refactor and remove one-shot job
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/society-page.js
-          git commit -m 'refactor(teams): extract match teams section'
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('.github/workflows/game-domain-tests.yml')
-          s = p.read_text()
-          start = s.index('  refactor-teams:\n')
-          s = s[:start].rstrip() + '\n'
-          p.write_text(s)
-          PY
-          git add .github/workflows/game-domain-tests.yml
-          git commit -m 'chore: remove one-shot teams refactor job'
-          git push
