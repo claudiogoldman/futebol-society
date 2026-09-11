@@ -7,13 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   production-smoke:
     name: Playwright — produção
-    if: github.event.head_commit.message != 'refactor(teams): integrate GameTeamsSection'
     timeout-minutes: 30
     runs-on: ubuntu-latest
 
@@ -30,57 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Integrate GameTeamsSection deterministically
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('app/society-page.js')
-          s = p.read_text()
-          old_import = "import TacticalPitch from '../components/society/TacticalPitch';\n"
-          new_import = "import GameTeamsSection from '../components/society/GameTeamsSection';\n"
-          assert s.count(old_import) == 1, f'unexpected TacticalPitch import count: {s.count(old_import)}'
-          assert s.count(new_import) == 0, f'GameTeamsSection already imported: {s.count(new_import)}'
-          s = s.replace(old_import, new_import, 1)
-          pitch_fn = "function PitchView({ teamA, teamB, playersPerTeam, reservesPerTeam }) {\n  return (\n    <TacticalPitch\n      teamA={teamA}\n      teamB={teamB}\n      playersPerTeam={playersPerTeam}\n      reservesPerTeam={reservesPerTeam}\n    />\n  );\n}\n"
-          assert s.count(pitch_fn) == 1, f'unexpected PitchView count: {s.count(pitch_fn)}'
-          s = s.replace(pitch_fn, '', 1)
-          start = '      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
-          end = '      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          assert s.count(start) == 1, f'unexpected Times marker count: {s.count(start)}'
-          i = s.index(start)
-          j = s.index(end, i)
-          replacement = '''      <GameTeamsSection
-        game={game}
-        activePlayers={activePlayers}
-        canManage={canManage}
-        hasTeams={hasTeams}
-        playersPerTeam={playersPerTeam}
-        reservesPerTeam={reservesPerTeam}
-        editingTeams={editingTeams}
-        teamDraft={teamDraft}
-        setTeamDraft={setTeamDraft}
-        setEditingTeams={setEditingTeams}
-        onDraw={onDraw}
-        onSaveTeams={onSaveTeams}
-        isGoalkeeper={isGoleiro}
-      />
-
-'''
-          s = s[:i] + replacement + s[j:]
-          assert s.count(new_import) == 1, f'import count after integration: {s.count(new_import)}'
-          assert s.count('GameTeamsSection') == 2, f'component reference count after integration: {s.count("GameTeamsSection")}'
-          assert 'function PitchView' not in s
-          assert 'TacticalPitch' not in s
-          p.write_text(s)
-          print('Deterministic Teams integration prepared successfully.')
-          PY
-          git diff --check
-
-      - name: Validate refactor
-        run: |
-          npm test
-          npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run production smoke tests
         run: npx playwright test
@@ -99,14 +46,3 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 30
-
-      - name: Commit integration and restore workflow
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/society-page.js .github/workflows/playwright-production.yml
-          git commit -m 'refactor(teams): integrate GameTeamsSection'
-          git restore --source=HEAD^ -- .github/workflows/playwright-production.yml
-          git add .github/workflows/playwright-production.yml
-          git commit --amend --no-edit
-          git push
