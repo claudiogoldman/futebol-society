@@ -1,5 +1,6 @@
 // Safe refactor validation marker.
 // Trigger the one-shot Teams extraction workflow after the test expectation correction.
+// Trigger attempt 2: workflow file is now active on main.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
 
