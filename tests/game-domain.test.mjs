@@ -1,6 +1,6 @@
 // Safe refactor validation marker.
 // Trigger the one-shot Teams extraction workflow after the test expectation correction.
-// Trigger attempt 7: robust section-boundary matching.
+// Trigger attempt 8: fixed Times -> Rateio range.
 import assert from 'node:assert/strict';
 import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
 function players(count, attributes = {}) { return Array.from({ length: count }, (_, index) => ({ id: `p${index + 1}`, name: `Player ${index + 1}`, positions: index % 6 === 0 ? ['goleiro'] : ['meio'], attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60, ...attributes })); }
