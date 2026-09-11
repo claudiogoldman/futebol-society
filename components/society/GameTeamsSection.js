@@ -8,6 +8,7 @@ import { getGameDrawHistory, setValidGameDraw } from '../../lib/services/society
 
 export default function GameTeamsSection({
   game,
+  roster = activePlayers,
   activePlayers,
   canManage,
   hasTeams,
@@ -19,6 +20,7 @@ export default function GameTeamsSection({
   setEditingTeams,
   onDraw,
   onSaveTeams,
+  onGameRefresh,
   isGoalkeeper,
 }) {
   const [drawHistory, setDrawHistory] = useState([]);
@@ -26,7 +28,7 @@ export default function GameTeamsSection({
   const [historyError, setHistoryError] = useState('');
 
   const playersById = useMemo(
-    () => new Map(activePlayers.map((player) => [String(player.id), player])),
+    () => new Map(roster.map((player) => [String(player.id), player])),
     [activePlayers]
   );
 
@@ -82,6 +84,7 @@ export default function GameTeamsSection({
       });
     }
     setHistoryError('');
+    await onGameRefresh?.();
     await loadHistory();
     return !!data;
   };
@@ -150,7 +153,7 @@ export default function GameTeamsSection({
 
       <DrawHistory
         history={drawHistory}
-        roster={activePlayers}
+        roster={roster}
         canManage={canManage}
         onRestore={handleRestoreDraw}
       />

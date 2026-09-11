@@ -674,6 +674,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
       <section data-game-section="times">
         <GameTeamsSection
           game={game}
+          roster={roster}
           activePlayers={activePlayers}
           canManage={canManage}
           hasTeams={hasTeams}
@@ -685,6 +686,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
           setEditingTeams={setEditingTeams}
           onDraw={onDraw}
           onSaveTeams={onSaveTeams}
+          onGameRefresh={onGameRefresh}
           isGoalkeeper={isGoleiro}
         />
       </section>
@@ -1893,6 +1895,7 @@ function MainApp({ session }) {
             onSetTeamConfig={setGameTeamConfigHandler}
             onDraw={handleDraw}
             onSaveTeams={handleSaveTeams}
+            onGameRefresh={loadAll}
             onTogglePaid={togglePaid}
             onSaveResult={saveResult}
             onSavePlayerStats={savePlayerStats}
