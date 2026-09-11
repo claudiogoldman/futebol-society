@@ -7,6 +7,7 @@ on:
       - 'tests/game-domain.test.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - 'docs/draw-history-ui-trigger.md'
   pull_request:
     branches: [main]
     paths:
@@ -15,7 +16,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,3 +28,71 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm test
+  patch-draw-history-ui:
+    if: github.event_name == 'push' && github.event.head_commit.message != 'feat(draw-history): integrate match history UI'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch match page safely
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/society-page.js')
+          s = p.read_text()
+          old = "import TacticalPitch from '../components/society/TacticalPitch';"
+          assert old in s and "../components/society/DrawHistory" not in s
+          s = s.replace(old, old + "\nimport DrawHistory from '../components/society/DrawHistory';", 1)
+          old = "setGameTeams, setGamePayment, setPlayerStats"
+          assert old in s
+          s = s.replace(old, "setGameTeams, getGameDrawHistory, setValidGameDraw, setGamePayment, setPlayerStats", 1)
+          old = "  const playerNames = useMemo(() => Object.fromEntries([...activePlayers, ...waitlistPlayers].map((p) => [p.id, displayName(p)])), [activePlayers, waitlistPlayers]);"
+          assert old in s
+          addition = """
+          const [drawHistory, setDrawHistory] = useState([]);
+          const [drawHistoryLoading, setDrawHistoryLoading] = useState(false);
+          const [drawRestoring, setDrawRestoring] = useState(false);
+          const refreshDrawHistory = useCallback(async () => {
+            setDrawHistoryLoading(true);
+            try {
+              const { data, error } = await getGameDrawHistory(game.id);
+              if (!error) setDrawHistory(data || []);
+            } finally { setDrawHistoryLoading(false); }
+          }, [game.id]);
+          useEffect(() => { refreshDrawHistory(); }, [refreshDrawHistory]);
+          const handleDraw = async () => {
+            const ok = await onDraw(game.id, activePlayers);
+            if (ok !== false) await refreshDrawHistory();
+          };
+          const handleRestoreDraw = async (drawId) => {
+            if (drawRestoring) return;
+            setDrawRestoring(true);
+            try {
+              const { error } = await setValidGameDraw(game.id, drawId);
+              if (error) throw error;
+              await refreshDrawHistory();
+              window.location.reload();
+            } catch (error) { window.alert(error?.message || 'Não foi possível recuperar o sorteio.'); }
+            finally { setDrawRestoring(false); }
+          };
+          """
+          s = s.replace(old, old + addition, 1)
+          old = "onClick={() => onDraw(game.id, activePlayers)}"
+          assert old in s
+          s = s.replace(old, "onClick={handleDraw}", 1)
+          marker = "      {hasTeams && canRecordResult && ("
+          assert marker in s
+          insert = "      <DrawHistory history={drawHistory} roster={roster} canManage={canManage && !drawHistoryLoading && !drawRestoring} onRestore={handleRestoreDraw} />\n\n"
+          s = s.replace(marker, insert + marker, 1)
+          p.write_text(s)
+          PY
+          test $(wc -l < app/society-page.js) -gt 2000
+          grep -q "<DrawHistory" app/society-page.js
+      - name: Commit UI integration and remove patchers
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js .github/workflows/game-domain-tests.yml
+          git commit -m 'feat(draw-history): integrate match history UI'
+          git rm .github/workflows/one-shot-draw-history-ui.yml docs/draw-history-ui-trigger.md
+          git commit -m 'chore: remove temporary draw history patchers'
+          git push
