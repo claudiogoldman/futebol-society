@@ -1,0 +1,40 @@
+name: Repair Game Detail Audit
+on:
+  push:
+    branches: [fix/game-detail-audit]
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Repair syntax and validate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('app/society-page.js')
+          s = p.read_text(encoding='utf-8')
+          old = '''      {game.result && hasTeams && (\n        <section data-game-section="resultado">\n{game.result && hasTeams && (\n          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n{game.result && hasTeams && (\n        </section>\n      )}'''
+          new = '''      {game.result && hasTeams && (\n        <section data-game-section="resultado">\n          <EvaluationSection game={game} myId={myId} onSaveRatings={onSaveRatings} />\n        </section>\n      )}'''
+          if old not in s:
+              raise SystemExit('Malformed EvaluationSection block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          npm ci --no-audit --no-fund
+          npm run build
+          git diff --check
+      - name: Commit repair and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/society-page.js .github/workflows/repair-game-detail-audit.yml
+          git commit -m 'fix(game-detail): repair evaluation tab syntax'
+          git rm .github/workflows/repair-game-detail-audit.yml
+          git commit -m 'chore: remove one-shot repair workflow'
+          git push
