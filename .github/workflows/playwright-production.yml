@@ -58,14 +58,16 @@ jobs:
           if "import GameTeamsSection from '../components/society/GameTeamsSection';" in s:
               raise SystemExit('already extracted')
           imp="import TacticalPitch from '../components/society/TacticalPitch';\n"
-          assert s.count(imp)==1; s=s.replace(imp,'',1)
-          pattern=r"function PitchView\(\{ teamA, teamB, playersPerTeam, reservesPerTeam \}\) \{.*?\n\}\n\n// ---------- login ----------\n"
-          s2,n=re.subn(pattern,'// ---------- login ----------\n',s,count=1,flags=re.S)
+          assert s.count(imp)==1
+          s=s.replace(imp,'',1)
+          pattern=r"function PitchView\([\s\S]*?\n\}\n\n// ---------- login ----------\n"
+          s,n=re.subn(pattern,'// ---------- login ----------\n',s,count=1)
           assert n==1, f'PitchView regex matches: {n}'
-          s=s2
-          a='      <section className="sf-card">\n        <div className="sf-card-title"><Shuffle size={16} /> Times</div>'
-          b='      <section className="sf-card">\n        <div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
-          i=s.index(a); j=s.index(b,i)
+          title='<div className="sf-card-title"><Shuffle size={16} /> Times</div>'
+          rate='<div className="sf-card-title"><Wallet size={16} /> Rateio</div>'
+          ti=s.index(title); i=s.rfind('<section className="sf-card">',0,ti)
+          ri=s.index(rate,ti); j=s.rfind('<section className="sf-card">',0,ri)
+          assert i>=0 and j>i
           repl='''      <GameTeamsSection\n        game={game}\n        activePlayers={activePlayers}\n        canManage={canManage}\n        hasTeams={hasTeams}\n        playersPerTeam={playersPerTeam}\n        reservesPerTeam={reservesPerTeam}\n        editingTeams={editingTeams}\n        teamDraft={teamDraft}\n        setTeamDraft={setTeamDraft}\n        setEditingTeams={setEditingTeams}\n        onDraw={onDraw}\n        onSaveTeams={onSaveTeams}\n        isGoalkeeper={isGoleiro}\n      />\n\n'''
           s=s[:i]+repl+s[j:]
           marker="import GameChat from '../components/chat/GameChat';\n"
