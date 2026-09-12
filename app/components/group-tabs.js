@@ -48,11 +48,16 @@ export default function GroupTabs() {
   const sections = useMemo(() => (target ? classifySections(target) : []), [target]);
 
   useEffect(() => {
-    if (!target) return;
+    if (!target) return undefined;
     sections.forEach((section) => {
       const tabs = (section.dataset.groupTab || '').split(' ');
       section.style.display = tabs.includes(active) ? '' : 'none';
     });
+    const tabsElement = target.querySelector(':scope > .sf-group-tabs');
+    const firstSection = target.querySelector(':scope > section.sf-card');
+    if (tabsElement && firstSection && tabsElement.nextElementSibling !== firstSection) {
+      target.insertBefore(tabsElement, firstSection);
+    }
     return () => sections.forEach((section) => { section.style.display = ''; });
   }, [target, sections, active]);
 
