@@ -107,6 +107,9 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
   const metricsB = teamMetrics(teamB);
   const gradientId = `tacticalPitchGrass-${useId().replace(/:/g, '')}`;
 
+  const technicalIndex = Math.max(0, Math.min(100, 100 - balance.technicalDifference));
+  const physicalAlert = balance.weightRelativeDifference >= 20 || balance.ageRelativeDifference >= 15;
+
   return <div style={{ width: '100%', maxWidth: 360, margin: '0 auto' }}>
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Campo tático com times A e B (${playersPerTeam} titulares + ${reservesPerTeam} reservas por time)`}>
       <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#174A2B" /><stop offset="100%" stopColor="#0F3520" /></linearGradient></defs>
@@ -127,8 +130,9 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
     <ReserveList label="Time B" players={layoutB.reserves} />
     <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 10, opacity: .75 }}>{Object.entries(POSITION_LABELS).map(([key, label]) => <span key={key}>{label}</span>)}</div>
     <div style={{ marginTop: 12, padding: 10, border: '1px solid rgba(255,255,255,.12)', borderRadius: 10 }} aria-label="Indicadores de equilíbrio">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><strong>⚖️ Equilíbrio</strong><strong>{balance.balance.toFixed(0)}/100</strong></div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 7, fontSize: 11 }}><span>Time A <strong>{balance.strengthA.toFixed(1)}</strong></span><span style={{ textAlign: 'right' }}>Time B <strong>{balance.strengthB.toFixed(1)}</strong></span></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><strong>⚖️ Índice de equilíbrio</strong><strong>{balance.balance.toFixed(0)}/100</strong></div>
+      <div style={{ marginTop: 4, fontSize: 10, opacity: .72 }}>O índice combina força técnica, cobertura de posições e fatores físicos (idade e peso).</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 7, fontSize: 11 }}><span>Força A <strong>{balance.strengthA.toFixed(1)}</strong></span><span style={{ textAlign: 'right' }}>Força B <strong>{balance.strengthB.toFixed(1)}</strong></span></div>
       <div style={{ marginTop: 9, display: 'grid', gap: 5 }}>
         <Metric label="idade total" valueA={metricsA.ageTotal || null} valueB={metricsB.ageTotal || null} unit=" anos" />
         <Metric label="idade média" valueA={metricsA.ageAverage == null ? null : metricsA.ageAverage.toFixed(1)} valueB={metricsB.ageAverage == null ? null : metricsB.ageAverage.toFixed(1)} unit=" anos" />
@@ -136,7 +140,12 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
         <Metric label="peso médio" valueA={metricsA.weightAverage == null ? null : metricsA.weightAverage.toFixed(1)} valueB={metricsB.weightAverage == null ? null : metricsB.weightAverage.toFixed(1)} unit=" kg" />
         <Metric label="OVR total" valueA={metricsA.overallTotal.toFixed(1)} valueB={metricsB.overallTotal.toFixed(1)} />
       </div>
-      <div style={{ textAlign: 'center', marginTop: 7, fontSize: 10, opacity: .8 }}>Diferença técnica {balance.technicalDifference.toFixed(1)}% · idade {balance.ageDifference.toFixed(0)} · peso {balance.weightDifference.toFixed(1)} kg · {balance.classification}</div>
+      <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 10, opacity: .82 }}>
+        <div>🎯 Equilíbrio técnico: <strong>{technicalIndex.toFixed(0)}/100</strong> · diferença {balance.technicalDifference.toFixed(1)}%</div>
+        <div>⚖️ Diferença física: idade {balance.ageDifference.toFixed(0)} anos · peso {balance.weightDifference.toFixed(1)} kg</div>
+        {physicalAlert && <div style={{ fontWeight: 700 }}>⚠️ Atenção: existe diferença física relevante entre os times.</div>}
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 7, fontSize: 10, opacity: .75 }}>{balance.classification}</div>
     </div>
   </div>;
 }
