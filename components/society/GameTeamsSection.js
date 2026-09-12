@@ -39,9 +39,7 @@ export default function GameTeamsSection({
     .map((id) => playersById.get(String(id)))
     .filter(Boolean);
 
-  const requiredPlayers = (Math.max(1, Number(playersPerTeam) || 1) + Math.max(0, Number(reservesPerTeam) || 0)) * 2;
-  const missingPlayers = Math.max(0, requiredPlayers - activePlayers.length);
-  const canDraw = activePlayers.length >= requiredPlayers;
+  const canDraw = activePlayers.length >= 2;
 
   const loadHistory = async () => {
     if (!game?.id) return;
@@ -167,9 +165,9 @@ export default function GameTeamsSection({
         <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
       ) : (
         <>
-          {canManage && !canDraw && (
+          {canManage && canDraw && (
             <div className="sf-muted-sm" role="status" style={{ marginBottom: 8 }}>
-              Sorteio indisponível: faltam {missingPlayers} {missingPlayers === 1 ? 'jogador' : 'jogadores'} para completar {playersPerTeam}x{playersPerTeam}{reservesPerTeam > 0 ? ` + ${reservesPerTeam} reserva${reservesPerTeam === 1 ? '' : 's'} por time` : ''}.
+              Sorteio disponível com {activePlayers.length} jogadores. A configuração da partida define o limite de cada time; com menos jogadores, a distribuição fica a mais equilibrada possível.
             </div>
           )}
           {canManage && (
