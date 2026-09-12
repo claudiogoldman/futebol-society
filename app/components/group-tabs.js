@@ -1,22 +1,22 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Settings, Users, CalendarDays, LayoutDashboard } from 'lucide-react';
+import { MapPin, Users, CalendarDays, LayoutDashboard } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const TABS = [
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'players', label: 'Jogadores', icon: Users },
   { id: 'games', label: 'Partidas', icon: CalendarDays },
-  { id: 'settings', label: 'Configurações', icon: Settings },
+  { id: 'locations', label: 'Locais', icon: MapPin },
 ];
 
 function classifySections(root) {
   const sections = Array.from(root.querySelectorAll(':scope > section.sf-card'));
   sections.forEach((section) => {
     const title = section.querySelector('.sf-card-title')?.textContent?.trim() || '';
-    if (title.includes('Padrões do grupo')) section.dataset.groupTab = 'settings overview';
-    else if (title.includes('Locais cadastrados')) section.dataset.groupTab = 'settings';
+    if (title.includes('Padrões do grupo')) section.dataset.groupTab = 'overview';
+    else if (title.includes('Locais cadastrados')) section.dataset.groupTab = 'locations';
     else if (title.includes('Membros')) section.dataset.groupTab = 'players';
     else if (title.includes('Partidas do grupo')) section.dataset.groupTab = 'games overview';
   });
