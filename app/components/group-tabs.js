@@ -23,6 +23,16 @@ function classifySections(root) {
   return sections;
 }
 
+function findGroupDetail() {
+  const candidates = Array.from(document.querySelectorAll('.sf-detail'));
+  return candidates.find((root) => {
+    const titles = Array.from(root.querySelectorAll(':scope > section.sf-card .sf-card-title'))
+      .map((node) => node.textContent?.trim() || '');
+    return titles.some((title) => title.includes('Padrões do grupo'))
+      || titles.some((title) => title.includes('Partidas do grupo'));
+  }) || null;
+}
+
 export default function GroupTabs() {
   const [target, setTarget] = useState(null);
   const [active, setActive] = useState('overview');
@@ -30,7 +40,7 @@ export default function GroupTabs() {
   useEffect(() => {
     let current = null;
     const sync = () => {
-      const next = document.querySelector('.sf-detail');
+      const next = findGroupDetail();
       if (next !== current) {
         current = next;
         setTarget(next || null);
