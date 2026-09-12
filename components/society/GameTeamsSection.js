@@ -39,6 +39,10 @@ export default function GameTeamsSection({
     .map((id) => playersById.get(String(id)))
     .filter(Boolean);
 
+  const requiredPlayers = (Math.max(1, Number(playersPerTeam) || 1) + Math.max(0, Number(reservesPerTeam) || 0)) * 2;
+  const missingPlayers = Math.max(0, requiredPlayers - activePlayers.length);
+  const canDraw = activePlayers.length >= requiredPlayers;
+
   const loadHistory = async () => {
     if (!game?.id) return;
     const { data, error } = await getGameDrawHistory(game.id);
@@ -73,6 +77,7 @@ export default function GameTeamsSection({
   }, [game?.id, game?.teamA, game?.teamB, game?.groupId]);
 
   const handleDraw = async () => {
+    if (!canDraw) return false;
     const result = await onDraw(game.id, activePlayers);
     await loadHistory();
     return result;
@@ -162,9 +167,14 @@ export default function GameTeamsSection({
         <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
       ) : (
         <>
+          {canManage && !canDraw && (
+            <div className="sf-muted-sm" role="status" style={{ marginBottom: 8 }}>
+              Sorteio indisponível: faltam {missingPlayers} {missingPlayers === 1 ? 'jogador' : 'jogadores'} para completar {playersPerTeam}x{playersPerTeam}{reservesPerTeam > 0 ? ` + ${reservesPerTeam} reserva${reservesPerTeam === 1 ? '' : 's'} por time` : ''}.
+            </div>
+          )}
           {canManage && (
             <div className="sf-modal-actions">
-              <button type="button" className="sf-btn-primary" onClick={handleDraw}>
+              <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}>
                 <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
               </button>
               {hasTeams && !editingTeams && (
