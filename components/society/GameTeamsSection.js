@@ -50,7 +50,20 @@ export default function GameTeamsSection({
       return;
     }
     setHistoryError('');
-    setDrawHistory(data || []);
+    const history = data || [];
+    setDrawHistory(history);
+
+    // The participant-removal flow invalidates the current draw and clears
+    // game_teams, but the immutable draw history remains the source of truth.
+    // Restore the displayed teams from the valid draw when the game row no
+    // longer carries the team arrays.
+    const validDraw = history.find((item) => item.is_valid);
+    if (!(game.teamA?.length || game.teamB?.length) && validDraw) {
+      setTeams({
+        teamA: resolvePlayers(validDraw.team_a_starters),
+        teamB: resolvePlayers(validDraw.team_b_starters),
+      });
+    }
   };
 
   const loadPenalties = async () => {
@@ -116,6 +129,11 @@ export default function GameTeamsSection({
     replacementInPlayers.length === 1 &&
     activePlayers.length === latestDrawIds.length
   );
+  const displayHasTeams = !!(
+    (teams.teamA?.length || teams.teamB?.length) ||
+    hasTeams ||
+    drawHistory.some((item) => (item.team_a_starters || []).length || (item.team_b_starters || []).length)
+  );
 
   const handleAdjustSingleReplacement = async () => {
     if (!canAdjustSingleReplacement) return false;
@@ -123,7 +141,7 @@ export default function GameTeamsSection({
     const inPlayer = replacementInPlayers[0];
     setAdjustingDraw(true);
     setHistoryError('');
-    const { data, error } = await adjustGameDrawForPlayerReplacement(game.id, outPlayer.id, inPlayer.id);
+    const { data, error } = await adjustGameDrawForPlayerReplacement(game.id, latestDraw.id, outPlayer.id, inPlayer.id);
     if (error) {
       setHistoryError(error.message || 'Não foi possível ajustar o sorteio.');
       setAdjustingDraw(false);
@@ -224,9 +242,9 @@ export default function GameTeamsSection({
         </div>
       )}
 
-      {!hasTeams && !canManage ? (
+      {!displayHasTeams && !canManage ? (
         <div className="sf-muted">O organizador ainda não sorteou os times.</div>
-      ) : activePlayers.length < 2 && !hasTeams ? (
+      ) : activePlayers.length < 2 && !displayHasTeams ? (
         <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
       ) : (
         <>
@@ -238,9 +256,9 @@ export default function GameTeamsSection({
           {canManage && (
             <div className="sf-modal-actions">
               <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}>
-                <Shuffle size={16} /> {hasTeams ? 'Sortear novamente' : 'Sortear times'}
+                <Shuffle size={16} /> {displayHasTeams ? 'Sortear novamente' : 'Sortear times'}
               </button>
-              {hasTeams && !editingTeams && (
+              {displayHasTeams && !editingTeams && !canAdjustSingleReplacement && (
                 <button type="button" className="sf-btn-ghost" onClick={() => {
                   const draft = {};
                   [...(teams.teamA || []), ...(teams.teamB || [])].forEach((p) => {
@@ -252,7 +270,7 @@ export default function GameTeamsSection({
               )}
             </div>
           )}
-          {hasTeams && (
+          {displayHasTeams && (
             <>
               {editingTeams && (
                 <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
