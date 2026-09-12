@@ -63,4 +63,18 @@ assert.equal(
   'all available players remain assigned when below configured capacity',
 );
 
-console.log(`Game domain tests passed: ${formats.length} configurable formats + OVR + balance + under-capacity scenarios.`);
+// Business rule: whenever there are at least 2 confirmed players, a draw must
+// be possible, even when the configured team capacity has not been reached.
+for (const count of [2, 3, 4, 5, 11, 13]) {
+  const result = drawTeams(players(count), () => 0.5, {
+    playersPerTeam: 6,
+    reservesPerTeam: 1,
+    candidates: 10,
+  });
+  assert.equal(result.teamA.length + result.teamB.length, count, `all ${count} confirmed players must be assigned`);
+  assert.ok(result.teamA.length >= 1 && result.teamB.length >= 1, `${count} players must produce two non-empty teams`);
+  assert.ok(Math.abs(result.teamA.length - result.teamB.length) <= 1, `${count} players must be distributed as evenly as possible`);
+  assert.ok(Math.abs(result.teamAStarters.length - result.teamBStarters.length) <= 1, `${count} starters must be distributed as evenly as possible`);
+}
+
+console.log(`Game domain tests passed: ${formats.length} configurable formats + OVR + balance + under-capacity + 2+ player draw scenarios.`);
