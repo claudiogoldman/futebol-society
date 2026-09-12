@@ -45,10 +45,7 @@ export default function GroupTabs() {
     return () => observer.disconnect();
   }, []);
 
-  const sections = useMemo(() => {
-    if (!target) return [];
-    return classifySections(target);
-  }, [target]);
+  const sections = useMemo(() => (target ? classifySections(target) : []), [target]);
 
   useEffect(() => {
     if (!target) return;
@@ -56,28 +53,64 @@ export default function GroupTabs() {
       const tabs = (section.dataset.groupTab || '').split(' ');
       section.style.display = tabs.includes(active) ? '' : 'none';
     });
-    return () => {
-      sections.forEach((section) => { section.style.display = ''; });
-    };
+    return () => sections.forEach((section) => { section.style.display = ''; });
   }, [target, sections, active]);
 
   if (!target) return null;
 
   return createPortal(
-    <div className="sf-group-tabs" role="tablist" aria-label="Navegação do grupo">
-      {TABS.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          role="tab"
-          aria-selected={active === id}
-          className={`sf-group-tab ${active === id ? 'sf-group-tab-on' : ''}`}
-          onClick={() => setActive(id)}
-        >
-          <Icon size={15} />
-          <span>{label}</span>
-        </button>
-      ))}
+    <div
+      className="sf-group-tabs"
+      role="tablist"
+      aria-label="Navegação do grupo"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gap: 6,
+        margin: '10px 0 12px',
+        padding: 5,
+        background: 'var(--pitch-mid)',
+        border: '1px solid var(--line)',
+        borderRadius: 12,
+        position: 'sticky',
+        top: 6,
+        zIndex: 20,
+      }}
+    >
+      {TABS.map(({ id, label, icon: Icon }) => {
+        const selected = active === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            className="sf-group-tab"
+            onClick={() => setActive(id)}
+            style={{
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              padding: '9px 5px',
+              borderRadius: 8,
+              border: selected ? '1px solid var(--floodlight)' : '1px solid transparent',
+              background: selected ? 'var(--floodlight)' : 'transparent',
+              color: selected ? 'var(--pitch-dark)' : 'var(--chalk-dim)',
+              fontSize: 11,
+              fontWeight: selected ? 700 : 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <Icon size={15} />
+            <span>{label}</span>
+          </button>
+        );
+      })}
     </div>,
     target,
     'group-tabs'
