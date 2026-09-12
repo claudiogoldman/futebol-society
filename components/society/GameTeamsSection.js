@@ -7,21 +7,8 @@ import DrawHistory from './DrawHistory';
 import { getGameDrawHistory, setValidGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
-  game,
-  roster,
-  activePlayers,
-  canManage,
-  hasTeams,
-  playersPerTeam,
-  reservesPerTeam,
-  editingTeams,
-  teamDraft,
-  setTeamDraft,
-  setEditingTeams,
-  onDraw,
-  onSaveTeams,
-  onGameRefresh,
-  isGoalkeeper,
+  game, roster, activePlayers, canManage, hasTeams, playersPerTeam, reservesPerTeam,
+  editingTeams, teamDraft, setTeamDraft, setEditingTeams, onDraw, onSaveTeams, onGameRefresh, isGoalkeeper,
 }) {
   const [drawHistory, setDrawHistory] = useState([]);
   const [teams, setTeams] = useState({ teamA: game.teamA || [], teamB: game.teamB || [] });
@@ -31,15 +18,8 @@ export default function GameTeamsSection({
   const [releasingPenaltyId, setReleasingPenaltyId] = useState(null);
   const [adjustingDraw, setAdjustingDraw] = useState(false);
 
-  const playersById = useMemo(
-    () => new Map(roster.map((player) => [String(player.id), player])),
-    [roster]
-  );
-
-  const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : [])
-    .map((id) => playersById.get(String(id)))
-    .filter(Boolean);
-
+  const playersById = useMemo(() => new Map(roster.map((player) => [String(player.id), player])), [roster]);
+  const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : []).map((id) => playersById.get(String(id))).filter(Boolean);
   const canDraw = activePlayers.length >= 2;
 
   const loadHistory = async () => {
@@ -53,29 +33,21 @@ export default function GameTeamsSection({
     const history = data || [];
     setDrawHistory(history);
 
-    // The participant-removal flow invalidates the current draw and clears
-    // game_teams, but the immutable draw history remains the source of truth.
-    // Restore the displayed teams from the valid draw when the game row no
-    // longer carries the team arrays.
-    const validDraw = history.find((item) => item.is_valid);
-    if (!(game.teamA?.length || game.teamB?.length) && validDraw) {
+    // Após a remoção, game_teams pode ser limpo e o sorteio ficar inválido.
+    // O histórico continua sendo a fonte de verdade para não perder visualmente os times.
+    const displayDraw = history.find((item) => item.is_valid) || history[0];
+    if (!(game.teamA?.length || game.teamB?.length) && displayDraw) {
       setTeams({
-        teamA: resolvePlayers(validDraw.team_a_starters),
-        teamB: resolvePlayers(validDraw.team_b_starters),
+        teamA: resolvePlayers(displayDraw.team_a_starters),
+        teamB: resolvePlayers(displayDraw.team_b_starters),
       });
     }
   };
 
   const loadPenalties = async () => {
-    if (!game?.groupId) {
-      setPenalties([]);
-      return;
-    }
+    if (!game?.groupId) { setPenalties([]); return; }
     const { data, error } = await getGameParticipationPenalties(game.groupId);
-    if (error) {
-      setPenaltyError(error.message || 'Não foi possível carregar os bloqueios.');
-      return;
-    }
+    if (error) { setPenaltyError(error.message || 'Não foi possível carregar os bloqueios.'); return; }
     setPenaltyError('');
     setPenalties(data || []);
   };
@@ -84,7 +56,6 @@ export default function GameTeamsSection({
     setTeams({ teamA: game.teamA || [], teamB: game.teamB || [] });
     loadHistory();
     loadPenalties();
-    // game.id identifies the history scope; team arrays are synchronized from parent below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id, game?.teamA, game?.teamB, game?.groupId]);
 
@@ -97,41 +68,26 @@ export default function GameTeamsSection({
 
   const handleSaveTeams = async () => {
     const ok = await onSaveTeams(game.id, teamDraft, activePlayers);
-    if (ok) {
-      setEditingTeams(false);
-      await loadHistory();
-    }
+    if (ok) { setEditingTeams(false); await loadHistory(); }
     return ok;
   };
 
   const latestDraw = drawHistory[0] || null;
   const latestDrawIds = useMemo(() => [
-    ...(latestDraw?.team_a_starters || []),
-    ...(latestDraw?.team_b_starters || []),
-    ...(latestDraw?.team_a_reserves || []),
-    ...(latestDraw?.team_b_reserves || []),
+    ...(latestDraw?.team_a_starters || []), ...(latestDraw?.team_b_starters || []),
+    ...(latestDraw?.team_a_reserves || []), ...(latestDraw?.team_b_reserves || []),
   ].map(String), [latestDraw]);
   const activeIds = useMemo(() => new Set(activePlayers.map((player) => String(player.id))), [activePlayers]);
   const drawIdsSet = useMemo(() => new Set(latestDrawIds), [latestDrawIds]);
-  const replacedOutPlayers = useMemo(
-    () => resolvePlayers(latestDrawIds.filter((id) => !activeIds.has(id))),
-    [latestDrawIds, activeIds, playersById]
-  );
-  const replacementInPlayers = useMemo(
-    () => activePlayers.filter((player) => !drawIdsSet.has(String(player.id))),
-    [activePlayers, drawIdsSet]
-  );
+  const replacedOutPlayers = useMemo(() => resolvePlayers(latestDrawIds.filter((id) => !activeIds.has(id))), [latestDrawIds, activeIds, playersById]);
+  const replacementInPlayers = useMemo(() => activePlayers.filter((player) => !drawIdsSet.has(String(player.id))), [activePlayers, drawIdsSet]);
   const canAdjustSingleReplacement = !!(
-    canManage &&
-    latestDraw &&
-    !latestDraw.is_valid &&
-    replacedOutPlayers.length === 1 &&
-    replacementInPlayers.length === 1 &&
+    canManage && latestDraw && !latestDraw.is_valid &&
+    replacedOutPlayers.length === 1 && replacementInPlayers.length === 1 &&
     activePlayers.length === latestDrawIds.length
   );
   const displayHasTeams = !!(
-    (teams.teamA?.length || teams.teamB?.length) ||
-    hasTeams ||
+    (teams.teamA?.length || teams.teamB?.length) || hasTeams ||
     drawHistory.some((item) => (item.team_a_starters || []).length || (item.team_b_starters || []).length)
   );
 
@@ -156,17 +112,14 @@ export default function GameTeamsSection({
   const handleRestoreDraw = async (drawId) => {
     const { data, error } = await setValidGameDraw(game.id, drawId);
     if (error) {
-      setHistoryError(error.message || 'Não foi possível restaurar o sorteio.');
+      const code = error.message || '';
+      setHistoryError(code.includes('DRAW_REQUIRES_FULL_ROSTER')
+        ? `Não é possível tornar este sorteio válido porque a partida tem ${activePlayers.length} jogadores confirmados e o sorteio possui ${latestDrawIds.length}. Confirme o novo jogador antes de validar.`
+        : code || 'Não foi possível restaurar o sorteio.');
       return false;
     }
-
     const selected = drawHistory.find((item) => String(item.id) === String(drawId));
-    if (selected) {
-      setTeams({
-        teamA: resolvePlayers(selected.team_a_starters),
-        teamB: resolvePlayers(selected.team_b_starters),
-      });
-    }
+    if (selected) setTeams({ teamA: resolvePlayers(selected.team_a_starters), teamB: resolvePlayers(selected.team_b_starters) });
     setHistoryError('');
     await onGameRefresh?.();
     await loadHistory();
@@ -176,18 +129,12 @@ export default function GameTeamsSection({
   const handleReleasePenalty = async (penaltyId) => {
     setReleasingPenaltyId(penaltyId);
     const { error } = await releaseGameParticipationPenalty(penaltyId);
-    if (error) {
-      setPenaltyError(error.message || 'Não foi possível liberar o bloqueio.');
-    } else {
-      await loadPenalties();
-      await onGameRefresh?.();
-    }
+    if (error) setPenaltyError(error.message || 'Não foi possível liberar o bloqueio.');
+    else { await loadPenalties(); await onGameRefresh?.(); }
     setReleasingPenaltyId(null);
   };
 
-  const blockedPlayers = penalties
-    .map((penalty) => ({ penalty, player: playersById.get(String(penalty.user_id)) }))
-    .filter(({ player }) => !!player);
+  const blockedPlayers = penalties.map((penalty) => ({ penalty, player: playersById.get(String(penalty.user_id)) })).filter(({ player }) => !!player);
 
   return (
     <section className="sf-card">
@@ -195,26 +142,13 @@ export default function GameTeamsSection({
 
       {canManage && blockedPlayers.length > 0 && (
         <div style={{ marginBottom: 12, padding: 10, border: '1px solid var(--sf-border)', borderRadius: 10, background: 'rgba(255, 193, 7, 0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 7 }}>
-            <LockKeyhole size={15} /> Participações bloqueadas
-          </div>
-          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
-            Estes jogadores não podem ser adicionados a este próximo jogo. O bloqueio pode ser liberado por um administrador.
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 7 }}><LockKeyhole size={15} /> Participações bloqueadas</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>Estes jogadores não podem ser adicionados a este próximo jogo. O bloqueio pode ser liberado por um administrador.</div>
           <div style={{ display: 'grid', gap: 6 }}>
             {blockedPlayers.map(({ penalty, player }) => (
               <div key={penalty.id} className="sf-rsvp-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <LockKeyhole size={14} />
-                <span style={{ flex: 1 }}>{player.name} <span className="sf-muted-sm">· próximo jogo</span></span>
-                <button
-                  type="button"
-                  className="sf-btn-ghost"
-                  disabled={releasingPenaltyId === penalty.id}
-                  onClick={() => handleReleasePenalty(penalty.id)}
-                  title="Liberar participação neste jogo"
-                >
-                  <Unlock size={14} /> {releasingPenaltyId === penalty.id ? 'Liberando...' : 'Liberar'}
-                </button>
+                <LockKeyhole size={14} /><span style={{ flex: 1 }}>{player.name} <span className="sf-muted-sm">· próximo jogo</span></span>
+                <button type="button" className="sf-btn-ghost" disabled={releasingPenaltyId === penalty.id} onClick={() => handleReleasePenalty(penalty.id)} title="Liberar participação neste jogo"><Unlock size={14} /> {releasingPenaltyId === penalty.id ? 'Liberando...' : 'Liberar'}</button>
               </div>
             ))}
           </div>
@@ -225,20 +159,9 @@ export default function GameTeamsSection({
 
       {canAdjustSingleReplacement && (
         <div style={{ marginBottom: 12, padding: 12, border: '1px solid var(--sf-border)', borderRadius: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 5 }}>
-            <RefreshCw size={15} /> Sorteio precisa de ajuste
-          </div>
-          <div className="sf-muted-sm" style={{ marginBottom: 9 }}>
-            {replacedOutPlayers[0].name} saiu e {replacementInPlayers[0].name} entrou. É possível substituir somente este jogador, preservando os demais times.
-          </div>
-          <button
-            type="button"
-            className="sf-btn-primary"
-            disabled={adjustingDraw}
-            onClick={handleAdjustSingleReplacement}
-          >
-            <RefreshCw size={16} /> {adjustingDraw ? 'Ajustando sorteio...' : 'Ajustar sorteio'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 5 }}><RefreshCw size={15} /> Sorteio precisa de ajuste</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 9 }}>{replacedOutPlayers[0].name} saiu e {replacementInPlayers[0].name} entrou. É possível substituir somente este jogador, preservando os demais times.</div>
+          <button type="button" className="sf-btn-primary" disabled={adjustingDraw} onClick={handleAdjustSingleReplacement}><RefreshCw size={16} /> {adjustingDraw ? 'Ajustando sorteio...' : 'Ajustar sorteio'}</button>
         </div>
       )}
 
@@ -248,69 +171,31 @@ export default function GameTeamsSection({
         <div className="sf-muted">Confirme pelo menos 2 jogadores para sortear.</div>
       ) : (
         <>
-          {canManage && canDraw && (
-            <div className="sf-muted-sm" role="status" style={{ marginBottom: 8 }}>
-              Sorteio disponível com {activePlayers.length} jogadores. A configuração da partida define o limite de cada time; com menos jogadores, a distribuição fica a mais equilibrada possível.
-            </div>
-          )}
-          {canManage && (
-            <div className="sf-modal-actions">
-              <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}>
-                <Shuffle size={16} /> {displayHasTeams ? 'Sortear novamente' : 'Sortear times'}
-              </button>
-              {displayHasTeams && !editingTeams && !canAdjustSingleReplacement && (
-                <button type="button" className="sf-btn-ghost" onClick={() => {
-                  const draft = {};
-                  [...(teams.teamA || []), ...(teams.teamB || [])].forEach((p) => {
-                    draft[p.id] = (teams.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B';
-                  });
-                  setTeamDraft(draft);
-                  setEditingTeams(true);
-                }}>Remanejar times</button>
-              )}
-            </div>
-          )}
-          {displayHasTeams && (
-            <>
-              {editingTeams && (
-                <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
-                  <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Distribuição dos times</div>
-                  {[...(teams.teamA || []), ...(teams.teamB || [])].map((p) => (
-                    <div key={p.id} className="sf-cost-row">
-                      <span>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span>
-                      <select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>
-                        <option value="A">Time A</option>
-                        <option value="B">Time B</option>
-                      </select>
-                    </div>
-                  ))}
-                  <div className="sf-modal-actions">
-                    <button type="button" className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button>
-                    <button type="button" className="sf-btn-primary" onClick={handleSaveTeams}>Salvar times</button>
-                  </div>
-                </div>
-              )}
-              <TacticalPitch
-                teamA={teams.teamA}
-                teamB={teams.teamB}
-                playersPerTeam={playersPerTeam}
-                reservesPerTeam={reservesPerTeam}
-              />
-              <div className="sf-teams-legend">
-                <div><span className="sf-dot sf-dot-a" /> Time A — {teams.teamA.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
-                <div><span className="sf-dot sf-dot-b" /> Time B — {teams.teamB.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div>
-              </div>
-            </>
-          )}
+          {canManage && canDraw && <div className="sf-muted-sm" role="status" style={{ marginBottom: 8 }}>Sorteio disponível com {activePlayers.length} jogadores. A configuração da partida define o limite de cada time; com menos jogadores, a distribuição fica a mais equilibrada possível.</div>}
+          {canManage && <div className="sf-modal-actions">
+            <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}><Shuffle size={16} /> {displayHasTeams ? 'Sortear novamente' : 'Sortear times'}</button>
+            {displayHasTeams && !editingTeams && !canAdjustSingleReplacement && <button type="button" className="sf-btn-ghost" onClick={() => {
+              const draft = {};
+              [...(teams.teamA || []), ...(teams.teamB || [])].forEach((p) => { draft[p.id] = (teams.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B'; });
+              setTeamDraft(draft);
+              setEditingTeams(true);
+            }}>Remanejar times</button>}
+          </div>}
+          {displayHasTeams && <>
+            {editingTeams && <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
+              <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Distribuição dos times</div>
+              {[...(teams.teamA || []), ...(teams.teamB || [])].map((p) => (
+                <div key={p.id} className="sf-cost-row"><span>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span><select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}><option value="A">Time A</option><option value="B">Time B</option></select></div>
+              ))}
+              <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button><button type="button" className="sf-btn-primary" onClick={handleSaveTeams}>Salvar times</button></div>
+            </div>}
+            <TacticalPitch teamA={teams.teamA} teamB={teams.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />
+            <div className="sf-teams-legend"><div><span className="sf-dot sf-dot-a" /> Time A — {teams.teamA.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div><div><span className="sf-dot sf-dot-b" /> Time B — {teams.teamB.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div></div>
+          </>}
         </>
       )}
 
-      <DrawHistory
-        history={drawHistory}
-        roster={roster}
-        canManage={canManage}
-        onRestore={handleRestoreDraw}
-      />
+      <DrawHistory history={drawHistory} roster={roster} canManage={canManage} onRestore={handleRestoreDraw} />
     </section>
   );
 }
