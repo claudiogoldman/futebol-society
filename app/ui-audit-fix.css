@@ -31,4 +31,20 @@
 .sf-app .sf-game-management-fab:focus-visible { outline: 3px solid rgba(255,255,255,.9); outline-offset: 3px; }
 .sf-modal select.sf-input + .sf-btn-ghost { width: auto; align-self: flex-start; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; margin-top: 6px; border-radius: 8px; font-size: 12px; }
 .sf-modal select.sf-input + .sf-btn-ghost:hover { border-color: var(--floodlight); color: var(--floodlight); }
-@media (max-width: 380px) { .sf-app .sf-game-management-fab { right: 14px; bottom: 86px; width: 50px; height: 50px; min-width: 50px; min-height: 50px; } }
+
+/* Draw history preview: never allow the modal or team cards to overflow the viewport. */
+.sf-draw-preview-backdrop { z-index: 1400; overflow: auto; box-sizing: border-box; }
+.sf-draw-preview-modal { width: min(680px, calc(100vw - 24px)); max-width: 100%; max-height: calc(100vh - 24px); overflow-y: auto; overflow-x: hidden; box-sizing: border-box; min-width: 0; }
+.sf-draw-preview-teams { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 14px; min-width: 0; }
+.sf-draw-preview-team { min-width: 0; overflow: hidden; }
+.sf-draw-preview-team .sf-rsvp-list { min-width: 0; }
+.sf-draw-preview-team .sf-rsvp-row { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+@media (max-width: 600px) {
+  .sf-draw-preview-backdrop { align-items: flex-start; padding: 12px; }
+  .sf-draw-preview-modal { width: calc(100vw - 24px); max-height: calc(100vh - 24px); border-radius: 14px; }
+  .sf-draw-preview-teams { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 380px) {
+  .sf-draw-preview-backdrop { padding: 8px; }
+  .sf-draw-preview-modal { width: calc(100vw - 16px); }
+}
