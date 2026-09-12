@@ -24,12 +24,11 @@ function classifySections(root) {
 }
 
 function findGroupDetail() {
-  const candidates = Array.from(document.querySelectorAll('.sf-detail'));
-  return candidates.find((root) => {
+  const roots = Array.from(document.querySelectorAll('.sf-detail'));
+  return roots.find((root) => {
     const titles = Array.from(root.querySelectorAll(':scope > section.sf-card .sf-card-title'))
-      .map((node) => node.textContent?.trim() || '');
-    return titles.some((title) => title.includes('Padrões do grupo'))
-      || titles.some((title) => title.includes('Partidas do grupo'));
+      .map((el) => el.textContent?.trim() || '');
+    return titles.some((title) => title.includes('Membros') || title.includes('Partidas do grupo') || title.includes('Padrões do grupo') || title.includes('Locais cadastrados'));
   }) || null;
 }
 
