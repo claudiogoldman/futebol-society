@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Layers } from 'lucide-react';
-import { setGroupParticipationPenaltySettings } from '../../lib/services/group-penalty-service';
+import { getGroupParticipationPenaltySettings, setGroupParticipationPenaltySettings } from '../../lib/services/group-penalty-service';
 
 /**
  * Presentation and persistence section for group defaults.
@@ -26,9 +26,31 @@ export default function GroupDefaults({
   const [penaltyError, setPenaltyError] = useState('');
 
   useEffect(() => {
-    setPenaltyEnabled(Boolean(read('participationPenaltyEnabled', 'participation_penalty_enabled', true)));
-    setPenaltyHours(Number(read('participationPenaltyHours', 'participation_penalty_hours', 24)));
-    setPenaltyGames(Number(read('participationPenaltyGames', 'participation_penalty_games', 1)));
+    let cancelled = false;
+    const loadPenaltySettings = async () => {
+      const fallbackEnabled = Boolean(read('participationPenaltyEnabled', 'participation_penalty_enabled', true));
+      const fallbackHours = Number(read('participationPenaltyHours', 'participation_penalty_hours', 24));
+      const fallbackGames = Number(read('participationPenaltyGames', 'participation_penalty_games', 1));
+      if (!group?.id) {
+        setPenaltyEnabled(fallbackEnabled);
+        setPenaltyHours(fallbackHours);
+        setPenaltyGames(fallbackGames);
+        return;
+      }
+      const { data, error } = await getGroupParticipationPenaltySettings(group.id);
+      if (cancelled) return;
+      if (error || !data) {
+        setPenaltyEnabled(fallbackEnabled);
+        setPenaltyHours(fallbackHours);
+        setPenaltyGames(fallbackGames);
+        return;
+      }
+      setPenaltyEnabled(Boolean(data.participation_penalty_enabled));
+      setPenaltyHours(Number(data.participation_penalty_hours));
+      setPenaltyGames(Number(data.participation_penalty_games));
+    };
+    loadPenaltySettings();
+    return () => { cancelled = true; };
   }, [group?.id, group?.participationPenaltyEnabled, group?.participationPenaltyHours, group?.participationPenaltyGames, group?.participation_penalty_enabled, group?.participation_penalty_hours, group?.participation_penalty_games]);
 
   const savePenalty = async () => {
