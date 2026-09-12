@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Shuffle, LockKeyhole, Unlock } from 'lucide-react';
+import { Shuffle, LockKeyhole, Unlock, RefreshCw } from 'lucide-react';
 import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
-import { getGameDrawHistory, setValidGameDraw, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
+import { getGameDrawHistory, setValidGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
   game,
@@ -29,6 +29,7 @@ export default function GameTeamsSection({
   const [penalties, setPenalties] = useState([]);
   const [penaltyError, setPenaltyError] = useState('');
   const [releasingPenaltyId, setReleasingPenaltyId] = useState(null);
+  const [adjustingDraw, setAdjustingDraw] = useState(false);
 
   const playersById = useMemo(
     () => new Map(roster.map((player) => [String(player.id), player])),
@@ -88,6 +89,50 @@ export default function GameTeamsSection({
       await loadHistory();
     }
     return ok;
+  };
+
+  const latestDraw = drawHistory[0] || null;
+  const latestDrawIds = useMemo(() => [
+    ...(latestDraw?.team_a_starters || []),
+    ...(latestDraw?.team_b_starters || []),
+    ...(latestDraw?.team_a_reserves || []),
+    ...(latestDraw?.team_b_reserves || []),
+  ].map(String), [latestDraw]);
+  const activeIds = useMemo(() => new Set(activePlayers.map((player) => String(player.id))), [activePlayers]);
+  const drawIdsSet = useMemo(() => new Set(latestDrawIds), [latestDrawIds]);
+  const replacedOutPlayers = useMemo(
+    () => resolvePlayers(latestDrawIds.filter((id) => !activeIds.has(id))),
+    [latestDrawIds, activeIds, playersById]
+  );
+  const replacementInPlayers = useMemo(
+    () => activePlayers.filter((player) => !drawIdsSet.has(String(player.id))),
+    [activePlayers, drawIdsSet]
+  );
+  const canAdjustSingleReplacement = !!(
+    canManage &&
+    latestDraw &&
+    !latestDraw.is_valid &&
+    replacedOutPlayers.length === 1 &&
+    replacementInPlayers.length === 1 &&
+    activePlayers.length === latestDrawIds.length
+  );
+
+  const handleAdjustSingleReplacement = async () => {
+    if (!canAdjustSingleReplacement) return false;
+    const outPlayer = replacedOutPlayers[0];
+    const inPlayer = replacementInPlayers[0];
+    setAdjustingDraw(true);
+    setHistoryError('');
+    const { data, error } = await adjustGameDrawForPlayerReplacement(game.id, outPlayer.id, inPlayer.id);
+    if (error) {
+      setHistoryError(error.message || 'Não foi possível ajustar o sorteio.');
+      setAdjustingDraw(false);
+      return false;
+    }
+    await onGameRefresh?.();
+    await loadHistory();
+    setAdjustingDraw(false);
+    return !!data;
   };
 
   const handleRestoreDraw = async (drawId) => {
@@ -159,6 +204,26 @@ export default function GameTeamsSection({
       )}
       {canManage && penaltyError && <div className="sf-muted-sm" role="alert" style={{ marginBottom: 8 }}>{penaltyError}</div>}
       {historyError && <div className="sf-muted-sm" role="alert" style={{ marginBottom: 8 }}>{historyError}</div>}
+
+      {canAdjustSingleReplacement && (
+        <div style={{ marginBottom: 12, padding: 12, border: '1px solid var(--sf-border)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 5 }}>
+            <RefreshCw size={15} /> Sorteio precisa de ajuste
+          </div>
+          <div className="sf-muted-sm" style={{ marginBottom: 9 }}>
+            {replacedOutPlayers[0].name} saiu e {replacementInPlayers[0].name} entrou. É possível substituir somente este jogador, preservando os demais times.
+          </div>
+          <button
+            type="button"
+            className="sf-btn-primary"
+            disabled={adjustingDraw}
+            onClick={handleAdjustSingleReplacement}
+          >
+            <RefreshCw size={16} /> {adjustingDraw ? 'Ajustando sorteio...' : 'Ajustar sorteio'}
+          </button>
+        </div>
+      )}
+
       {!hasTeams && !canManage ? (
         <div className="sf-muted">O organizador ainda não sorteou os times.</div>
       ) : activePlayers.length < 2 && !hasTeams ? (
