@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Shuffle, LockKeyhole, Unlock, RefreshCw } from 'lucide-react';
 import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
+import { supabase } from '../../lib/supabaseClient';
+import { computeRanking } from '../../lib/domain/ranking';
 import { getGameDrawHistory, setValidGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
@@ -56,9 +58,92 @@ export default function GameTeamsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.id, game?.teamA, game?.teamB, game?.groupId]);
 
+  const buildDrawPlayers = async () => {
+    const basePlayers = activePlayers.map((player, index) => ({ ...player, _confirmationOrder: index }));
+    if (!game?.groupId || basePlayers.length < 2) return basePlayers;
+
+    const { data: gameRows, error: gamesError } = await supabase
+      .from('games')
+      .select('id,group_id,score_a,score_b')
+      .eq('group_id', game.groupId);
+    if (gamesError || !gameRows?.length) return basePlayers;
+
+    const gameIds = gameRows.map((row) => row.id);
+    const [teamsRes, goalsRes, ratingsRes] = await Promise.all([
+      supabase.from('game_teams').select('game_id,user_id,team,role').in('game_id', gameIds),
+      supabase.from('goals').select('game_id,user_id,goals').in('game_id', gameIds),
+      supabase.from('ratings').select('game_id,rater_id,rated_id,score').in('game_id', gameIds),
+    ]);
+    if (teamsRes.error) return basePlayers;
+
+    const profileById = new Map(roster.map((player) => [String(player.id), player]));
+    const teamsByGame = new Map();
+    (teamsRes.data || []).forEach((row) => {
+      if (!teamsByGame.has(row.game_id)) teamsByGame.set(row.game_id, []);
+      teamsByGame.get(row.game_id).push(row);
+    });
+    const scorersByGame = new Map();
+    (goalsRes.data || []).forEach((row) => {
+      if (!scorersByGame.has(row.game_id)) scorersByGame.set(row.game_id, {});
+      scorersByGame.get(row.game_id)[row.user_id] = Number(row.goals) || 0;
+    });
+    const ratingsByGame = new Map();
+    (ratingsRes.data || []).forEach((row) => {
+      if (!ratingsByGame.has(row.game_id)) ratingsByGame.set(row.game_id, {});
+      const byRater = ratingsByGame.get(row.game_id);
+      if (!byRater[row.rater_id]) byRater[row.rater_id] = {};
+      byRater[row.rater_id][row.rated_id] = row.score;
+    });
+
+    const completedGames = gameRows.filter((row) => row.score_a != null && row.score_b != null).map((row) => {
+      const rows = teamsByGame.get(row.id) || [];
+      return {
+        result: { scoreA: Number(row.score_a), scoreB: Number(row.score_b), scorers: scorersByGame.get(row.id) || {} },
+        assists: {},
+        ratings: ratingsByGame.get(row.id) || {},
+        teamA: rows.filter((teamRow) => teamRow.team === 'A' && (teamRow.role === 'starter' || teamRow.role == null)).map((teamRow) => profileById.get(String(teamRow.user_id))).filter(Boolean),
+        teamB: rows.filter((teamRow) => teamRow.team === 'B' && (teamRow.role === 'starter' || teamRow.role == null)).map((teamRow) => profileById.get(String(teamRow.user_id))).filter(Boolean),
+      };
+    });
+
+    const ranking = computeRanking(roster, completedGames);
+    const rankingById = new Map(ranking.map((row) => [String(row.id), row]));
+    const conceded = new Map();
+    completedGames.forEach((completedGame) => {
+      const scoreA = completedGame.result.scoreA;
+      const scoreB = completedGame.result.scoreB;
+      completedGame.teamA.forEach((player) => {
+        if (!isGoalkeeper(player)) return;
+        const current = conceded.get(String(player.id)) || { goals: 0, games: 0 };
+        current.goals += scoreB;
+        current.games += 1;
+        conceded.set(String(player.id), current);
+      });
+      completedGame.teamB.forEach((player) => {
+        if (!isGoalkeeper(player)) return;
+        const current = conceded.get(String(player.id)) || { goals: 0, games: 0 };
+        current.goals += scoreA;
+        current.games += 1;
+        conceded.set(String(player.id), current);
+      });
+    });
+
+    return basePlayers.map((player) => {
+      const stat = rankingById.get(String(player.id));
+      const keeperStat = conceded.get(String(player.id));
+      return {
+        ...player,
+        _rankingPoints: stat?.pontos || 0,
+        _wins: stat?.vit || 0,
+        _goalsConcededPerGame: keeperStat && keeperStat.games > 0 ? keeperStat.goals / keeperStat.games : null,
+      };
+    });
+  };
+
   const handleDraw = async () => {
     if (!canDraw) return false;
-    const result = await onDraw(game.id, activePlayers);
+    const drawPlayers = await buildDrawPlayers();
+    const result = await onDraw(game.id, drawPlayers);
     await loadHistory();
     return result;
   };
