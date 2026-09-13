@@ -32,9 +32,6 @@ export default function GameTeamsSection({
     setHistoryError('');
     const history = data || [];
     setDrawHistory(history);
-
-    // Após a remoção, game_teams pode ser limpo e o sorteio ficar inválido.
-    // O histórico continua sendo a fonte de verdade para não perder visualmente os times.
     const displayDraw = history.find((item) => item.is_valid) || history[0];
     if (!(game.teamA?.length || game.teamB?.length) && displayDraw) {
       setTeams({
@@ -140,15 +137,15 @@ export default function GameTeamsSection({
     <section className="sf-card">
       <div className="sf-card-title"><Shuffle size={16} /> Times</div>
 
-      {canManage && blockedPlayers.length > 0 && (
+      {blockedPlayers.length > 0 && (
         <div style={{ marginBottom: 12, padding: 10, border: '1px solid var(--sf-border)', borderRadius: 10, background: 'rgba(255, 193, 7, 0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 7 }}><LockKeyhole size={15} /> Participações bloqueadas</div>
-          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>Estes jogadores não podem ser adicionados a este próximo jogo. O bloqueio pode ser liberado por um administrador.</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>Estes jogadores não podem ser adicionados ao próximo jogo. Um administrador pode liberar a participação antecipadamente.</div>
           <div style={{ display: 'grid', gap: 6 }}>
             {blockedPlayers.map(({ penalty, player }) => (
               <div key={penalty.id} className="sf-rsvp-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <LockKeyhole size={14} /><span style={{ flex: 1 }}>{player.name} <span className="sf-muted-sm">· próximo jogo</span></span>
-                <button type="button" className="sf-btn-ghost" disabled={releasingPenaltyId === penalty.id} onClick={() => handleReleasePenalty(penalty.id)} title="Liberar participação neste jogo"><Unlock size={14} /> {releasingPenaltyId === penalty.id ? 'Liberando...' : 'Liberar'}</button>
+                <LockKeyhole size={14} /><span style={{ flex: 1 }}>{player.name} <span className="sf-muted-sm">· bloqueado</span></span>
+                {canManage && <button type="button" className="sf-btn-ghost" disabled={releasingPenaltyId === penalty.id} onClick={() => handleReleasePenalty(penalty.id)} title="Liberar participação neste jogo"><Unlock size={14} /> {releasingPenaltyId === penalty.id ? 'Liberando...' : 'Liberar'}</button>}
               </div>
             ))}
           </div>
