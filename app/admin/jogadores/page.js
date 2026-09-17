@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Phone, Search, Shield, UserRound, RefreshCw, Trash2 } from 'lucide-react';
+import { Mail, Phone, Search, Shield, UserRound, RefreshCw, Trash2, Pencil } from 'lucide-react';
+import Link from 'next/link';
 import { supabase } from '../../../lib/supabaseClient';
 
 function displayName(player) {
@@ -25,15 +26,10 @@ export default function AdminPlayersPage() {
   const [error, setError] = useState('');
 
   const load = async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     const { data, error: rpcError } = await supabase.rpc('get_admin_players_with_email');
-    if (rpcError) {
-      setError(errorMessage(rpcError.message));
-      setPlayers([]);
-    } else {
-      setPlayers(data || []);
-    }
+    if (rpcError) { setError(errorMessage(rpcError.message)); setPlayers([]); }
+    else setPlayers(data || []);
     setLoading(false);
   };
 
@@ -60,39 +56,43 @@ export default function AdminPlayersPage() {
     <main style={{ minHeight: '100vh', padding: '24px 16px', background: '#f5f7f5', color: '#132018' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 800 }}><Shield size={22} /> Jogadores</div>
-            <div style={{ marginTop: 5, color: '#607064' }}>Lista administrativa com o e-mail usado na conta.</div>
-          </div>
-          <button onClick={load} disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 12px', border: '1px solid #cbd5ce', borderRadius: 10, background: '#fff', cursor: 'pointer' }}><RefreshCw size={15} /> Atualizar</button>
+          <div><div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 24, fontWeight: 800 }}><Shield size={22} /> Jogadores</div><div style={{ marginTop: 5, color: '#607064' }}>Lista administrativa com o e-mail usado na conta.</div></div>
+          <button onClick={load} disabled={loading} style={styles.refresh}><RefreshCw size={15} /> Atualizar</button>
         </div>
-
-        <div style={{ position: 'relative', marginBottom: 14 }}>
-          <Search size={17} style={{ position: 'absolute', left: 12, top: 12, color: '#718078' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, apelido ou e-mail" style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px 11px 38px', border: '1px solid #cbd5ce', borderRadius: 10, background: '#fff', outline: 'none' }} />
-        </div>
-
-        {error ? <div style={{ padding: 14, borderRadius: 10, background: '#fff0f0', color: '#9b2525', marginBottom: 14 }}>{error}</div> : null}
-        {loading ? <div style={{ padding: 24, textAlign: 'center', color: '#607064' }}>Carregando jogadores...</div> : null}
-
+        <div style={{ position: 'relative', marginBottom: 14 }}><Search size={17} style={{ position: 'absolute', left: 12, top: 12, color: '#718078' }} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, apelido ou e-mail" style={styles.search} /></div>
+        {error ? <div style={styles.error}>{error}</div> : null}
+        {loading ? <div style={styles.loading}>Carregando jogadores...</div> : null}
         {!loading && !error ? (
-          <div style={{ background: '#fff', border: '1px solid #dbe2dc', borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5eae6', color: '#607064', fontSize: 13 }}>{filtered.length} jogador(es)</div>
+          <div style={styles.table}>
+            <div style={styles.count}>{filtered.length} jogador(es)</div>
             {filtered.map((player) => (
-              <div key={player.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(210px, 1.25fr) minmax(220px, 1.35fr) minmax(130px, .8fr) auto', gap: 14, alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #eef1ee' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  {player.avatar_url ? <img src={player.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#eef3ef' }}><UserRound size={19} /></div>}
-                  <div style={{ minWidth: 0 }}><div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName(player)}</div>{player.nickname && player.nickname.trim() && player.name !== displayName(player) ? <div style={{ color: '#718078', fontSize: 12 }}>{player.name}</div> : null}</div>
+              <div key={player.id} style={styles.row}>
+                <div style={styles.identity}>
+                  {player.avatar_url ? <img src={player.avatar_url} alt="" style={styles.avatar} /> : <div style={styles.avatarFallback}><UserRound size={19} /></div>}
+                  <div style={{ minWidth: 0 }}><div style={styles.name}>{displayName(player)}</div>{player.nickname && player.nickname.trim() && player.name !== displayName(player) ? <div style={styles.subname}>{player.name}</div> : null}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, color: '#26362b' }}><Mail size={16} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{player.email || 'E-mail não disponível'}</span></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#607064', fontSize: 14 }}><Phone size={15} />{player.phone || 'Não informado'}{player.is_admin ? <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#315c3d' }}>ADMIN</span> : null}</div>
-                <button onClick={() => remove(player)} disabled={busyId === player.id || player.is_admin} title={player.is_admin ? 'Conta administrativa protegida' : 'Excluir usuário'} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', border: '1px solid #e1b8b8', borderRadius: 9, background: player.is_admin ? '#f3f3f3' : '#fff6f6', color: player.is_admin ? '#8a8a8a' : '#9b2525', cursor: player.is_admin ? 'not-allowed' : 'pointer' }}><Trash2 size={15} /> {busyId === player.id ? 'Excluindo...' : 'Excluir'}</button>
+                <div style={styles.info}><Mail size={16} /><span>{player.email || 'E-mail não disponível'}</span></div>
+                <div style={styles.info}><Phone size={15} />{player.phone || 'Não informado'}{player.is_admin ? <span style={styles.admin}>ADMIN</span> : null}</div>
+                <div style={styles.actions}>
+                  <Link href={`/admin/jogadores/${player.id}`} style={styles.edit}><Pencil size={15} /> Editar</Link>
+                  <button onClick={() => remove(player)} disabled={busyId === player.id || player.is_admin} title={player.is_admin ? 'Conta administrativa protegida' : 'Excluir usuário'} style={styles.delete}><Trash2 size={15} /> {busyId === player.id ? 'Excluindo...' : 'Excluir'}</button>
+                </div>
               </div>
             ))}
-            {!filtered.length ? <div style={{ padding: 30, textAlign: 'center', color: '#607064' }}>Nenhum jogador encontrado.</div> : null}
+            {!filtered.length ? <div style={styles.loading}>Nenhum jogador encontrado.</div> : null}
           </div>
         ) : null}
       </div>
     </main>
   );
 }
+
+const styles = {
+  refresh: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 12px', border: '1px solid #cbd5ce', borderRadius: 10, background: '#fff', cursor: 'pointer' },
+  search: { width: '100%', boxSizing: 'border-box', padding: '11px 12px 11px 38px', border: '1px solid #cbd5ce', borderRadius: 10, background: '#fff', outline: 'none' },
+  error: { padding: 14, borderRadius: 10, background: '#fff0f0', color: '#9b2525', marginBottom: 14 },
+  loading: { padding: 24, textAlign: 'center', color: '#607064' },
+  table: { background: '#fff', border: '1px solid #dbe2dc', borderRadius: 14, overflow: 'hidden' }, count: { padding: '12px 16px', borderBottom: '1px solid #e5eae6', color: '#607064', fontSize: 13 },
+  row: { display: 'grid', gridTemplateColumns: 'minmax(190px,1.15fr) minmax(200px,1.25fr) minmax(120px,.75fr) auto', gap: 12, alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #eef1ee' },
+  identity: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }, avatar: { width: 38, height: 38, borderRadius: '50%', objectFit: 'cover' }, avatarFallback: { width: 38, height: 38, borderRadius: '50%', display: 'grid', placeItems: 'center', background: '#eef3ef' }, name: { fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, subname: { color: '#718078', fontSize: 12 }, info: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, color: '#26362b', fontSize: 14, overflow: 'hidden' }, admin: { marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#315c3d' }, actions: { display: 'flex', alignItems: 'center', gap: 7 }, edit: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 10px', border: '1px solid #cbd5ce', borderRadius: 9, background: '#fff', color: '#315c3d', textDecoration: 'none', fontWeight: 700, fontSize: 13 }, delete: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', border: '1px solid #e1b8b8', borderRadius: 9, background: '#fff6f6', color: '#9b2525', cursor: 'pointer', fontSize: 13 },
+};
