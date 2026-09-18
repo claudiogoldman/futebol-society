@@ -2079,8 +2079,8 @@ function MainApp({ session }) {
                       </div>
                       <StarRating value={p.rating} readOnly onChange={() => {}} />
                       {playerMeta(p) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(p)}</div>}
-                      {me?.is_admin && (!p.age || !p.weight_kg || !Array.isArray(p.positions) || p.positions.length === 0) && (
-                        <button type="button" className="sf-admin-toggle" onClick={() => setEditingProfilePlayer(p)}>Completar perfil</button>
+                      {me?.is_admin && (
+                        <button type="button" className="sf-admin-toggle" onClick={() => { window.location.href = `/admin/jogadores/${p.id}`; }}>Editar perfil completo</button>
                       )}
                       {canManageSelectedGroupAdmins && p.id !== selectedElencoGroup.createdBy && (
                         <button className="sf-admin-toggle" onClick={() => {
@@ -2315,8 +2315,8 @@ function MainApp({ session }) {
             <div className="sf-h3" style={{ marginTop: 14 }}>{viewingCardPlayer.name}</div>
             {playerMeta(viewingCardPlayer) && <div className="sf-muted-sm" style={{ marginTop: 3 }}>{playerMeta(viewingCardPlayer)}</div>}
             <StarRating value={viewingCardPlayer.rating} readOnly size={18} onChange={() => {}} />
-            {me?.is_admin && (!viewingCardPlayer.age || !viewingCardPlayer.weight_kg || !Array.isArray(viewingCardPlayer.positions) || viewingCardPlayer.positions.length === 0) && (
-              <button type="button" className="sf-btn-primary" onClick={() => { setEditingProfilePlayer(viewingCardPlayer); setViewingCardPlayer(null); }}>Completar perfil</button>
+            {me?.is_admin && (
+              <button type="button" className="sf-btn-primary" onClick={() => { window.location.href = `/admin/jogadores/${viewingCardPlayer.id}`; }}>Editar perfil completo</button>
             )}
             <button className="sf-btn-ghost" style={{ marginTop: 14 }} onClick={() => setViewingCardPlayer(null)}>Fechar</button>
           </div>
