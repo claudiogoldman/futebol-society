@@ -1964,6 +1964,7 @@ function MainApp({ session }) {
             onBack={() => setSelectedGameId(null)}
             onToggleMyRSVP={toggleMyRSVP}
             onAddParticipant={addParticipant}
+            onAddPostgamePlayer={addPostgamePlayer}
             onAddGuest={addGuest}
             onOpenGroup={(groupId) => { setTab('grupos'); setSelectedGroupId(groupId); setSelectedGameId(null); }}
             onRemoveParticipant={removeParticipant}
