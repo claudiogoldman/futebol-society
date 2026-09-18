@@ -553,7 +553,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               onChange={(e) => setPostgamePlayerDraft(e.target.value)}
             >
               <option value="">Selecionar jogador...</option>
-              {profiles
+              {roster
                 .filter((p) =>
                   !game.confirmed.some((id) => String(id) === String(p.id)) &&
                   !allPlayers.some((item) => String(item.id) === String(p.id))
