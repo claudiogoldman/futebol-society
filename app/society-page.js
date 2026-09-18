@@ -17,7 +17,7 @@ import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/doma
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -396,7 +396,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -426,6 +426,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [teamDraft, setTeamDraft] = useState({});
   const [participantFilter, setParticipantFilter] = useState('todos');
   const [activeGameTab, setActiveGameTab] = useState('local');
+  const [postgamePlayerDraft, setPostgamePlayerDraft] = useState('');
+  const [postgameTeamDraft, setPostgameTeamDraft] = useState('A');
 
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
@@ -536,6 +538,55 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button></div>
           </div>
         </div>
+      )}
+
+      {isAdmin && game.result && (
+        <section className="sf-card" data-game-section="resultado">
+          <div className="sf-card-title"><Shield size={16} /> Correção administrativa pós-partida</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
+            Inclua um jogador que participou da partida e informe o time em que ele jogou. O sistema passa a considerar a participação e o time no ranking e nas estatísticas derivadas da partida.
+          </div>
+          <div className="sf-management-player-add">
+            <select
+              className="sf-input"
+              value={postgamePlayerDraft}
+              onChange={(e) => setPostgamePlayerDraft(e.target.value)}
+            >
+              <option value="">Selecionar jogador...</option>
+              {roster
+                .filter((p) =>
+                  !game.confirmed.some((id) => String(id) === String(p.id)) &&
+                  !allPlayers.some((item) => String(item.id) === String(p.id))
+                )
+                .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select
+              className="sf-input"
+              value={postgameTeamDraft}
+              onChange={(e) => setPostgameTeamDraft(e.target.value)}
+            >
+              <option value="A">Time A</option>
+              <option value="B">Time B</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            className="sf-btn-primary"
+            disabled={!postgamePlayerDraft}
+            onClick={async () => {
+              const ok = await onAddPostgamePlayer(game.id, postgamePlayerDraft, postgameTeamDraft);
+              if (ok) {
+                setPostgamePlayerDraft('');
+                setPostgameTeamDraft('A');
+              }
+            }}
+          >
+            <Plus size={16} /> Adicionar participação pós-partida
+          </button>
+          <div className="sf-muted-sm" style={{ marginTop: 8 }}>
+            O jogador será registrado como titular do time informado. Não é feito novo sorteio.
+          </div>
+        </section>
       )}
 
       <GameTabs activeTab={activeGameTab} onChange={setActiveGameTab} />
@@ -1440,6 +1491,26 @@ function MainApp({ session }) {
     await loadAll();
   };
 
+  const addPostgamePlayer = async (gameId, userId, team) => {
+    if (!me?.is_admin) return false;
+    const { error } = await serviceAdminAddPostgamePlayer(gameId, userId, team);
+    if (error) {
+      const messages = {
+        ADMIN_ONLY: 'Acesso restrito ao administrador.',
+        GAME_NOT_FOUND: 'Partida não encontrada.',
+        GAME_NOT_FINISHED: 'A partida ainda não foi encerrada.',
+        PLAYER_NOT_FOUND: 'Jogador não encontrado.',
+        PLAYER_ALREADY_IN_GAME: 'Esse jogador já está registrado na partida.',
+        INVALID_TEAM: 'Time inválido. Escolha Time A ou Time B.',
+        INVALID_INPUT: 'Informe o jogador e o time.',
+      };
+      alert(messages[error.message] || 'Não foi possível adicionar o jogador após a partida: ' + error.message);
+      return false;
+    }
+    await loadAll();
+    return true;
+  };
+
   const removeParticipant = async (gameId, userId) => {
     const { error } = await removeGameParticipant(gameId, userId);
     if (error) { alert('Não foi possível remover o jogador: ' + error.message); return; }
@@ -1893,6 +1964,7 @@ function MainApp({ session }) {
             onBack={() => setSelectedGameId(null)}
             onToggleMyRSVP={toggleMyRSVP}
             onAddParticipant={addParticipant}
+            onAddPostgamePlayer={addPostgamePlayer}
             onAddGuest={addGuest}
             onOpenGroup={(groupId) => { setTab('grupos'); setSelectedGroupId(groupId); setSelectedGameId(null); }}
             onRemoveParticipant={removeParticipant}
