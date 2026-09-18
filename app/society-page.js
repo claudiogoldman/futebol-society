@@ -17,7 +17,7 @@ import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/doma
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -459,6 +459,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   // record/correct the final score.
   const canManage = !game.result && myId === game.createdBy || isGameAdmin;
   const canRecordResult = myId === game.createdBy || isGameAdmin;
+  const canDelete = isAdmin || canManage;
   const organizer = roster.find((p) => p.id === (game.organizerId || game.createdBy));
   // pix key/receiver/city are per-game settings (whoever is collecting for THAT
   // match may differ from the organizer), falling back to sensible defaults
@@ -500,7 +501,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             <Settings size={24} />
           </button>
         )}
-        {canManage && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)}><Trash2 size={18} /></button>}
+        {canDelete && <button className="sf-icon-btn sf-danger" onClick={() => onDelete(game.id)} title="Excluir partida" aria-label="Excluir partida"><Trash2 size={18} /></button>}
       </div>
 
       {canManage && managementOpen && (
@@ -1671,7 +1672,13 @@ function MainApp({ session }) {
   };
 
   const deleteGame = async (gameId) => {
-    const { error } = await serviceDeleteGame(gameId);
+    const game = games.find((item) => item.id === gameId);
+    const label = game ? [formatDatePtBr(game.date), game.local || 'Local a definir'].filter(Boolean).join(' · ') : 'esta partida';
+    if (!window.confirm('Excluir ' + label + '?\\n\\nEsta operação não pode ser desfeita. Os registros vinculados serão removidos conforme as regras de integridade do banco.')) return false;
+    const response = me?.is_admin
+      ? await serviceAdminDeleteGame(gameId)
+      : await serviceDeleteGame(gameId);
+    const { error } = response;
     if (error) { alert('Não foi possível excluir a partida: ' + error.message); return false; }
     setSelectedGameId(null);
     await loadAll();
