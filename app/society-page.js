@@ -540,54 +540,6 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         </div>
       )}
 
-      {isAdmin && game.result && (
-        <section className="sf-card" data-game-section="resultado">
-          <div className="sf-card-title"><Shield size={16} /> Correção administrativa pós-partida</div>
-          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
-            Inclua um jogador que participou da partida e informe o time em que ele jogou. O sistema passa a considerar a participação e o time no ranking e nas estatísticas derivadas da partida.
-          </div>
-          <div className="sf-management-player-add">
-            <select
-              className="sf-input"
-              value={postgamePlayerDraft}
-              onChange={(e) => setPostgamePlayerDraft(e.target.value)}
-            >
-              <option value="">Selecionar jogador...</option>
-              {roster
-                .filter((p) =>
-                  !game.confirmed.some((id) => String(id) === String(p.id)) &&
-                  !allPlayers.some((item) => String(item.id) === String(p.id))
-                )
-                .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <select
-              className="sf-input"
-              value={postgameTeamDraft}
-              onChange={(e) => setPostgameTeamDraft(e.target.value)}
-            >
-              <option value="A">Time A</option>
-              <option value="B">Time B</option>
-            </select>
-          </div>
-          <button
-            type="button"
-            className="sf-btn-primary"
-            disabled={!postgamePlayerDraft}
-            onClick={async () => {
-              const ok = await onAddPostgamePlayer(game.id, postgamePlayerDraft, postgameTeamDraft);
-              if (ok) {
-                setPostgamePlayerDraft('');
-                setPostgameTeamDraft('A');
-              }
-            }}
-          >
-            <Plus size={16} /> Adicionar participação pós-partida
-          </button>
-          <div className="sf-muted-sm" style={{ marginTop: 8 }}>
-            O jogador será registrado como titular do time informado. Não é feito novo sorteio.
-          </div>
-        </section>
-      )}
 
       <GameTabs activeTab={activeGameTab} onChange={setActiveGameTab} />
 
@@ -722,6 +674,56 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
         )}
         {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10 }} onClick={() => setManagementOpen(true)}><Users size={16} /> Adicionar jogador</button>}
       </section>
+
+      {isAdmin && game.result && (
+        <section className="sf-card" data-game-section="participantes">
+          <div className="sf-card-title"><Shield size={16} /> Correção administrativa pós-partida</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
+            Inclua um jogador que participou da partida e informe o time em que ele jogou. O sistema passa a considerar a participação e o time no ranking e nas estatísticas derivadas da partida.
+          </div>
+          <div className="sf-management-player-add">
+            <select
+              className="sf-input"
+              value={postgamePlayerDraft}
+              onChange={(e) => setPostgamePlayerDraft(e.target.value)}
+            >
+              <option value="">Selecionar jogador...</option>
+              {roster
+                .filter((p) =>
+                  !game.confirmed.some((id) => String(id) === String(p.id)) &&
+                  !allPlayers.some((item) => String(item.id) === String(p.id))
+                )
+                .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select
+              className="sf-input"
+              value={postgameTeamDraft}
+              onChange={(e) => setPostgameTeamDraft(e.target.value)}
+            >
+              <option value="A">Time A</option>
+              <option value="B">Time B</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            className="sf-btn-primary"
+            disabled={!postgamePlayerDraft}
+            onClick={async () => {
+              const ok = await onAddPostgamePlayer(game.id, postgamePlayerDraft, postgameTeamDraft);
+              if (ok) {
+                setPostgamePlayerDraft('');
+                setPostgameTeamDraft('A');
+              }
+            }}
+          >
+            <Plus size={16} /> Adicionar participação pós-partida
+          </button>
+          <div className="sf-muted-sm" style={{ marginTop: 8 }}>
+            O jogador será registrado como titular do time informado. Não é feito novo sorteio.
+          </div>
+        </section>
+      )}
+
 
       <section data-game-section="times">
         <GameTeamsSection
