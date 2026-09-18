@@ -689,10 +689,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
             >
               <option value="">Selecionar jogador...</option>
               {roster
-                .filter((p) =>
-                  !game.confirmed.some((id) => String(id) === String(p.id)) &&
-                  !allPlayers.some((item) => String(item.id) === String(p.id))
-                )
+                .filter((p) => !game.confirmed.some((id) => String(id) === String(p.id)))
                 .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <select
@@ -1227,9 +1224,9 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
         ))}
         {canManage && (
           <>
-            <button type="button" className="sf-btn-primary" style={{ marginTop: 10 }} onClick={() => setLocationModalOpen(true)}>
-              <Plus size={16} /> Cadastrar novo local
-            </button>
+            <div className="sf-muted-sm" style={{ marginTop: 10 }}>
+              Os locais do grupo são cadastrados durante a criação/edição de uma partida.
+            </div>
             {locationModalOpen && (
               <div className="sf-modal-backdrop" onClick={() => setLocationModalOpen(false)}>
                 <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
