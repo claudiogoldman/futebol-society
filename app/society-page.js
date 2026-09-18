@@ -1230,7 +1230,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             {locationModalOpen && (
               <div className="sf-modal-backdrop" onClick={() => setLocationModalOpen(false)}>
                 <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
-                  <div className="sf-modal-title">{editingLocationId ? 'Editar local' : 'Cadastrar novo local'}</div>
+                  <div className="sf-modal-title">{editingLocationId ? 'Editar local' : 'Novo local'}</div>
                   <label className="sf-field-label">Nome da quadra / arena</label>
                   <input autoFocus className="sf-input" placeholder="Ex.: Arena Soccer" value={locationDraft.name} onChange={(e) => setLocationDraft({ ...locationDraft, name: e.target.value })} />
                   <label className="sf-field-label">Endereço</label>
@@ -2238,7 +2238,7 @@ function MainApp({ session }) {
                     <option key={l.id} value={l.id}>{l.name}{l.is_default ? ' · padrão' : ''}</option>
                   ))}
                 </select>
-                <button type="button" className="sf-btn-ghost" style={{ marginTop: 6 }} onClick={() => setInlineLocationOpen((v) => !v)}>{inlineLocationOpen ? 'Fechar cadastro de local' : 'Cadastrar novo local sem sair da partida'}</button>
+                <button type="button" className="sf-btn-ghost" style={{ marginTop: 6 }} onClick={() => setInlineLocationOpen((v) => !v)}>{inlineLocationOpen ? 'Fechar cadastro de local' : 'Novo local'}</button>
                 {inlineLocationOpen && <div className="sf-card" style={{ marginTop: 8 }}>
                   <label className="sf-field-label">Nome do local</label><input className="sf-input" placeholder="Quadra / arena" value={inlineLocationDraft.name} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, name: e.target.value })} />
                   <label className="sf-field-label">Endereço</label><input className="sf-input" placeholder="Rua, número, complemento" value={inlineLocationDraft.address} onChange={(e) => setInlineLocationDraft({ ...inlineLocationDraft, address: e.target.value })} />
