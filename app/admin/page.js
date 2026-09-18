@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Shield, Users, Layers3, ArrowRight } from 'lucide-react';
+import { Shield, Users, Layers3, CalendarDays, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 export default function AdminPage() {
   const [allowed, setAllowed] = useState(null);
-  const [stats, setStats] = useState({ players: 0, groups: 0 });
+  const [stats, setStats] = useState({ players: 0, groups: 0, games: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -16,11 +16,12 @@ export default function AdminPage() {
         setAllowed(false);
         return;
       }
-      const [{ data: players }, { data: groups }] = await Promise.all([
+      const [{ data: players }, { data: groups }, { data: games }] = await Promise.all([
         supabase.rpc('get_admin_players_with_email'),
         supabase.rpc('get_admin_groups'),
+        supabase.rpc('get_admin_games'),
       ]);
-      setStats({ players: players?.length || 0, groups: groups?.length || 0 });
+      setStats({ players: players?.length || 0, groups: groups?.length || 0, games: games?.length || 0 });
       setAllowed(true);
     };
     load();
@@ -51,6 +52,12 @@ export default function AdminPage() {
             <Layers3 size={28} />
             <strong>Grupos</strong>
             <span>{stats.groups} grupos</span>
+            <span style={styles.action}>Gerenciar <ArrowRight size={15} /></span>
+          </Link>
+          <Link href="/admin/partidas" style={styles.cardLink}>
+            <CalendarDays size={28} />
+            <strong>Partidas</strong>
+            <span>{stats.games} partidas</span>
             <span style={styles.action}>Gerenciar <ArrowRight size={15} /></span>
           </Link>
         </div>
