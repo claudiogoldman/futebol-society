@@ -2033,6 +2033,7 @@ function MainApp({ session }) {
             onAddParticipant={addParticipant}
             onAddPostgamePlayer={addPostgamePlayer}
             onAddGuest={addGuest}
+            onUpdateGuestProfile={updateGuestProfile}
             onOpenGroup={(groupId) => { setTab('grupos'); setSelectedGroupId(groupId); setSelectedGameId(null); }}
             onRemoveParticipant={removeParticipant}
             onSetCost={setCost}
