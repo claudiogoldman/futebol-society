@@ -6,7 +6,7 @@ import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
 import { supabase } from '../../lib/supabaseClient';
 import { computeRanking } from '../../lib/domain/ranking';
-import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
+import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawForPlayerReplacement, promoteDrawReserveToStarter, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
   game, roster, activePlayers, canManage, hasTeams, playersPerTeam, reservesPerTeam,
@@ -168,10 +168,36 @@ export default function GameTeamsSection({
     replacedOutPlayers.length === 1 && replacementInPlayers.length === 1 &&
     activePlayers.length === latestDrawIds.length
   );
+  const latestStarterCountA = latestDraw ? (latestDraw.team_a_starters || []).length : 0;
+  const latestStarterCountB = latestDraw ? (latestDraw.team_b_starters || []).length : 0;
+  const latestReserveCount = latestDraw ? (latestDraw.team_a_reserves || []).length + (latestDraw.team_b_reserves || []).length : 0;
+  const canPromoteSingleReserve = !!(
+    canManage && latestDraw &&
+    latestReserveCount === 1 &&
+    ((latestStarterCountA === Math.max(1, Number(playersPerTeam) || 5) - 1 && latestStarterCountB === Math.max(1, Number(playersPerTeam) || 5)) ||
+     (latestStarterCountB === Math.max(1, Number(playersPerTeam) || 5) - 1 && latestStarterCountA === Math.max(1, Number(playersPerTeam) || 5))) &&
+    latestDrawIds.length === activePlayers.length
+  );
   const displayHasTeams = !!(
     (teams.teamA?.length || teams.teamB?.length) || hasTeams ||
     drawHistory.some((item) => (item.team_a_starters || []).length || (item.team_b_starters || []).length)
   );
+
+  const handlePromoteSingleReserve = async () => {
+    if (!canPromoteSingleReserve) return false;
+    setAdjustingDraw(true);
+    setHistoryError('');
+    const { data, error } = await promoteDrawReserveToStarter(game.id, latestDraw.id);
+    if (error) {
+      setHistoryError(error.message || 'Não foi possível colocar a reserva em campo.');
+      setAdjustingDraw(false);
+      return false;
+    }
+    await onGameRefresh?.();
+    await loadHistory();
+    setAdjustingDraw(false);
+    return !!data;
+  };
 
   const handleAdjustSingleReplacement = async () => {
     if (!canAdjustSingleReplacement) return false;
@@ -257,6 +283,14 @@ export default function GameTeamsSection({
       )}
       {canManage && penaltyError && <div className="sf-muted-sm" role="alert" style={{ marginBottom: 8 }}>{penaltyError}</div>}
       {historyError && <div className="sf-muted-sm" role="alert" style={{ marginBottom: 8 }}>{historyError}</div>}
+
+      {canPromoteSingleReserve && (
+        <div style={{ marginBottom: 12, padding: 12, border: '1px solid var(--sf-border)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, marginBottom: 5 }}><RefreshCw size={15} /> Corrigir distribuição</div>
+          <div className="sf-muted-sm" style={{ marginBottom: 9 }}>Há uma vaga titular vazia e uma reserva no sorteio. A reserva será colocada em campo sem realizar um novo sorteio.</div>
+          <button type="button" className="sf-btn-primary" disabled={adjustingDraw} onClick={handlePromoteSingleReserve}><RefreshCw size={16} /> {adjustingDraw ? 'Corrigindo...' : 'Colocar reserva em campo'}</button>
+        </div>
+      )}
 
       {canAdjustSingleReplacement && (
         <div style={{ marginBottom: 12, padding: 12, border: '1px solid var(--sf-border)', borderRadius: 10 }}>
