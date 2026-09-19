@@ -1600,7 +1600,16 @@ function MainApp({ session }) {
   const handleDraw = async (gameId, confirmedPlayers) => {
     const game = games.find((g) => g.id === gameId);
     if (!game) { alert('Partida não encontrada.'); return false; }
-    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(confirmedPlayers, Math.random, { playersPerTeam: game.playersPerTeam || 5, reservesPerTeam: game.reservesPerTeam || 0 });
+    // Com exatamente a capacidade dos dois times não existe reserva.
+    // Reserva só entra quando há jogadores além de playersPerTeam * 2.
+    const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
+    const configuredReserves = Math.max(0, Number(game.reservesPerTeam) || 0);
+    const effectiveReserves = confirmedPlayers.length > playersPerTeam * 2 ? configuredReserves : 0;
+    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(
+      confirmedPlayers,
+      Math.random,
+      { playersPerTeam, reservesPerTeam: effectiveReserves },
+    );
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
     await loadAll();
