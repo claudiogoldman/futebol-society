@@ -1,0 +1,82 @@
+-- Guests belong only to the game. Their confirmation must not create
+-- group-member notifications because they are not group members.
+create or replace function private.notify_game_confirmation_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  target uuid;
+  game_group uuid;
+  event_type text;
+  actor uuid;
+  participant uuid;
+  v_is_guest boolean;
+begin
+  participant := coalesce(new.user_id, old.user_id);
+
+  select exists (
+    select 1
+    from public.game_guests gg
+    where gg.game_id = coalesce(new.game_id, old.game_id)
+      and gg.profile_id = participant
+  ) into v_is_guest;
+
+  -- A guest is scoped exclusively to this game. Do not generate
+  -- group-level confirmation notifications for a guest.
+  if v_is_guest then
+    return coalesce(new, old);
+  end if;
+
+  actor := participant;
+
+  select g.group_id
+    into game_group
+    from public.games g
+   where g.id = coalesce(new.game_id, old.game_id);
+
+  if game_group is null then
+    return coalesce(new, old);
+  end if;
+
+  event_type := case
+    when tg_op = 'INSERT' then 'game_player_confirmed'
+    else 'game_player_unconfirmed'
+  end;
+
+  for target in
+    select distinct gm.user_id
+      from public.group_members gm
+     where gm.group_id = game_group
+       and gm.user_id <> actor
+  loop
+    insert into public.notifications (
+      user_id,
+      actor_id,
+      type,
+      title,
+      body,
+      game_id,
+      group_id
+    )
+    values (
+      target,
+      actor,
+      event_type,
+      case
+        when tg_op = 'INSERT' then 'Nova confirmação na partida'
+        else 'Cancelamento de presença'
+      end,
+      case
+        when tg_op = 'INSERT' then 'Um jogador confirmou presença na partida.'
+        else 'Um jogador cancelou a presença na partida.'
+      end,
+      coalesce(new.game_id, old.game_id),
+      game_group
+    );
+  end loop;
+
+  return coalesce(new, old);
+end;
+$function$;
