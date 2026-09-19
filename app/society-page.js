@@ -1620,14 +1620,36 @@ function MainApp({ session }) {
   };
 
   const handleSaveTeams = async (gameId, teamDraft, activePlayers) => {
-    const teamA = activePlayers.filter((p) => teamDraft[p.id] !== 'B').map((p) => p.id);
-    const teamB = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
     if (activePlayers.length < 2) { alert('É necessário ter pelo menos 2 jogadores para definir os times.'); return false; }
-    if (!teamA.length || !teamB.length) { alert('Distribua os jogadores entre os dois times.'); return false; }
-    const aStarters = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole !== 'reserve').map((p) => p.id);
-    const bStarters = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole !== 'reserve').map((p) => p.id);
-    const aReserves = activePlayers.filter((p) => teamDraft[p.id] === 'A' && p._teamRole === 'reserve').map((p) => p.id);
-    const bReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B' && p._teamRole === 'reserve').map((p) => p.id);
+    const playersPerTeam = Math.max(1, Number(games.find((g) => g.id === gameId)?.playersPerTeam) || 5);
+    const reservesPerTeam = Math.max(0, Number(games.find((g) => g.id === gameId)?.reservesPerTeam) || 0);
+    const effectiveReserves = activePlayers.length > playersPerTeam * 2 ? reservesPerTeam : 0;
+
+    const aStarters = activePlayers.filter((p) => teamDraft[p.id] === 'A').map((p) => p.id);
+    const bStarters = activePlayers.filter((p) => teamDraft[p.id] === 'B').map((p) => p.id);
+    const aReserves = activePlayers.filter((p) => teamDraft[p.id] === 'A-reserve').map((p) => p.id);
+    const bReserves = activePlayers.filter((p) => teamDraft[p.id] === 'B-reserve').map((p) => p.id);
+
+    const assigned = new Set([...aStarters, ...bStarters, ...aReserves, ...bReserves]);
+    if (assigned.size !== activePlayers.length) {
+      alert('Todos os jogadores confirmados precisam estar em um time.');
+      return false;
+    }
+    if (!aStarters.length || !bStarters.length) {
+      alert('Cada time precisa ter pelo menos um titular.');
+      return false;
+    }
+    if (aStarters.length > playersPerTeam || bStarters.length > playersPerTeam) {
+      alert(`Cada time pode ter no máximo ${playersPerTeam} titulares.`);
+      return false;
+    }
+    if (aReserves.length > effectiveReserves || bReserves.length > effectiveReserves) {
+      alert(effectiveReserves > 0
+        ? `Cada time pode ter no máximo ${effectiveReserves} reserva(s).`
+        : 'Com este número de jogadores não há reservas: os 10 jogadores devem ficar como titulares.');
+      return false;
+    }
+
     const { error } = await setGameTeams(gameId, aStarters, bStarters, aReserves, bReserves);
     if (error) { alert('Não foi possível salvar os times: ' + error.message); return false; }
     await loadAll();
