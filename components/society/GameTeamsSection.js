@@ -336,17 +336,48 @@ export default function GameTeamsSection({
               <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
                 Todos os jogadores confirmados aparecem aqui. Você pode colocar um novo jogador como titular ou reserva.
               </div>
-              {activePlayers.map((p) => (
-                <div key={p.id} className="sf-cost-row">
-                  <span style={{ flex: 1 }}>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span>
-                  <select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>
-                    <option value="A">Time A · Titular</option>
-                    <option value="B">Time B · Titular</option>
-                    {activePlayers.length > playersPerTeam * 2 && reservesPerTeam > 0 && <option value="A-reserve">Time A · Reserva</option>}
-                    {activePlayers.length > playersPerTeam * 2 && reservesPerTeam > 0 && <option value="B-reserve">Time B · Reserva</option>}
-                  </select>
-                </div>
-              ))}
+              {activePlayers.map((p) => {
+                const selected = teamDraft[p.id] || '';
+                const canReserve = activePlayers.length > playersPerTeam * 2 && reservesPerTeam > 0;
+                const choices = [
+                  { value: 'A', label: 'A · Titular' },
+                  { value: 'B', label: 'B · Titular' },
+                  ...(canReserve ? [
+                    { value: 'A-reserve', label: 'A · Reserva' },
+                    { value: 'B-reserve', label: 'B · Reserva' },
+                  ] : []),
+                ];
+                return (
+                  <div key={p.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                      <span style={{ flex: 1, fontWeight: 600 }}>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span>
+                      <span className="sf-muted-sm" style={{ marginTop: 0 }}>
+                        {selected ? choices.find((choice) => choice.value === selected)?.label : 'Escolha o time'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: canReserve ? '1fr 1fr' : '1fr 1fr', gap: 6 }}>
+                      {choices.map((choice) => (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          onClick={() => setTeamDraft((d) => ({ ...d, [p.id]: choice.value }))}
+                          style={{
+                            padding: '9px 6px',
+                            borderRadius: 8,
+                            border: selected === choice.value ? '2px solid var(--floodlight)' : '1px solid var(--line)',
+                            background: selected === choice.value ? 'rgba(255,197,61,0.14)' : 'var(--pitch-dark)',
+                            color: selected === choice.value ? 'var(--floodlight)' : 'var(--chalk-dim)',
+                            fontWeight: selected === choice.value ? 700 : 500,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {choice.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
               <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button><button type="button" className="sf-btn-primary" onClick={handleSaveTeams}>Salvar times</button></div>
             </div>}
             <TacticalPitch teamA={teams.teamA} teamB={teams.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />
