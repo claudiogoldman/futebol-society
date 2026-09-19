@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Clock3, Star, Trophy, Users } from 'lucide-react';
+import { Clock3, Star, Trophy, Users, Trash2 } from 'lucide-react';
 import { calculateTeamBalance } from '../../lib/domain/game';
 
 function drawIds(value) {
@@ -17,7 +17,7 @@ function formatDrawDate(value) {
   }
 }
 
-export default function DrawHistory({ history = [], roster = [], canManage = false, onRestore }) {
+export default function DrawHistory({ history = [], roster = [], canManage = false, onRestore, onDelete }) {
   const playersById = useMemo(() => new Map(roster.map((p) => [String(p.id), p])), [roster]);
 
   const resolvePlayers = (value) => drawIds(value).map((id) => playersById.get(id)).filter(Boolean);
@@ -66,9 +66,10 @@ export default function DrawHistory({ history = [], roster = [], canManage = fal
                 {reservesA.length > 0 && <div>Reservas A — {reservesA.join(', ')}</div>}
                 {reservesB.length > 0 && <div>Reservas B — {reservesB.join(', ')}</div>}
               </div>
-              {canManage && !item.is_valid && (
+              {canManage && (
                 <div className="sf-modal-actions" style={{ marginTop: 8 }}>
-                  <button type="button" className="sf-btn-primary" onClick={() => onRestore?.(item.id)}><Star size={15} /> Tornar válido</button>
+                  {!item.is_valid && <button type="button" className="sf-btn-primary" onClick={() => onRestore?.(item.id)}><Star size={15} /> Tornar válido</button>}
+                  <button type="button" className="sf-btn-ghost" onClick={() => onDelete?.(item.id)}><Trash2 size={15} /> Excluir</button>
                 </div>
               )}
             </div>
