@@ -6,7 +6,7 @@ import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
 import { supabase } from '../../lib/supabaseClient';
 import { computeRanking } from '../../lib/domain/ranking';
-import { getGameDrawHistory, setValidGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
+import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawForPlayerReplacement, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
   game, roster, activePlayers, canManage, hasTeams, playersPerTeam, reservesPerTeam,
@@ -34,7 +34,7 @@ export default function GameTeamsSection({
     setHistoryError('');
     const history = data || [];
     setDrawHistory(history);
-    const displayDraw = history.find((item) => item.is_valid) || history[0];
+    const displayDraw = history.find((item) => item.is_valid);
     if (!(game.teamA?.length || game.teamB?.length) && displayDraw) {
       setTeams({
         teamA: resolvePlayers(displayDraw.team_a_starters),
@@ -191,6 +191,25 @@ export default function GameTeamsSection({
     return !!data;
   };
 
+  const handleDeleteDraw = async (drawId) => {
+    const selected = drawHistory.find((item) => String(item.id) === String(drawId));
+    if (!selected) return false;
+    const confirmed = window.confirm(selected.is_valid
+      ? 'Excluir este sorteio válido? Os times atuais serão removidos e nenhum outro sorteio será validado automaticamente.'
+      : 'Excluir este sorteio do histórico?');
+    if (!confirmed) return false;
+    const { data, error } = await deleteGameDraw(game.id, drawId);
+    if (error) {
+      setHistoryError(error.message || 'Não foi possível excluir o sorteio.');
+      return false;
+    }
+    setTeams({ teamA: [], teamB: [] });
+    setHistoryError('');
+    await onGameRefresh?.();
+    await loadHistory();
+    return !!data;
+  };
+
   const handleRestoreDraw = async (drawId) => {
     const { data, error } = await setValidGameDraw(game.id, drawId);
     if (error) {
@@ -277,7 +296,7 @@ export default function GameTeamsSection({
         </>
       )}
 
-      <DrawHistory history={drawHistory} roster={roster} canManage={canManage} onRestore={handleRestoreDraw} />
+      <DrawHistory history={drawHistory} roster={roster} canManage={canManage} onRestore={handleRestoreDraw} onDelete={handleDeleteDraw} />
     </section>
   );
 }
