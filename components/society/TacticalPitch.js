@@ -39,6 +39,11 @@ function assignSlots(players, mirrored, playersPerTeam, reservesPerTeam) {
   const transform = (slot) => ({ ...slot, y: mirrored ? 100 - slot.y : slot.y });
   const roleSlots = STARTER_SLOTS.map(transform);
   const fallbackSlots = FALLBACK_SLOTS.map(transform);
+  // O slot de goleiro só pode ser usado por um jogador que tenha
+  // explicitamente a posição "goleiro". Sem goleiro cadastrado, os demais
+  // jogadores usam apenas posições de linha/fallback.
+  const fieldRoleSlots = roleSlots.filter((slot) => slot.pos !== 'goleiro');
+  const fieldFallbackSlots = fallbackSlots;
   const assigned = [];
   const used = [];
 
@@ -52,8 +57,16 @@ function assignSlots(players, mirrored, playersPerTeam, reservesPerTeam) {
 
   starters.forEach((player) => {
     const positions = Array.isArray(player?.positions) ? player.positions : [];
+    const isPlayerGoalkeeper = positions.includes('goleiro');
     const preferred = roleSlots.find((slot) => positions.includes(slot.pos) && isFree(slot));
-    const slot = takeSlot(preferred);
+    const slot = isPlayerGoalkeeper
+      ? takeSlot(preferred)
+      : (() => {
+          const candidates = [preferred, ...fieldRoleSlots, ...fieldFallbackSlots].filter((candidate) => candidate && candidate.pos !== 'goleiro');
+          const candidate = candidates.find((item) => isFree(item));
+          if (candidate) used.push(candidate);
+          return candidate;
+        })();
     if (slot) assigned.push({ player, ...slot, reserve: false });
   });
 
