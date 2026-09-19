@@ -311,7 +311,21 @@ export default function GameTeamsSection({
             <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}><Shuffle size={16} /> {displayHasTeams ? 'Sortear novamente' : 'Sortear times'}</button>
             {displayHasTeams && !editingTeams && !canAdjustSingleReplacement && <button type="button" className="sf-btn-ghost" onClick={() => {
               const draft = {};
-              [...(teams.teamA || []), ...(teams.teamB || [])].forEach((p) => { draft[p.id] = (teams.teamA || []).some((x) => x.id === p.id) ? 'A' : 'B'; });
+              const currentA = new Map((teams.teamA || []).map((p) => [String(p.id), p]));
+              const currentB = new Map((teams.teamB || []).map((p) => [String(p.id), p]));
+              const starterCountA = (teams.teamA || []).filter((p) => p._teamRole !== 'reserve').length;
+              const starterCountB = (teams.teamB || []).filter((p) => p._teamRole !== 'reserve').length;
+              const reserveCountA = (teams.teamA || []).filter((p) => p._teamRole === 'reserve').length;
+              const reserveCountB = (teams.teamB || []).filter((p) => p._teamRole === 'reserve').length;
+              const reservesAllowed = activePlayers.length > playersPerTeam * 2;
+              activePlayers.forEach((p) => {
+                const id = String(p.id);
+                if (currentA.has(id)) draft[p.id] = currentA.get(id)._teamRole === 'reserve' ? 'A-reserve' : 'A';
+                else if (currentB.has(id)) draft[p.id] = currentB.get(id)._teamRole === 'reserve' ? 'B-reserve' : 'B';
+                else if (reservesAllowed && reserveCountA < reservesPerTeam) draft[p.id] = 'A-reserve';
+                else if (reservesAllowed && reserveCountB < reservesPerTeam) draft[p.id] = 'B-reserve';
+                else draft[p.id] = starterCountA <= starterCountB ? 'A' : 'B';
+              });
               setTeamDraft(draft);
               setEditingTeams(true);
             }}>Remanejar times</button>}
@@ -319,8 +333,19 @@ export default function GameTeamsSection({
           {displayHasTeams && <>
             {editingTeams && <div className="sf-card" style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)' }}>
               <div className="sf-card-subtitle" style={{ marginTop: 0 }}>Distribuição dos times</div>
-              {[...(teams.teamA || []), ...(teams.teamB || [])].map((p) => (
-                <div key={p.id} className="sf-cost-row"><span>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span><select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}><option value="A">Time A</option><option value="B">Time B</option></select></div>
+              <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
+                Todos os jogadores confirmados aparecem aqui. Você pode colocar um novo jogador como titular ou reserva.
+              </div>
+              {activePlayers.map((p) => (
+                <div key={p.id} className="sf-cost-row">
+                  <span style={{ flex: 1 }}>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</span>
+                  <select className="sf-input-inline" value={teamDraft[p.id] || ''} onChange={(e) => setTeamDraft((d) => ({ ...d, [p.id]: e.target.value }))}>
+                    <option value="A">Time A · Titular</option>
+                    <option value="B">Time B · Titular</option>
+                    {activePlayers.length > playersPerTeam * 2 && reservesPerTeam > 0 && <option value="A-reserve">Time A · Reserva</option>}
+                    {activePlayers.length > playersPerTeam * 2 && reservesPerTeam > 0 && <option value="B-reserve">Time B · Reserva</option>}
+                  </select>
+                </div>
               ))}
               <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button><button type="button" className="sf-btn-primary" onClick={handleSaveTeams}>Salvar times</button></div>
             </div>}
