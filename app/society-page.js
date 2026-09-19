@@ -17,7 +17,7 @@ import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/doma
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
-import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
 
 // ---------- helpers ----------
 
@@ -396,7 +396,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
+function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onUpdateGuestProfile, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -438,6 +438,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const reservesPerTeam = Math.max(0, Number(game.reservesPerTeam) || 0);
   const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;
   const activePlayers = confirmedPlayers.slice(0, maxPlayers);
+  const guestByProfileId = useMemo(() => new Map((game.guests || []).map((guest) => [String(guest.profile_id), guest])), [game.guests]);
   const waitlistIds = game.waitlist || [];
   const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
   const participantList = participantFilter === 'inscritos'
@@ -533,7 +534,33 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>
               <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>
               <div className="sf-management-subtitle">Jogadores confirmados</div>
-              <div className="sf-rsvp-list">{activePlayers.map((p) => <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`}><span className="sf-rsvp-name"><PositionTags player={p} />{p.name}{p.id === myId ? ' (você)' : ''}</span><StarRating value={p.rating} readOnly size={12} onChange={() => {}} />{p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}</div>)}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>
+              <div className="sf-rsvp-list">{activePlayers.map((p) => {
+                const guest = guestByProfileId.get(String(p.id));
+                const position = Array.isArray(p.positions) && p.positions.length ? p.positions[0] : '';
+                return (
+                  <div key={p.id} className={`sf-rsvp-row sf-rsvp-on ${p.id === myId ? 'sf-rsvp-me' : ''}`} style={{ alignItems: 'center' }}>
+                    <span className="sf-rsvp-name"><PositionTags player={p} />{p.name}{guest ? ' · convidado' : ''}{p.id === myId ? ' (você)' : ''}</span>
+                    <StarRating
+                      value={Number(p.rating) || 3}
+                      readOnly={!guest || !canManage}
+                      size={14}
+                      onChange={(value) => onUpdateGuestProfile?.(game.id, guest.id, value, position)}
+                    />
+                    {guest && canManage && (
+                      <select
+                        className="sf-input-inline"
+                        value={position}
+                        title="Posição do convidado nesta partida"
+                        onChange={(e) => onUpdateGuestProfile?.(game.id, guest.id, Number(p.rating) || 3, e.target.value)}
+                      >
+                        <option value="">Posição</option>
+                        {POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}
+                      </select>
+                    )}
+                    {p.id !== myId && <button type="button" className="sf-mini-btn" title="Remover jogador da partida" onClick={() => onRemoveParticipant(game.id, p.id)}>×</button>}
+                  </div>
+                );
+              })}{activePlayers.length === 0 && <div className="sf-muted">Nenhum jogador confirmado.</div>}</div>
             </section>
             <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setManagementOpen(false)}>Fechar</button></div>
           </div>
@@ -1360,10 +1387,11 @@ function MainApp({ session }) {
   };
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, gameGuestsRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
+      supabase.from('game_guests').select('id,game_id,profile_id,name,email,accepted_at'),
       supabase.from('game_waitlist').select('*').order('queued_at', { ascending: true }).order('id', { ascending: true }),
       supabase.from('game_teams').select('*'),
       supabase.from('payments').select('*'),
@@ -1375,6 +1403,7 @@ function MainApp({ session }) {
     ]);
     const profs = (profilesRes.data || []).map((p) => ({ ...p, accountName: p.name, name: displayName(p) }));
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
+    const gameGuestRows = gameGuestsRes.data || [];
     const assembled = (gamesRes.data || []).map((g) => {
       // ordered by confirmed_at so the waitlist (anyone past max_players) is well defined
       const confirmed = (confRes.data || [])
@@ -1410,6 +1439,7 @@ function MainApp({ session }) {
         groupId: g.group_id || null,
         organizerId: g.organizer_id || null,
         confirmed, waitlist, teamA, teamB, payments, scorers, assists, ratings,
+        guests: gameGuestRows.filter((guest) => guest.game_id === g.id),
         result: (g.score_a != null && g.score_b != null) ? { scoreA: g.score_a, scoreB: g.score_b, scorers } : null,
       };
     });
@@ -1472,6 +1502,13 @@ function MainApp({ session }) {
       }
     })();
   }, [loadAll]);
+
+  const updateGuestProfile = async (gameId, guestId, rating, position) => {
+    const { error } = await serviceUpdateGameGuestProfile(gameId, guestId, rating, position);
+    if (error) { alert('Não foi possível ajustar o perfil do convidado: ' + error.message); return false; }
+    await loadAll();
+    return true;
+  };
 
   const addGuest = async (gameId, name, email, position) => {
     const { error } = await serviceAddGameGuest(gameId, name, email, position);
