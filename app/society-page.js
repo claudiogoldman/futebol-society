@@ -420,7 +420,6 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const [participantDraft, setParticipantDraft] = useState('');
   const [managementOpen, setManagementOpen] = useState(false);
   const [guestNameDraft, setGuestNameDraft] = useState('');
-  const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [guestPositionDraft, setGuestPositionDraft] = useState('');
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamDraft, setTeamDraft] = useState({});
@@ -529,10 +528,10 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               <div className="sf-muted-sm">{activePlayers.length}{maxPlayers ? `/${maxPlayers}` : ''} confirmados</div>
               {game.groupId && <div className="sf-management-player-add"><select className="sf-input" value={participantDraft} onChange={(e) => setParticipantDraft(e.target.value)}><option value="">Adicionar jogador do grupo...</option>{roster.filter((p) => groupMemberIds?.has(String(p.id)) && !game.confirmed.some((id) => String(id) === String(p.id))).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><button type="button" className="sf-btn-primary" disabled={!participantDraft} onClick={async () => { await onAddParticipant(game.id, participantDraft); setParticipantDraft(''); }}>Adicionar</button></div>}
               <div className="sf-management-subtitle">Adicionar convidado não cadastrado</div>
-              <input className="sf-input" placeholder="Nome" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
-              <input className="sf-input" style={{ marginTop: 6 }} type="email" placeholder="E-mail (opcional)" value={guestEmailDraft} onChange={(e) => setGuestEmailDraft(e.target.value)} />
-              <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>
-              <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), guestEmailDraft.trim(), guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestEmailDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>
+              <input className="sf-input" placeholder="Nome do convidado" value={guestNameDraft} onChange={(e) => setGuestNameDraft(e.target.value)} />
+              <select className="sf-input" style={{ marginTop: 6 }} value={guestPositionDraft} onChange={(e) => setGuestPositionDraft(e.target.value)}><option value="">Posição no jogo (opcional)</option>{POSITION_ORDER.map((pos) => <option key={pos} value={pos}>{POSITION_LABELS[pos]}</option>)}</select>
+              <div className="sf-muted-sm" style={{ marginTop: 6 }}>O convidado é cadastrado somente nesta partida. Rating e posição podem ser ajustados depois.</div>
+              <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={!guestNameDraft.trim()} onClick={async () => { const ok = await onAddGuest(game.id, guestNameDraft.trim(), null, guestPositionDraft); if (ok) { setGuestNameDraft(''); setGuestPositionDraft(''); } }}><Plus size={16} /> Adicionar convidado</button>
               <div className="sf-management-subtitle">Jogadores confirmados</div>
               <div className="sf-rsvp-list">{activePlayers.map((p) => {
                 const guest = guestByProfileId.get(String(p.id));
