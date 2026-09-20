@@ -814,7 +814,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
                 const paid = !!game.payments?.[p.id];
-                const canTogglePaid = !exempt && (canManage || p.id === myId || myId === game.pixOwnerId);
+                const canTogglePaid = !exempt && (myId === p.id || myId === game.createdBy || myId === game.pixOwnerId || isGameAdmin);
                 return (
                   <div key={p.id} className="sf-paid-item">
                     <button
