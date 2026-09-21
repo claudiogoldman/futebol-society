@@ -1114,6 +1114,7 @@ function buildGroupPrediction(members, games, criterion) {
       ...player,
       _predictionTeam: teamAIds.has(player.id) ? 'A' : 'B',
       _teamRole: 'starter',
+      _predictionRank: rankingById[player.id]?.position || null,
     })),
     reserves,
     playersPerTeam,
@@ -1135,8 +1136,7 @@ function GroupPrediction({ members = [], games = [] }) {
     const teamA = prediction.players.filter((player) => player._predictionTeam === 'A');
     const teamB = prediction.players.filter((player) => player._predictionTeam === 'B');
     const positionById = Object.fromEntries(
-      (criterion === 'ranking' ? ranking : [...ranking].sort((a, b) => (b.jogos || 0) - (a.jogos || 0) || a.name.localeCompare(b.name)))
-        .map((player, index) => [player.id, index + 1]),
+      prediction.players.map((player) => [player.id, player._predictionRank || null]),
     );
     return (
       <section className="sf-card">
