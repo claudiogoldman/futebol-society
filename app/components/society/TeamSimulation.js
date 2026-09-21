@@ -35,6 +35,11 @@ export default function TeamSimulation({
 }) {
   const basePlayers = initialPlayers?.length ? initialPlayers : members;
   const [selectedIds, setSelectedIds] = useState(() => new Set(basePlayers.map((p) => String(p.id))));
+  const basePlayerSignature = useMemo(() => basePlayers.map((p) => String(p.id)).sort().join(','), [basePlayers]);
+
+  useEffect(() => {
+    setSelectedIds(new Set(basePlayers.map((p) => String(p.id))));
+  }, [basePlayerSignature]);
   const [simulationId, setSimulationId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
