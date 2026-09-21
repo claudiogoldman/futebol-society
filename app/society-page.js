@@ -2272,7 +2272,27 @@ function MainApp({ session }) {
       msg += `\n\n🔴 Time A: ${game.teamA.map((p) => p.name).join(', ')}`;
       msg += `\n🔵 Time B: ${game.teamB.map((p) => p.name).join(', ')}`;
     }
-    if (game.cost > 0) msg += `\n\n💰 Rateio: ${money(rateio)} por pessoa (total ${money(game.cost)})`;
+    const shareGroup = groups.find((g) => String(g.id) === String(game.groupId)) || null;
+    if (shareGroup?.participationPenaltyEnabled !== false) {
+      const penaltyHours = Math.max(0, Number(shareGroup.participationPenaltyHours ?? 24));
+      const rawDate = String(game.date || "");
+      const gameDate = rawDate.includes("T") ? new Date(rawDate) : new Date(rawDate + "T12:00:00");
+      const deadline = new Date(gameDate.getTime() - penaltyHours * 60 * 60 * 1000);
+      const deadlineLabel = Number.isNaN(deadline.getTime()) ? "" : deadline.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      const paymentEnabled = shareGroup?.participationPenaltyPaymentEnabled !== false;
+      const paymentMode = shareGroup?.participationPenaltyPaymentMode === "rateio" ? "rateio" : "caixa";
+      const unpaidGames = Math.max(0, Number(shareGroup?.participationPenaltyUnpaidGames ?? 2));
+      msg += "\n\n📌 *REGRAS DE CANCELAMENTO*";
+      if (deadlineLabel) msg += "\n⏰ Sem punição até: *" + deadlineLabel + "*";
+      if (paymentEnabled) {
+        msg += paymentMode === "rateio"
+          ? "\n💰 Após esse prazo: paga o mesmo valor do rateio da partida."
+          : "\n💰 Após esse prazo: paga o mesmo valor do rateio para o caixa do grupo.";
+        if (unpaidGames > 0) msg += "\n🚫 Se não pagar: suspensão por *" + unpaidGames + " jogos*.";
+      } else if (unpaidGames > 0) {
+        msg += "\n🚫 Após esse prazo: suspensão por *" + unpaidGames + " jogos*.";
+      }
+    }
     if (game.result) {
       msg += `\n\n📊 Placar: Time A ${game.result.scoreA} x ${game.result.scoreB} Time B`;
       const destaques = computeGameDestaques(game);
