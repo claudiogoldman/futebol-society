@@ -1305,10 +1305,10 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             </div>
           ))}
         </div>
-        <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
-          <Share2 size={16} /> Convidar pro grupo (WhatsApp)}
         )}
-        </button>
+        {playersView === 'general' && <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
+          <Share2 size={16} /> Convidar pro grupo (WhatsApp)
+        </button>}
         {!isOwner && (
           <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => { if (confirm('Sair desse grupo?')) onLeave(group.id); }}>
             Sair do grupo
