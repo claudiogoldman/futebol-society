@@ -17,7 +17,7 @@ function classifySections(root) {
     const title = section.querySelector('.sf-card-title')?.textContent?.trim() || '';
     if (title.includes('Padrões do grupo')) section.dataset.groupTab = 'overview';
     else if (title.includes('Locais cadastrados')) section.dataset.groupTab = 'locations';
-    else if (title.includes('Membros')) section.dataset.groupTab = 'players';
+    else if ((title.includes('Membros') || title.includes('Jogadores'))) section.dataset.groupTab = 'players';
     else if (title.includes('Partidas do grupo')) section.dataset.groupTab = 'games overview';
   });
   return sections;
@@ -28,7 +28,7 @@ function findGroupDetail() {
   return roots.find((root) => {
     const titles = Array.from(root.querySelectorAll(':scope > section.sf-card .sf-card-title'))
       .map((el) => el.textContent?.trim() || '');
-    return titles.some((title) => title.includes('Membros') || title.includes('Partidas do grupo') || title.includes('Padrões do grupo') || title.includes('Locais cadastrados'));
+    return titles.some((title) => (title.includes('Membros') || title.includes('Jogadores')) || title.includes('Partidas do grupo') || title.includes('Padrões do grupo') || title.includes('Locais cadastrados'));
   }) || null;
 }
 
