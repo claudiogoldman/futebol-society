@@ -1122,6 +1122,7 @@ function buildGroupPrediction(members, games, criterion) {
 }
 
 function GroupPrediction({ members = [], games = [] }) {
+  const [predictionTab, setPredictionTab] = useState('frequency');
   const frequency = buildGroupPrediction(members, games, 'frequency');
   const ranking = buildGroupPrediction(members, games, 'ranking');
   const frequencyIds = new Set(frequency.players.map((player) => player.id));
@@ -1130,23 +1131,27 @@ function GroupPrediction({ members = [], games = [] }) {
   const onlyFrequency = frequency.players.filter((player) => !rankingIds.has(player.id));
   const onlyRanking = ranking.players.filter((player) => !frequencyIds.has(player.id));
 
-  const renderPrediction = (title, prediction) => {
+  const renderPrediction = (title, prediction, criterion) => {
     const teamA = prediction.players.filter((player) => player._predictionTeam === 'A');
     const teamB = prediction.players.filter((player) => player._predictionTeam === 'B');
+    const positionById = Object.fromEntries(
+      (criterion === 'ranking' ? ranking : [...ranking].sort((a, b) => (b.jogos || 0) - (a.jogos || 0) || a.name.localeCompare(b.name)))
+        .map((player, index) => [player.id, index + 1]),
+    );
     return (
       <section className="sf-card">
         <div className="sf-card-title"><Shuffle size={16} /> {title}</div>
         <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
-          {teamA.length} no Time A · {teamB.length} no Time B · {prediction.reserves.length} suplente{prediction.reserves.length === 1 ? '' : 's'}
+          {criterion === 'ranking' ? '12 primeiros do ranking' : '12 mais frequentes'} · {teamA.length} no Time A · {teamB.length} no Time B · {prediction.reserves.length} suplente{prediction.reserves.length === 1 ? '' : 's'}
         </div>
         <div className="sf-prediction-teams">
           <div>
             <div className="sf-prediction-team-title sf-prediction-team-a">🔴 Time A</div>
-            {teamA.map((player) => <div className="sf-prediction-player" key={player.id}>{displayName(player)}</div>)}
+            {teamA.map((player) => <div className="sf-prediction-player" key={player.id}><span>{displayName(player)}</span>{criterion === 'ranking' && <small>#{positionById[player.id] || '—'}</small>}</div>)}
           </div>
           <div>
             <div className="sf-prediction-team-title sf-prediction-team-b">🔵 Time B</div>
-            {teamB.map((player) => <div className="sf-prediction-player" key={player.id}>{displayName(player)}</div>)}
+            {teamB.map((player) => <div className="sf-prediction-player" key={player.id}><span>{displayName(player)}</span>{criterion === 'ranking' && <small>#{positionById[player.id] || '—'}</small>}</div>)}
           </div>
         </div>
         {prediction.reserves.length > 0 && (
@@ -1182,8 +1187,13 @@ function GroupPrediction({ members = [], games = [] }) {
           <div><strong>{frequency.completedGames}</strong><span>partidas usadas</span></div>
         </div>
       </section>
-      {renderPrediction('Por frequência', frequency)}
-      {renderPrediction('Por ranking', ranking)}
+      <div className="sf-subtabs sf-prediction-tabs">
+        <button type="button" className={`sf-subtab ${predictionTab === 'frequency' ? 'sf-subtab-on' : ''}`} onClick={() => setPredictionTab('frequency')}>Frequência</button>
+        <button type="button" className={`sf-subtab ${predictionTab === 'ranking' ? 'sf-subtab-on' : ''}`} onClick={() => setPredictionTab('ranking')}>Ranking</button>
+      </div>
+      {predictionTab === 'frequency'
+        ? renderPrediction('Por frequência', frequency, 'frequency')
+        : renderPrediction('Por ranking', ranking, 'ranking')}
     </div>
   );
 }
@@ -2716,6 +2726,8 @@ const CSS = `
 
   .sf-group-player-subtabs { margin-bottom: 10px; }
   .sf-prediction-wrap { margin-top: 4px; }
+  .sf-prediction-tabs { margin: 10px 0; }
+
   .sf-prediction-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
   .sf-prediction-summary-grid > div { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 8px 5px; text-align: center; }
   .sf-prediction-summary-grid strong { display: block; color: var(--floodlight); font-family: 'JetBrains Mono', monospace; font-size: 17px; }
@@ -2724,7 +2736,8 @@ const CSS = `
   .sf-prediction-team-title { font-size: 12px; font-weight: 800; padding: 7px 8px; border-radius: 8px 8px 0 0; }
   .sf-prediction-team-a { background: rgba(255,92,92,.12); color: #FFB0B0; }
   .sf-prediction-team-b { background: rgba(79,195,247,.12); color: #A9E5FF; }
-  .sf-prediction-player { font-size: 12px; padding: 7px 8px; background: var(--pitch-dark); border-bottom: 1px solid var(--line); }
+  .sf-prediction-player { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; padding: 7px 8px; background: var(--pitch-dark); border-bottom: 1px solid var(--line); }
+  .sf-prediction-player small { color: var(--chalk-dim); font-family: 'JetBrains Mono', monospace; }
   .sf-prediction-reserves { margin-top: 9px; padding: 8px; background: var(--pitch-dark); border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--chalk-dim); }
   .sf-prediction-reserves strong { color: var(--floodlight); }
   @media (max-width: 380px) {
