@@ -13,7 +13,7 @@ import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
-import GroupPrediction from '../components/society/GroupPrediction';
+import GroupPrediction from '../components/society/group-prediction';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
