@@ -1078,9 +1078,9 @@ function seededRandom(seed) {
   };
 }
 
-function buildGroupPrediction(members, games, criterion) {
+function buildGroupPrediction(members, games, criterion, group = {}) {
   const completedGames = games.filter((game) => game.result);
-  const ranking = computeRanking(members, completedGames);
+  const ranking = computeRanking(members, completedGames, { wallMaxConcededGoals: group.wallMaxConcededGoals, wallPoints: group.wallPoints });
   const rankingById = Object.fromEntries(ranking.map((item, index) => [item.id, { ...item, position: index + 1 }]));
 
   const ordered = [...members].sort((a, b) => {
@@ -1101,12 +1101,20 @@ function buildGroupPrediction(members, games, criterion) {
     ...player,
     _rankingPoints: rankingById[player.id]?.pontos || 0,
     _wins: rankingById[player.id]?.vit || 0,
+    _goals: rankingById[player.id]?.gols || 0,
+    _assists: rankingById[player.id]?.assistencias || 0,
+    _rating: rankingById[player.id]?.nota || 0,
   }));
   const random = seededRandom(`${criterion}|${enriched.map((player) => player.id).sort().join(',')}`);
   const draw = drawTeams(enriched, random, {
     playersPerTeam,
     reservesPerTeam: 0,
     candidates: 50,
+    balanceRankingWeight: group.balanceRankingWeight,
+    balanceWinsWeight: group.balanceWinsWeight,
+    balanceGoalsWeight: group.balanceGoalsWeight,
+    balanceAssistsWeight: group.balanceAssistsWeight,
+    balanceRatingWeight: group.balanceRatingWeight,
   });
   const teamAIds = new Set(draw.teamAStarters.map((player) => player.id));
   return {
@@ -1122,10 +1130,10 @@ function buildGroupPrediction(members, games, criterion) {
   };
 }
 
-function GroupPrediction({ members = [], games = [] }) {
+function GroupPrediction({ members = [], games = [], group = {} }) {
   const [predictionTab, setPredictionTab] = useState('frequency');
-  const frequency = buildGroupPrediction(members, games, 'frequency');
-  const ranking = buildGroupPrediction(members, games, 'ranking');
+  const frequency = buildGroupPrediction(members, games, 'frequency', group);
+  const ranking = buildGroupPrediction(members, games, 'ranking', group);
   const frequencyIds = new Set(frequency.players.map((player) => player.id));
   const rankingIds = new Set(ranking.players.map((player) => player.id));
   const both = frequency.players.filter((player) => rankingIds.has(player.id));
@@ -1218,6 +1226,13 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [avatarUrlDraft, setAvatarUrlDraft] = useState(group.avatarUrl || '');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [organizerDraft, setOrganizerDraft] = useState(group.defaultOrganizerId || '');
+  const [wallMaxDraft, setWallMaxDraft] = useState(group.wallMaxConcededGoals ?? 5);
+  const [wallPointsDraft, setWallPointsDraft] = useState(group.wallPoints ?? 1);
+  const [balanceRankingDraft, setBalanceRankingDraft] = useState(Math.round((group.balanceRankingWeight ?? 0.35) * 100));
+  const [balanceWinsDraft, setBalanceWinsDraft] = useState(Math.round((group.balanceWinsWeight ?? 0.30) * 100));
+  const [balanceGoalsDraft, setBalanceGoalsDraft] = useState(Math.round((group.balanceGoalsWeight ?? 0.15) * 100));
+  const [balanceAssistsDraft, setBalanceAssistsDraft] = useState(Math.round((group.balanceAssistsWeight ?? 0.10) * 100));
+  const [balanceRatingDraft, setBalanceRatingDraft] = useState(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [playersView, setPlayersView] = useState('general');
 
@@ -1237,6 +1252,13 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     setPixReceiverDraft(group.defaultPixReceiverName || '');
     setPixCityDraft(group.defaultPixCity || '');
     setOrganizerDraft(group.defaultOrganizerId || '');
+    setWallMaxDraft(group.wallMaxConcededGoals ?? 5);
+    setWallPointsDraft(group.wallPoints ?? 1);
+    setBalanceRankingDraft(Math.round((group.balanceRankingWeight ?? 0.35) * 100));
+    setBalanceWinsDraft(Math.round((group.balanceWinsWeight ?? 0.30) * 100));
+    setBalanceGoalsDraft(Math.round((group.balanceGoalsWeight ?? 0.15) * 100));
+    setBalanceAssistsDraft(Math.round((group.balanceAssistsWeight ?? 0.10) * 100));
+    setBalanceRatingDraft(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
     setAvatarDraft(group.avatar || null);
     setAvatarUrlDraft(group.avatarUrl || '');
     setEditing(false);
@@ -1278,6 +1300,13 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       default_pix_receiver_name: pixReceiverDraft.trim() || null,
       default_pix_city: pixCityDraft.trim() || null,
       default_organizer_id: organizerDraft || null,
+      wall_max_conceded_goals: Math.max(0, Math.min(20, parseInt(wallMaxDraft, 10) || 0)),
+      wall_points: Math.max(0, Math.min(10, parseInt(wallPointsDraft, 10) || 0)),
+      balance_ranking_weight: Math.max(0, Number(balanceRankingDraft || 0)) / 100,
+      balance_wins_weight: Math.max(0, Number(balanceWinsDraft || 0)) / 100,
+      balance_goals_weight: Math.max(0, Number(balanceGoalsDraft || 0)) / 100,
+      balance_assists_weight: Math.max(0, Number(balanceAssistsDraft || 0)) / 100,
+      balance_rating_weight: Math.max(0, Number(balanceRatingDraft || 0)) / 100,
       avatar: avatarDraft,
       avatar_url: avatarUrlDraft || null,
     });
@@ -1312,6 +1341,10 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-cost-row"><span className="sf-muted">Goleiro paga?</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultGoalkeeperPays !== false ? 'Sim' : 'Não'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Organizador padrão</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{members.find((m) => m.id === group.defaultOrganizerId)?.name || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">PIX</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultPixKey || '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Balanceamento</span><span className="sf-mono-value" style={{ cursor: 'default' }}>Sempre aplicado</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Muro</span><span className="sf-mono-value" style={{ cursor: 'default' }}>menos de {group.wallMaxConcededGoals} gols · +{group.wallPoints} pt</span></div>
+            <div className="sf-muted-sm" style={{ marginTop: 6 }}>Seleção: 12 mais frequentes ou 12 melhores do ranking. Depois, o balanceamento distribui os selecionados em A/B.</div>
+            <div className="sf-muted-sm" style={{ marginTop: 4 }}>Pesos: ranking → vitórias → artilharia → assistências → avaliação (último).</div>
             {canManage && <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => setEditing(true)}>Editar padrões</button>}
           </>
         ) : (
@@ -1353,6 +1386,29 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-muted-sm">Vagas totais padrão: {(Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2}</div>
             <label className="sf-field-label">Goleiro paga a quadra?</label>
             <div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(true)}>Sim</button><button type="button" className={!goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(false)}>Não</button></div>
+            <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--pitch-dark)' }}>
+              <div className="sf-card-title" style={{ marginBottom: 8 }}><Shuffle size={15} /> Regras de formação dos times</div>
+              <div className="sf-muted-sm" style={{ marginBottom: 10 }}>O balanceamento é sempre aplicado. Você pode ajustar os pesos e a regra do Muro. Alterações não recalculam partidas já encerradas.</div>
+              <label className="sf-field-label">Muro: sofrer menos de</label>
+              <input type="number" min="0" max="20" className="sf-input" value={wallMaxDraft} onChange={(e) => setWallMaxDraft(e.target.value)} />
+              <div className="sf-muted-sm">Ex.: 5 significa 0 a 4 gols sofridos. Pode haver mais de um Muro na mesma partida.</div>
+              <label className="sf-field-label">Pontos por Muro</label>
+              <input type="number" min="0" max="10" className="sf-input" value={wallPointsDraft} onChange={(e) => setWallPointsDraft(e.target.value)} />
+              <div className="sf-field-label">Peso no balanceamento (%)</div>
+              {[
+                ['Ranking', balanceRankingDraft, setBalanceRankingDraft],
+                ['Vitórias', balanceWinsDraft, setBalanceWinsDraft],
+                ['Artilharia', balanceGoalsDraft, setBalanceGoalsDraft],
+                ['Assistências', balanceAssistsDraft, setBalanceAssistsDraft],
+                ['Avaliação (último)', balanceRatingDraft, setBalanceRatingDraft],
+              ].map(([label, value, setter]) => (
+                <div key={label} style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                  <span className="sf-muted-sm">{label}</span>
+                  <input type="number" min="0" max="100" className="sf-input" value={value} onChange={(e) => setter(e.target.value)} />
+                </div>
+              ))}
+              <div className="sf-muted-sm" style={{ marginTop: 8 }}>Os pesos são normalizados automaticamente; a avaliação permanece o último critério.</div>
+            </div>
             <label className="sf-field-label">Organizador padrão das partidas</label>
             <select className="sf-input" value={organizerDraft} onChange={(e) => { const id = e.target.value; setOrganizerDraft(id); const p = members.find((m) => m.id === id); if (p?.pix_key) { setPixKeyDraft(p.pix_key); setPixReceiverDraft(p.name || ''); } }}>
               <option value="">Nenhum organizador padrão</option>
@@ -1417,7 +1473,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
           <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('general')}>Geral</button>
           <button type="button" className={`sf-subtab ${playersView === 'prediction' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('prediction')}>Previsão</button>
         </div>
-        {playersView === 'prediction' ? <GroupPrediction members={members} /> : (
+        {playersView === 'prediction' ? <GroupPrediction members={members} games={games} group={group} /> : (
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
@@ -1594,6 +1650,14 @@ function MainApp({ session }) {
       defaultMaxPlayers: g.default_max_players || ((g.default_players_per_team || 5) + (g.default_reserves_per_team || 0)) * 2,
       defaultCost: g.default_cost != null ? Number(g.default_cost) : null,
       defaultGoalkeeperPays: g.default_goalkeeper_pays !== false,
+      balanceTeamsEnabled: true,
+      wallMaxConcededGoals: Number.isFinite(Number(g.wall_max_conceded_goals)) ? Number(g.wall_max_conceded_goals) : 5,
+      wallPoints: Number.isFinite(Number(g.wall_points)) ? Number(g.wall_points) : 1,
+      balanceRankingWeight: Number.isFinite(Number(g.balance_ranking_weight)) ? Number(g.balance_ranking_weight) : 0.35,
+      balanceWinsWeight: Number.isFinite(Number(g.balance_wins_weight)) ? Number(g.balance_wins_weight) : 0.30,
+      balanceGoalsWeight: Number.isFinite(Number(g.balance_goals_weight)) ? Number(g.balance_goals_weight) : 0.15,
+      balanceAssistsWeight: Number.isFinite(Number(g.balance_assists_weight)) ? Number(g.balance_assists_weight) : 0.10,
+      balanceRatingWeight: Number.isFinite(Number(g.balance_rating_weight)) ? Number(g.balance_rating_weight) : 0.05,
       defaultPixKey: g.default_pix_key || '',
       defaultPixReceiverName: g.default_pix_receiver_name || '',
       defaultPixCity: g.default_pix_city || '',
@@ -1806,10 +1870,19 @@ function MainApp({ session }) {
     const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
     const configuredReserves = Math.max(0, Number(game.reservesPerTeam) || 0);
     const effectiveReserves = confirmedPlayers.length > playersPerTeam * 2 ? configuredReserves : 0;
+    const group = groups.find((g) => String(g.id) === String(game.groupId)) || {};
     const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(
       confirmedPlayers,
       Math.random,
-      { playersPerTeam, reservesPerTeam: effectiveReserves },
+      {
+        playersPerTeam,
+        reservesPerTeam: effectiveReserves,
+        balanceRankingWeight: group.balanceRankingWeight,
+        balanceWinsWeight: group.balanceWinsWeight,
+        balanceGoalsWeight: group.balanceGoalsWeight,
+        balanceAssistsWeight: group.balanceAssistsWeight,
+        balanceRatingWeight: group.balanceRatingWeight,
+      },
     );
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
@@ -1969,6 +2042,13 @@ function MainApp({ session }) {
     if (!newGroupName.trim()) return;
     const { data, error } = await serviceCreateGroup({
       name: newGroupName.trim(),
+      wall_max_conceded_goals: 5,
+      wall_points: 1,
+      balance_ranking_weight: 0.35,
+      balance_wins_weight: 0.30,
+      balance_goals_weight: 0.15,
+      balance_assists_weight: 0.10,
+      balance_rating_weight: 0.05,
       created_by: myId,
       default_local: newGroupLocal.trim() || null,
       default_day_of_week: newGroupDay !== '' ? parseInt(newGroupDay, 10) : null,
@@ -2071,7 +2151,16 @@ function MainApp({ session }) {
   };
 
   useEffect(() => { if (!rankingGroupFilter && groups.length) setRankingGroupFilter(groups[0].id); }, [groups, rankingGroupFilter]);
-  const ranking = useMemo(() => { if (!rankingGroupFilter) return []; const memberIds = new Set(groupMembers.filter((m) => String(m.group_id) === String(rankingGroupFilter)).map((m) => String(m.user_id))); const groupGames = games.filter((g) => String(g.groupId) === String(rankingGroupFilter)); return computeRanking(profiles.filter((p) => memberIds.has(String(p.id))), groupGames); }, [profiles, games, groupMembers, rankingGroupFilter]);
+  const ranking = useMemo(() => {
+    if (!rankingGroupFilter) return [];
+    const memberIds = new Set(groupMembers.filter((m) => String(m.group_id) === String(rankingGroupFilter)).map((m) => String(m.user_id)));
+    const groupGames = games.filter((g) => String(g.groupId) === String(rankingGroupFilter));
+    const group = groups.find((g) => String(g.id) === String(rankingGroupFilter)) || {};
+    return computeRanking(profiles.filter((p) => memberIds.has(String(p.id))), groupGames, {
+      wallMaxConcededGoals: group.wallMaxConcededGoals,
+      wallPoints: group.wallPoints,
+    });
+  }, [profiles, games, groupMembers, rankingGroupFilter, groups]);
   const todayIso = new Date().toISOString().slice(0, 10);
   const upcomingGames = useMemo(() => [...games].filter((g) => g.date >= todayIso).sort((a, b) => (a.date > b.date ? 1 : -1)), [games, todayIso]);
   const pastGames = useMemo(() => [...games].filter((g) => g.date < todayIso).sort((a, b) => (a.date < b.date ? 1 : -1)), [games, todayIso]);
