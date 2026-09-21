@@ -2590,6 +2590,24 @@ const CSS = `
   .sf-scorer-controls { display: flex; align-items: center; gap: 8px; }
   .sf-mini-btn { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--pitch-dark); color: var(--chalk); cursor: pointer; }
 
+  .sf-prediction-wrap { margin-top: 4px; }
+  .sf-group-player-subtabs { margin-bottom: 10px; }
+  .sf-prediction-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .sf-prediction-summary-grid > div { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 8px 5px; text-align: center; }
+  .sf-prediction-summary-grid strong { display: block; color: var(--floodlight); font-family: 'JetBrains Mono', monospace; font-size: 17px; }
+  .sf-prediction-summary-grid span { display: block; color: var(--chalk-dim); font-size: 9px; line-height: 1.2; margin-top: 2px; }
+  .sf-prediction-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sf-prediction-team-title { font-size: 12px; font-weight: 800; padding: 7px 8px; border-radius: 8px 8px 0 0; }
+  .sf-prediction-team-a { background: rgba(255,92,92,.12); color: #FFB0B0; }
+  .sf-prediction-team-b { background: rgba(79,195,247,.12); color: #A9E5FF; }
+  .sf-prediction-player { font-size: 12px; padding: 7px 8px; background: var(--pitch-dark); border-bottom: 1px solid var(--line); }
+  .sf-prediction-reserves { margin-top: 9px; padding: 8px; background: var(--pitch-dark); border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--chalk-dim); }
+  .sf-prediction-reserves strong { color: var(--floodlight); }
+  @media (max-width: 380px) {
+    .sf-prediction-summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .sf-prediction-teams { grid-template-columns: 1fr; }
+  }
+
   .sf-subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .sf-subtab { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch-mid); color: var(--chalk-dim); font-size: 13px; cursor: pointer; }
   .sf-subtab-on { background: var(--floodlight); color: var(--pitch-dark); font-weight: 700; border-color: var(--floodlight); }
