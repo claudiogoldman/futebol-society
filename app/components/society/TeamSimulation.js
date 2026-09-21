@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Loader2, Share2, Shuffle, UserPlus, UserRound, X } from 'lucide-react';
-import TacticalPitch from '../../components/society/TacticalPitch';
+import TacticalPitch from '../../../components/society/TacticalPitch';
 import { drawTeams } from '../../lib/domain/game';
 import { computeRanking } from '../../lib/domain/ranking';
 import { createTeamSimulation, updateTeamSimulation } from '../../lib/services/society-service';
