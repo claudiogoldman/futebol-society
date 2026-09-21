@@ -1,6 +1,4 @@
 'use client';
-
-import { useMemo } from 'react';
 import { Users, Shuffle } from 'lucide-react';
 import TacticalPitch from './TacticalPitch';
 import { drawTeams } from '../../lib/domain/game';
@@ -88,20 +86,13 @@ function PredictionTeamBlock({ title, prediction }) {
 }
 
 export default function GroupPrediction({ members = [], games = [] }) {
-  const completedGames = useMemo(() => games.filter((game) => game.result), [games]);
-  const ranking = useMemo(() => computeRanking(members, completedGames), [members, completedGames]);
-  const rankingById = useMemo(
-    () => Object.fromEntries(ranking.map((item, index) => [item.id, { ...item, position: index + 1 }])),
-    [ranking],
+  const completedGames = games.filter((game) => game.result);
+  const ranking = computeRanking(members, completedGames);
+  const rankingById = Object.fromEntries(
+    ranking.map((item, index) => [item.id, { ...item, position: index + 1 }]),
   );
-  const frequencyPrediction = useMemo(
-    () => buildPrediction(members, rankingById, 'frequency'),
-    [members, rankingById],
-  );
-  const rankingPrediction = useMemo(
-    () => buildPrediction(members, rankingById, 'ranking'),
-    [members, rankingById],
-  );
+  const frequencyPrediction = buildPrediction(members, rankingById, 'frequency');
+  const rankingPrediction = buildPrediction(members, rankingById, 'ranking');
 
   const frequencyIds = new Set(frequencyPrediction.players.map((player) => player.id));
   const rankingIds = new Set(rankingPrediction.players.map((player) => player.id));
