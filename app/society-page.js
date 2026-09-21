@@ -13,6 +13,7 @@ import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
+import GroupPrediction from '../components/society/GroupPrediction';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
@@ -1062,121 +1063,6 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   );
 }
 
-// ---------- group prediction ----------
-
-const GROUP_PREDICTION_PLAYERS = 12;
-
-function seededRandom(seed) {
-  let value = 2166136261;
-  for (let i = 0; i < seed.length; i += 1) {
-    value ^= seed.charCodeAt(i);
-    value = Math.imul(value, 16777619);
-  }
-  return () => {
-    value += value << 13;
-    value ^= value >>> 17;
-    value += value << 5;
-    return ((value >>> 0) % 100000) / 100000;
-  };
-}
-
-function PredictionTeamBlock({ title, players, reserves, playersPerTeam }) {
-  const teamA = players.filter((p) => p._predictionTeam === 'A').map((p) => ({ ...p, _teamRole: 'starter' }));
-  const teamB = players.filter((p) => p._predictionTeam === 'B').map((p) => ({ ...p, _teamRole: 'starter' }));
-  return (
-    <section className="sf-card">
-      <div className="sf-card-title"><Shuffle size={16} /> {title}</div>
-      <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
-        {teamA.length} no Time A · {teamB.length} no Time B · {reserves.length} suplente{reserves.length === 1 ? '' : 's'}
-      </div>
-      <div className="sf-prediction-teams">
-        <div>
-          <div className="sf-prediction-team-title sf-prediction-team-a">🔴 Time A</div>
-          {teamA.map((p) => <div className="sf-prediction-player" key={p.id}>{displayName(p)}</div>)}
-        </div>
-        <div>
-          <div className="sf-prediction-team-title sf-prediction-team-b">🔵 Time B</div>
-          {teamB.map((p) => <div className="sf-prediction-player" key={p.id}>{displayName(p)}</div>)}
-        </div>
-      </div>
-      {reserves.length > 0 && (
-        <div className="sf-prediction-reserves">
-          <strong>🟡 Suplentes:</strong> {reserves.map((p, i) => <span key={p.id}>{i ? ' · ' : ''}{displayName(p)}</span>)}
-        </div>
-      )}
-      <TacticalPitch teamA={teamA} teamB={teamB} playersPerTeam={playersPerTeam} reservesPerTeam={0} />
-    </section>
-  );
-}
-
-function GroupPrediction({ members, games }) {
-  const completedGames = useMemo(() => games.filter((game) => game.result), [games]);
-  const ranking = useMemo(() => computeRanking(members, completedGames), [members, completedGames]);
-  const rankingById = useMemo(() => Object.fromEntries(ranking.map((item, index) => [item.id, { ...item, position: index + 1 }])), [ranking]);
-
-  const buildPrediction = useCallback((criterion) => {
-    const ordered = [...members].sort((a, b) => {
-      if (criterion === 'frequency') {
-        const freqDiff = (rankingById[b.id]?.jogos || 0) - (rankingById[a.id]?.jogos || 0);
-        if (freqDiff !== 0) return freqDiff;
-      }
-      const aRank = rankingById[a.id]?.position || Number.MAX_SAFE_INTEGER;
-      const bRank = rankingById[b.id]?.position || Number.MAX_SAFE_INTEGER;
-      if (aRank !== bRank) return aRank - bRank;
-      return displayName(a).localeCompare(displayName(b));
-    });
-
-    const selected = ordered.slice(0, Math.min(GROUP_PREDICTION_PLAYERS, ordered.length));
-    const reserves = ordered.slice(selected.length);
-    const playersPerTeam = Math.max(1, Math.ceil(selected.length / 2));
-    const enriched = selected.map((player) => ({
-      ...player,
-      _rankingPoints: rankingById[player.id]?.pontos || 0,
-      _wins: rankingById[player.id]?.vit || 0,
-      _predictionFrequency: rankingById[player.id]?.jogos || 0,
-    }));
-    const random = seededRandom(`${criterion}|${enriched.map((p) => p.id).sort().join(',')}`);
-    const draw = drawTeams(enriched, random, { playersPerTeam, reservesPerTeam: 0, candidates: 50 });
-    const teamAIds = new Set(draw.teamAStarters.map((p) => p.id));
-    const playersWithTeam = selected.map((player) => ({
-      ...player,
-      _predictionTeam: teamAIds.has(player.id) ? 'A' : 'B',
-    }));
-    return { players: playersWithTeam, reserves, playersPerTeam };
-  }, [members, rankingById]);
-
-  const frequencyPrediction = useMemo(() => buildPrediction('frequency'), [buildPrediction]);
-  const rankingPrediction = useMemo(() => buildPrediction('ranking'), [buildPrediction]);
-  const frequencyIds = new Set(frequencyPrediction.players.map((p) => p.id));
-  const rankingIds = new Set(rankingPrediction.players.map((p) => p.id));
-  const both = frequencyPrediction.players.filter((p) => rankingIds.has(p.id));
-  const onlyFrequency = frequencyPrediction.players.filter((p) => !rankingIds.has(p.id));
-  const onlyRanking = rankingPrediction.players.filter((p) => !frequencyIds.has(p.id));
-
-  if (!members.length) {
-    return <div className="sf-empty"><Users size={28} color="#5C7A67" /><p>Nenhum jogador no grupo.</p></div>;
-  }
-
-  return (
-    <div className="sf-prediction-wrap">
-      <section className="sf-card sf-prediction-summary">
-        <div className="sf-card-title"><Shuffle size={16} /> Previsão</div>
-        <div className="sf-card-subtitle">
-          Simulação dos próximos times. Os 12 jogadores são previstos por frequência ou pelos 12 primeiros do ranking. A previsão não altera nenhuma partida.
-        </div>
-        <div className="sf-prediction-summary-grid">
-          <div><strong>{both.length}</strong><span>nos dois critérios</span></div>
-          <div><strong>{onlyFrequency.length}</strong><span>só por frequência</span></div>
-          <div><strong>{onlyRanking.length}</strong><span>só por ranking</span></div>
-          <div><strong>{completedGames.length}</strong><span>partidas usadas</span></div>
-        </div>
-      </section>
-      <PredictionTeamBlock title="Por frequência" players={frequencyPrediction.players} reserves={frequencyPrediction.reserves} playersPerTeam={frequencyPrediction.playersPerTeam} />
-      <PredictionTeamBlock title="Por ranking" players={rankingPrediction.players} reserves={rankingPrediction.reserves} playersPerTeam={rankingPrediction.playersPerTeam} />
-    </div>
-  );
-}
-
 // ---------- group detail ----------
 
 function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onUpdateLocation, onDeleteLocation }) {
@@ -1392,7 +1278,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       <section className="sf-card">
         <div className="sf-card-title"><Users size={16} /> Jogadores ({members.length})</div>
         <div className="sf-subtabs sf-group-player-subtabs">
-          <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('general')}>Geral</button>
+          <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''`} onClick={() => setPlayersView('general')}>Geral</button>
           <button type="button" className={`sf-subtab ${playersView === 'prediction' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('prediction')}>Previsão</button>
         </div>
         {playersView === 'prediction' ? (
@@ -2703,24 +2589,6 @@ const CSS = `
   .sf-scorer-controls-group { display: flex; align-items: center; gap: 14px; }
   .sf-scorer-controls { display: flex; align-items: center; gap: 8px; }
   .sf-mini-btn { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--pitch-dark); color: var(--chalk); cursor: pointer; }
-
-  .sf-prediction-wrap { margin-top: 4px; }
-  .sf-group-player-subtabs { margin-bottom: 10px; }
-  .sf-prediction-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
-  .sf-prediction-summary-grid > div { background: var(--pitch-dark); border: 1px solid var(--line); border-radius: 8px; padding: 8px 5px; text-align: center; }
-  .sf-prediction-summary-grid strong { display: block; color: var(--floodlight); font-family: 'JetBrains Mono', monospace; font-size: 17px; }
-  .sf-prediction-summary-grid span { display: block; color: var(--chalk-dim); font-size: 9px; line-height: 1.2; margin-top: 2px; }
-  .sf-prediction-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .sf-prediction-team-title { font-size: 12px; font-weight: 800; padding: 7px 8px; border-radius: 8px 8px 0 0; }
-  .sf-prediction-team-a { background: rgba(255,92,92,.12); color: #FFB0B0; }
-  .sf-prediction-team-b { background: rgba(79,195,247,.12); color: #A9E5FF; }
-  .sf-prediction-player { font-size: 12px; padding: 7px 8px; background: var(--pitch-dark); border-bottom: 1px solid var(--line); }
-  .sf-prediction-reserves { margin-top: 9px; padding: 8px; background: var(--pitch-dark); border: 1px dashed var(--line); border-radius: 8px; font-size: 11px; color: var(--chalk-dim); }
-  .sf-prediction-reserves strong { color: var(--floodlight); }
-  @media (max-width: 380px) {
-    .sf-prediction-summary-grid { grid-template-columns: repeat(2, 1fr); }
-    .sf-prediction-teams { grid-template-columns: 1fr; }
-  }
 
   .sf-subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .sf-subtab { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch-mid); color: var(--chalk-dim); font-size: 13px; cursor: pointer; }
