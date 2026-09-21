@@ -1473,6 +1473,18 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       </section>
 
       <section className="sf-card">
+        <div className="sf-card-title"><Wallet size={16} /> Caixa do grupo</div>
+        <div className="sf-cost-row"><span className="sf-muted">Saldo</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{money(group.cashBalance || 0)}</span></div>
+        <div className="sf-muted-sm">Entradas de penalidades pagas no modo “Caixa” ficam registradas aqui. O saldo não altera o rateio das partidas.</div>
+        {(group.cashTransactions || []).slice(0, 10).map((t) => (
+          <div key={t.id} className="sf-cost-row" style={{ borderTop: '1px solid var(--line)', marginTop: 4, paddingTop: 8 }}>
+            <span className="sf-muted-sm">{t.description}</span>
+            <span className="sf-mono-value" style={{ cursor: 'default' }}>{t.direction === 'debit' ? '-' : '+'}{money(t.amount)}</span>
+          </div>
+        ))}
+      </section>
+
+      <section className="sf-card">
         <div className="sf-card-title"><Target size={16} /> Locais cadastrados ({locations.length})</div>
         {locations.length === 0 && <div className="sf-muted-sm">Nenhum local cadastrado. Cadastre aqui uma vez e reutilize em todas as partidas do grupo.</div>}
         {locations.map((loc) => (
@@ -1651,7 +1663,7 @@ function MainApp({ session }) {
   };
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, gameGuestsRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, gameGuestsRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes, cashRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
@@ -1664,6 +1676,7 @@ function MainApp({ session }) {
       supabase.from('groups').select('*').order('name'),
       supabase.from('group_members').select('*'),
       supabase.from('group_locations').select('*').order('is_default', { ascending: false }).order('name'),
+      supabase.from('group_cash_transactions').select('*').order('created_at', { ascending: false }),
     ]);
     const profs = (profilesRes.data || []).map((p) => ({ ...p, accountName: p.name, name: displayName(p) }));
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
@@ -1735,6 +1748,8 @@ function MainApp({ session }) {
       defaultOrganizerId: g.default_organizer_id || null,
       avatar: g.avatar || null,
       avatarUrl: g.avatar_url || '',
+      cashTransactions: (cashRes.data || []).filter((t) => t.group_id === g.id),
+      cashBalance: (cashRes.data || []).filter((t) => t.group_id === g.id).reduce((sum, t) => sum + (t.direction === 'debit' ? -Number(t.amount || 0) : Number(t.amount || 0)), 0),
     })));
     setGroupMembers(groupMembersRes.data || []);
     setGroupLocations(groupLocationsRes.data || []);
