@@ -1062,6 +1062,10 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   );
 }
 
+function GroupPrediction({ members = [] }) {
+  return <div className="sf-muted-sm">Previsão para {members.length} jogadores.</div>;
+}
+
 // ---------- group detail ----------
 
 function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefaults, onSetDefaultLocation, onShare, onNewGame, onOpenGame, onLeave, onDelete, onRemoveMember, onCreateLocation, onUpdateLocation, onDeleteLocation }) {
@@ -1083,6 +1087,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [organizerDraft, setOrganizerDraft] = useState(group.defaultOrganizerId || '');
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [playersView, setPlayersView] = useState('general');
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1275,7 +1280,12 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       </section>
 
       <section className="sf-card">
-        <div className="sf-card-title"><Users size={16} /> Membros ({members.length})</div>
+        <div className="sf-card-title"><Users size={16} /> Jogadores ({members.length})</div>
+        <div className="sf-subtabs">
+          <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('general')}>Geral</button>
+          <button type="button" className={`sf-subtab ${playersView === 'prediction' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('prediction')}>Previsão</button>
+        </div>
+        {playersView === 'prediction' ? <GroupPrediction members={members} /> : (
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
@@ -1296,7 +1306,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
           ))}
         </div>
         <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
-          <Share2 size={16} /> Convidar pro grupo (WhatsApp)
+          <Share2 size={16} /> Convidar pro grupo (WhatsApp)}
+        )}
         </button>
         {!isOwner && (
           <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => { if (confirm('Sair desse grupo?')) onLeave(group.id); }}>
