@@ -643,8 +643,19 @@ function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, i
                 : 'Confirmar minha presença'}
         </button>
         {iAmConfirmed && cancellationDeadlineLabel && (
-          <div className="sf-muted-sm" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--pitch-dark)', border: '1px solid var(--line)', borderRadius: 8 }}>
-            Cancelamento sem punição até <strong style={{ color: 'var(--floodlight)' }}>{cancellationDeadlineLabel}</strong>.
+          <div className="sf-muted-sm" style={{ marginTop: 8, padding: '10px', background: 'var(--pitch-dark)', border: '1px solid var(--line)', borderRadius: 8 }}>
+            <strong style={{ color: 'var(--floodlight)' }}>Regra de cancelamento</strong>
+            <div style={{ marginTop: 4 }}>Sem punição até <strong>{cancellationDeadlineLabel}</strong>.</div>
+            {group?.participationPenaltyPaymentEnabled !== false && (
+              <div style={{ marginTop: 3 }}>
+                Após esse prazo: paga {group?.participationPenaltyPaymentMode === 'rateio' ? 'o mesmo valor do rateio da partida' : 'o mesmo valor do rateio para o caixa do grupo'}.
+              </div>
+            )}
+            {Number(group?.participationPenaltyUnpaidGames) > 0 && (
+              <div style={{ marginTop: 3 }}>
+                Se não pagar, fica suspenso por <strong>{Number(group.participationPenaltyUnpaidGames)} {Number(group.participationPenaltyUnpaidGames) === 1 ? 'jogo' : 'jogos'}</strong>.
+              </div>
+            )}
           </div>
         )}
         {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (
