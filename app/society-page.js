@@ -1871,8 +1871,29 @@ function MainApp({ session }) {
     const configuredReserves = Math.max(0, Number(game.reservesPerTeam) || 0);
     const effectiveReserves = confirmedPlayers.length > playersPerTeam * 2 ? configuredReserves : 0;
     const group = groups.find((g) => String(g.id) === String(game.groupId)) || {};
+    const memberIds = new Set(groupMembers
+      .filter((m) => String(m.group_id) === String(game.groupId))
+      .map((m) => String(m.user_id)));
+    const groupProfiles = profiles.filter((p) => memberIds.has(String(p.id)));
+    const groupGames = games.filter((g) => String(g.groupId) === String(game.groupId));
+    const historicalRanking = computeRanking(groupProfiles, groupGames, {
+      wallMaxConcededGoals: group.wallMaxConcededGoals,
+      wallPoints: group.wallPoints,
+    });
+    const statsById = Object.fromEntries(historicalRanking.map((item) => [String(item.id), item]));
+    const balancedPlayers = confirmedPlayers.map((player) => {
+      const stats = statsById[String(player.id)] || {};
+      return {
+        ...player,
+        _rankingPoints: stats.pontos || 0,
+        _wins: stats.vit || 0,
+        _goals: stats.gols || 0,
+        _assists: stats.assistencias || 0,
+        _rating: stats.nota || 0,
+      };
+    });
     const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(
-      confirmedPlayers,
+      balancedPlayers,
       Math.random,
       {
         playersPerTeam,
