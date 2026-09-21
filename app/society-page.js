@@ -1221,6 +1221,11 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [locationDraft, setLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
   const [editingLocationId, setEditingLocationId] = useState(null);
   const [goalkeeperPaysDraft, setGoalkeeperPaysDraft] = useState(group.defaultGoalkeeperPays !== false);
+  const [penaltyEnabledDraft, setPenaltyEnabledDraft] = useState(group.participationPenaltyEnabled !== false);
+  const [penaltyHoursDraft, setPenaltyHoursDraft] = useState(group.participationPenaltyHours ?? 24);
+  const [penaltyPaymentEnabledDraft, setPenaltyPaymentEnabledDraft] = useState(group.participationPenaltyPaymentEnabled !== false);
+  const [penaltyPaymentModeDraft, setPenaltyPaymentModeDraft] = useState(group.participationPenaltyPaymentMode || 'caixa');
+  const [penaltyUnpaidGamesDraft, setPenaltyUnpaidGamesDraft] = useState(group.participationPenaltyUnpaidGames ?? 2);
   const [pixKeyDraft, setPixKeyDraft] = useState(group.defaultPixKey || '');
   const [pixReceiverDraft, setPixReceiverDraft] = useState(group.defaultPixReceiverName || '');
   const [pixCityDraft, setPixCityDraft] = useState(group.defaultPixCity || '');
@@ -1249,6 +1254,11 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     setNameDraft(group.name || '');
     setDayDraft(group.defaultDayOfWeek != null ? String(group.defaultDayOfWeek) : '');
     setTimeDraft(group.defaultTime || '');
+    setPenaltyEnabledDraft(group.participationPenaltyEnabled !== false);
+    setPenaltyHoursDraft(group.participationPenaltyHours ?? 24);
+    setPenaltyPaymentEnabledDraft(group.participationPenaltyPaymentEnabled !== false);
+    setPenaltyPaymentModeDraft(group.participationPenaltyPaymentMode || 'caixa');
+    setPenaltyUnpaidGamesDraft(group.participationPenaltyUnpaidGames ?? 2);
     setPlayersPerTeamDraft(group.defaultPlayersPerTeam || 5);
     setReservesPerTeamDraft(group.defaultReservesPerTeam || 0);
     setCostDraft(group.defaultCost != null ? String(group.defaultCost) : '');
@@ -1396,6 +1406,23 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <label className="sf-field-label">Reservas por time</label>
             <input type="number" min="0" max="10" className="sf-input" value={reservesPerTeamDraft} onChange={(e) => setReservesPerTeamDraft(e.target.value)} />
             <div className="sf-muted-sm">Vagas totais padrão: {(Math.max(1, parseInt(playersPerTeamDraft, 10) || 5) + Math.max(0, parseInt(reservesPerTeamDraft, 10) || 0)) * 2}</div>
+            <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--pitch-dark)' }}>
+              <div className="sf-card-title" style={{ marginBottom: 8 }}><Shield size={15} /> Punição por cancelamento</div>
+              <div className="sf-muted-sm" style={{ marginBottom: 10 }}>Tudo é configurável por grupo. O prazo é contado em relação ao horário programado da partida.</div>
+              <label className="sf-check-row"><input type="checkbox" checked={penaltyEnabledDraft} onChange={(e) => setPenaltyEnabledDraft(e.target.checked)} /> Aplicar regra de cancelamento tardio</label>
+              <label className="sf-field-label">Prazo para cancelar sem cobrança (horas)</label>
+              <input type="number" min="0" max="168" className="sf-input" value={penaltyHoursDraft} onChange={(e) => setPenaltyHoursDraft(e.target.value)} />
+              <label className="sf-check-row"><input type="checkbox" checked={penaltyPaymentEnabledDraft} onChange={(e) => setPenaltyPaymentEnabledDraft(e.target.checked)} /> Cobrar o valor do rateio de quem cancelar dentro do prazo</label>
+              <label className="sf-field-label">Destino dessa cobrança</label>
+              <select className="sf-input" value={penaltyPaymentModeDraft} onChange={(e) => setPenaltyPaymentModeDraft(e.target.value)}>
+                <option value="caixa">Caixa do grupo — não entra na divisão da partida</option>
+                <option value="rateio">Rateio — conta como participante da divisão</option>
+              </select>
+              <div className="sf-muted-sm">O valor cobrado é congelado no momento do cancelamento, para evitar mudança posterior do valor.</div>
+              <label className="sf-field-label">Suspensão se não pagar</label>
+              <input type="number" min="0" max="10" className="sf-input" value={penaltyUnpaidGamesDraft} onChange={(e) => setPenaltyUnpaidGamesDraft(e.target.value)} />
+              <div className="sf-muted-sm">Ex.: 2 = fica impedido de entrar nas próximas 2 partidas enquanto a cobrança estiver em aberto.</div>
+            </div>
             <label className="sf-field-label">Goleiro paga a quadra?</label>
             <div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(true)}>Sim</button><button type="button" className={!goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(false)}>Não</button></div>
             <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--pitch-dark)' }}>
@@ -1684,6 +1711,11 @@ function MainApp({ session }) {
       defaultMaxPlayers: g.default_max_players || ((g.default_players_per_team || 5) + (g.default_reserves_per_team || 0)) * 2,
       defaultCost: g.default_cost != null ? Number(g.default_cost) : null,
       defaultGoalkeeperPays: g.default_goalkeeper_pays !== false,
+      participationPenaltyEnabled: g.participation_penalty_enabled !== false,
+      participationPenaltyHours: Number(g.participation_penalty_hours) || 24,
+      participationPenaltyPaymentEnabled: g.participation_penalty_payment_enabled !== false,
+      participationPenaltyPaymentMode: g.participation_penalty_payment_mode || 'caixa',
+      participationPenaltyUnpaidGames: Number(g.participation_penalty_unpaid_games) || 2,
       balanceTeamsEnabled: true,
       wallMaxConcededGoals: Number.isFinite(Number(g.wall_max_conceded_goals)) ? Number(g.wall_max_conceded_goals) : 5,
       wallPoints: Number.isFinite(Number(g.wall_points)) ? Number(g.wall_points) : 1,
