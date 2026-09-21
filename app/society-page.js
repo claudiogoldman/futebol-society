@@ -460,7 +460,8 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   // Before completion, the creator can manage the match. After completion,
   // structural changes are restricted to group admins; the creator may still
   // record/correct the final score.
-  const canManage = !game.result && myId === game.createdBy || isGameAdmin;
+  const canManage = (!game.result && myId === game.createdBy) || isGameAdmin;
+  const canManagePayments = myId === game.createdBy || isGameAdmin || myId === game.pixOwnerId;
   const canRecordResult = myId === game.createdBy || isGameAdmin;
   const canDelete = isAdmin || canManage;
   const organizer = roster.find((p) => p.id === (game.organizerId || game.createdBy));
@@ -815,7 +816,7 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
               {activePlayers.map((p) => {
                 const exempt = !gkPays && isGoleiro(p);
                 const paid = !!game.payments?.[p.id];
-                const canTogglePaid = !exempt && (canManage || p.id === myId || myId === game.pixOwnerId);
+                const canTogglePaid = !exempt && (canManagePayments || p.id === myId);
                 return (
                   <div key={p.id} className="sf-paid-item">
                     <button
