@@ -11,6 +11,7 @@ import { NATIONALITIES, countryFlag } from '../lib/countries';
 import PositionTags from '../components/players/PositionTags';
 import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
+import TeamSimulation from './components/society/TeamSimulation';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
@@ -1235,6 +1236,10 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [balanceRatingDraft, setBalanceRatingDraft] = useState(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [playersView, setPlayersView] = useState('general');
+  const [simulationOpen, setSimulationOpen] = useState(false);
+  const [simulationPlayers, setSimulationPlayers] = useState(null);
+  const [simulationGameId, setSimulationGameId] = useState(null);
+  const [simulationSourceLabel, setSimulationSourceLabel] = useState('Grupo');
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1284,6 +1289,12 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     }
   };
   const upcoming = [...games].sort((a, b) => (a.date < b.date ? 1 : -1));
+  const openSimulation = (players = members, sourceGameId = null, sourceLabel = 'Grupo') => {
+    setSimulationPlayers(players);
+    setSimulationGameId(sourceGameId);
+    setSimulationSourceLabel(sourceLabel);
+    setSimulationOpen(true);
+  };
 
   const save = async () => {
     const ok = await onSetDefaults(group.id, {
@@ -1473,7 +1484,18 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
           <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('general')}>Geral</button>
           <button type="button" className={`sf-subtab ${playersView === 'prediction' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('prediction')}>Previsão</button>
         </div>
-        {playersView === 'prediction' ? <GroupPrediction members={members} games={games} group={group} /> : (
+        {simulationOpen && (
+          <TeamSimulation
+            group={group}
+            members={members}
+            games={games}
+            initialPlayers={simulationPlayers || members}
+            sourceGameId={simulationGameId}
+            sourceLabel={simulationSourceLabel}
+            onClose={() => setSimulationOpen(false)}
+          />
+        )}
+        {!simulationOpen && playersView === 'prediction' ? <GroupPrediction members={members} games={games} group={group} /> : !simulationOpen && (
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
@@ -1494,9 +1516,12 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
           ))}
         </div>
         )}
-        {playersView === 'general' && <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
+        {playersView === 'general' && !simulationOpen && <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
           <Share2 size={16} /> Convidar pro grupo (WhatsApp)
         </button>}
+        <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => openSimulation(members, null, 'Grupo')}>
+          <Shuffle size={16} /> Simular times com os jogadores do grupo
+        </button>
         {!isOwner && (
           <button className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => { if (confirm('Sair desse grupo?')) onLeave(group.id); }}>
             Sair do grupo
@@ -1507,15 +1532,23 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       <section className="sf-card">
         <div className="sf-card-title"><CalendarDays size={16} /> Partidas do grupo</div>
         {upcoming.length === 0 && <div className="sf-muted">Nenhuma partida criada nesse grupo ainda.</div>}
-        {upcoming.map((g) => (
-          <button key={g.id} className="sf-game-card" style={{ marginBottom: 8 }} onClick={() => onOpenGame(g.id)}>
-            <div className="sf-game-card-date">{formatDatePtBr(g.date)}</div>
-            <div className="sf-game-card-info">
-              <div className="sf-h3">{g.local || 'Local a definir'}</div>
-              <div className="sf-muted-sm"><Users size={12} /> {g.confirmed.length} confirmados</div>
+        {upcoming.map((g) => {
+          const currentPlayers = g.confirmed.map((id) => members.find((m) => String(m.id) === String(id))).filter(Boolean);
+          return (
+            <div key={g.id} className="sf-game-card" style={{ marginBottom: 8 }}>
+              <button type="button" style={{ flex: 1, background: 'transparent', border: 0, color: 'inherit', textAlign: 'left', cursor: 'pointer' }} onClick={() => onOpenGame(g.id)}>
+                <div className="sf-game-card-date">{formatDatePtBr(g.date)}</div>
+                <div className="sf-game-card-info">
+                  <div className="sf-h3">{g.local || 'Local a definir'}</div>
+                  <div className="sf-muted-sm"><Users size={12} /> {g.confirmed.length} confirmados</div>
+                </div>
+              </button>
+              <button type="button" className="sf-icon-btn" title="Simular participantes desta partida" onClick={() => openSimulation(currentPlayers, g.id, `Partida · ${formatDatePtBr(g.date)}`)}>
+                <Shuffle size={16} />
+              </button>
             </div>
-          </button>
-        ))}
+          );
+        })}
         <button className="sf-btn-primary" onClick={() => onNewGame(group)}>
           <Plus size={18} /> Nova partida (já com os padrões do grupo)
         </button>
