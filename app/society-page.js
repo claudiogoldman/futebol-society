@@ -397,7 +397,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onUpdateGuestProfile, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
+function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onUpdateGuestProfile, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -456,6 +456,23 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
   const iAmConfirmed = game.confirmed.includes(myId);
   const iAmWaitlisted = waitlistIds.includes(myId);
   const myWaitlistPos = waitlistIds.findIndex((id) => id === myId);
+  const cancellationDeadline = useMemo(() => {
+    if (!group?.participationPenaltyEnabled || !game?.date) return null;
+    const hours = Math.max(0, Number(group.participationPenaltyHours ?? 24));
+    const raw = String(game.date);
+    const base = raw.includes('T') ? new Date(raw) : new Date(raw + 'T12:00:00');
+    if (Number.isNaN(base.getTime())) return null;
+    return new Date(base.getTime() - hours * 60 * 60 * 1000);
+  }, [group?.participationPenaltyEnabled, group?.participationPenaltyHours, game?.date]);
+  const cancellationDeadlineLabel = cancellationDeadline
+    ? cancellationDeadline.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
   const isGameAdmin = !!(game.groupId && groupMembers.some((m) => String(m.group_id) === String(game.groupId) && String(m.user_id) === String(myId) && m.role === 'admin'));
   // Before completion, the creator can manage the match. After completion,
   // structural changes are restricted to group admins; the creator may still
@@ -625,6 +642,11 @@ function GameDetail({ game, roster, groupMembers, groupMemberIds, myId, isAdmin,
                 ? <><span aria-hidden="true">⏳</span> Entrar na lista de espera</>
                 : 'Confirmar minha presença'}
         </button>
+        {iAmConfirmed && cancellationDeadlineLabel && (
+          <div className="sf-muted-sm" style={{ marginTop: 8, padding: '8px 10px', background: 'var(--pitch-dark)', border: '1px solid var(--line)', borderRadius: 8 }}>
+            Cancelamento sem punição até <strong style={{ color: 'var(--floodlight)' }}>{cancellationDeadlineLabel}</strong>.
+          </div>
+        )}
         {!iAmConfirmed && !iAmWaitlisted && maxPlayers && activePlayers.length >= maxPlayers && (
           <div className="sf-muted-sm" style={{ marginTop: 6 }}>Partida lotada — entre na lista de espera para ocupar uma vaga se alguém desistir.</div>
         )}
@@ -2361,6 +2383,7 @@ function MainApp({ session }) {
         {tab === 'partidas' && selectedGame && (
           <GameDetail
             game={selectedGame}
+            group={groups.find((g) => String(g.id) === String(selectedGame?.groupId)) || null}
             roster={profiles}
             groupMembers={groupMembers}
             groupMemberIds={new Set(groupMembers.filter((m) => String(m.group_id) === String(selectedGame?.groupId)).map((m) => String(m.user_id)))}
