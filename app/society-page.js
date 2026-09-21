@@ -13,6 +13,7 @@ import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
+import GroupPrediction from '../components/society/GroupPrediction';
 import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
@@ -1083,6 +1084,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [organizerDraft, setOrganizerDraft] = useState(group.defaultOrganizerId || '');
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [playersView, setPlayersView] = useState('general');
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1275,7 +1277,12 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       </section>
 
       <section className="sf-card">
-        <div className="sf-card-title"><Users size={16} /> Membros ({members.length})</div>
+        <div className="sf-card-title"><Users size={16} /> Jogadores ({members.length})</div>
+        <div className="sf-subtabs sf-group-player-subtabs">
+          <button type="button" className={`sf-subtab ${playersView === 'general' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('general')}>Geral</button>
+          <button type="button" className={`sf-subtab ${playersView === 'prediction' ? 'sf-subtab-on' : ''}`} onClick={() => setPlayersView('prediction')}>Previsão</button>
+        </div>
+        {playersView === 'prediction' ? <GroupPrediction members={members} games={games} /> : (
         <div className="sf-rsvp-list">
           {members.map((m) => (
             <div key={m.id} className={`sf-rsvp-row sf-rsvp-on ${m.id === myId ? 'sf-rsvp-me' : ''}`}>
@@ -1295,7 +1302,8 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             </div>
           ))}
         </div>
-        <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
+        )}
+        {playersView === 'general' && <button className="sf-btn-whatsapp" style={{ marginTop: 10 }} onClick={() => onShare(group)}>
           <Share2 size={16} /> Convidar pro grupo (WhatsApp)
         </button>
         {!isOwner && (
@@ -2581,6 +2589,7 @@ const CSS = `
   .sf-scorer-controls { display: flex; align-items: center; gap: 8px; }
   .sf-mini-btn { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--pitch-dark); color: var(--chalk); cursor: pointer; }
 
+  .sf-group-player-subtabs { margin-bottom: 10px; }
   .sf-subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
   .sf-subtab { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch-mid); color: var(--chalk-dim); font-size: 13px; cursor: pointer; }
   .sf-subtab-on { background: var(--floodlight); color: var(--pitch-dark); font-weight: 700; border-color: var(--floodlight); }
