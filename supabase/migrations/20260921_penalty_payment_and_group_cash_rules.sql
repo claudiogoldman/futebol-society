@@ -13,6 +13,8 @@ alter table public.game_participation_penalties
   add column if not exists payment_mode text not null default 'caixa',
   add column if not exists paid_at timestamptz,
   add column if not exists included_in_rateio boolean not null default false;
+alter table public.game_participation_penalties drop constraint if exists game_participation_penalties_payment_mode_check;
+alter table public.game_participation_penalties add constraint game_participation_penalties_payment_mode_check check (payment_mode in ('rateio','caixa'));
 
 create table if not exists public.group_cash_transactions (
   id uuid primary key default gen_random_uuid(),
@@ -80,3 +82,5 @@ $function$;
 
 revoke execute on function public.set_penalty_payment_status(uuid,boolean) from public,anon;
 grant execute on function public.set_penalty_payment_status(uuid,boolean) to authenticated;
+drop policy if exists "group_cash_members_read" on public.group_cash_transactions;
+create policy "group_cash_members_read" on public.group_cash_transactions for select to authenticated using (exists (select 1 from public.group_members gm where gm.group_id=group_cash_transactions.group_id and gm.user_id=auth.uid()) or exists (select 1 from public.groups g where g.id=group_cash_transactions.group_id and g.created_by=auth.uid()));
