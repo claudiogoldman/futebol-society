@@ -432,12 +432,20 @@ function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, i
   const [assists, setAssists] = useState(game.result?.scorers ? (game.assists || {}) : {});
   const [myGoalsDraft, setMyGoalsDraft] = useState(game.result?.scorers?.[myId] || 0);
   const [myAssistsDraft, setMyAssistsDraft] = useState(game.assists?.[myId] || 0);
-  // Confirmed participants and the persistent waitlist are separate sources of truth.
+  // Participants are confirmed group members plus guests registered for this match.
+  // Guests have their own game_guests row and may not have a game_confirmations row,
+  // but they are still participants and must be eligible for the draw.
   const confirmedPlayers = game.confirmed.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
+  const guestPlayers = (game.guests || [])
+    .map((guest) => roster.find((p) => String(p.id) === String(guest.profile_id)))
+    .filter(Boolean);
+  const participantPlayers = [...confirmedPlayers, ...guestPlayers.filter(
+    (guest) => !confirmedPlayers.some((player) => String(player.id) === String(guest.id)),
+  )];
   const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
   const reservesPerTeam = Math.max(0, Number(game.reservesPerTeam) || 0);
   const maxPlayers = (playersPerTeam + reservesPerTeam) * 2;
-  const activePlayers = confirmedPlayers.slice(0, maxPlayers);
+  const activePlayers = participantPlayers.slice(0, maxPlayers);
   const guestByProfileId = useMemo(() => new Map((game.guests || []).map((guest) => [String(guest.profile_id), guest])), [game.guests]);
   const waitlistIds = game.waitlist || [];
   const waitlistPlayers = waitlistIds.map((id) => roster.find((p) => p.id === id)).filter(Boolean);
@@ -1837,7 +1845,8 @@ function MainApp({ session }) {
 
   const addGuest = async (gameId, name, email, position) => {
     const game = games.find((g) => g.id === gameId);
-    if (game?.maxPlayers && game.confirmed.length >= game.maxPlayers) {
+    const participantCount = (game?.confirmed?.length || 0) + (game?.guests?.length || 0);
+    if (game?.maxPlayers && participantCount >= game.maxPlayers) {
       alert('A partida já está lotada. O convidado não pode ser adicionado além do limite de vagas.');
       return false;
     }
