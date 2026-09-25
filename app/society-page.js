@@ -808,6 +808,7 @@ function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, i
           onSaveTeams={onSaveTeams}
           onGameRefresh={onGameRefresh}
           isGoalkeeper={isGoleiro}
+          improvisedGoalkeeperPenalty={group?.improvisedGoalkeeperPenalty ?? 10}
         />
       </section>
 
@@ -1158,6 +1159,7 @@ function buildGroupPrediction(members, games, criterion, group = {}) {
     balanceGoalsWeight: group.balanceGoalsWeight,
     balanceAssistsWeight: group.balanceAssistsWeight,
     balanceRatingWeight: group.balanceRatingWeight,
+    improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
   });
   const teamAIds = new Set(draw.teamAStarters.map((player) => player.id));
   return {
@@ -1281,6 +1283,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [balanceGoalsDraft, setBalanceGoalsDraft] = useState(Math.round((group.balanceGoalsWeight ?? 0.15) * 100));
   const [balanceAssistsDraft, setBalanceAssistsDraft] = useState(Math.round((group.balanceAssistsWeight ?? 0.10) * 100));
   const [balanceRatingDraft, setBalanceRatingDraft] = useState(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
+  const [improvisedGoalkeeperPenaltyDraft, setImprovisedGoalkeeperPenaltyDraft] = useState(group.improvisedGoalkeeperPenalty ?? 10);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [playersView, setPlayersView] = useState('general');
   const [simulationOpen, setSimulationOpen] = useState(false);
@@ -1316,6 +1319,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     setBalanceGoalsDraft(Math.round((group.balanceGoalsWeight ?? 0.15) * 100));
     setBalanceAssistsDraft(Math.round((group.balanceAssistsWeight ?? 0.10) * 100));
     setBalanceRatingDraft(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
+    setImprovisedGoalkeeperPenaltyDraft(group.improvisedGoalkeeperPenalty ?? 10);
     setAvatarDraft(group.avatar || null);
     setAvatarUrlDraft(group.avatarUrl || '');
     setEditing(false);
@@ -1375,6 +1379,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       balance_goals_weight: Math.max(0, Number(balanceGoalsDraft || 0)) / 100,
       balance_assists_weight: Math.max(0, Number(balanceAssistsDraft || 0)) / 100,
       balance_rating_weight: Math.max(0, Number(balanceRatingDraft || 0)) / 100,
+      default_improvised_goalkeeper_penalty: Math.max(0, Math.min(30, Number(improvisedGoalkeeperPenaltyDraft) || 0)),
       avatar: avatarDraft,
       avatar_url: avatarUrlDraft || null,
     });
@@ -1410,6 +1415,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-cost-row"><span className="sf-muted">Organizador padrão</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{members.find((m) => m.id === group.defaultOrganizerId)?.name || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">PIX</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultPixKey || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Balanceamento</span><span className="sf-mono-value" style={{ cursor: 'default' }}>Sempre aplicado</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Goleiro improvisado</span><span className="sf-mono-value" style={{ cursor: 'default' }}>-{Number(group.improvisedGoalkeeperPenalty ?? 10)} pontos de força</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Muro</span><span className="sf-mono-value" style={{ cursor: 'default' }}>menos de {group.wallMaxConcededGoals} gols · +{group.wallPoints} pt</span></div>
             <div className="sf-muted-sm" style={{ marginTop: 6 }}>Seleção: 12 mais frequentes ou 12 melhores do ranking. Depois, o balanceamento distribui os selecionados em A/B.</div>
             <div className="sf-muted-sm" style={{ marginTop: 4 }}>Pesos: ranking → vitórias → artilharia → assistências → avaliação (último).</div>
@@ -1493,6 +1499,9 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                 </div>
               ))}
               <div className="sf-muted-sm" style={{ marginTop: 8 }}>Os pesos são normalizados automaticamente; a avaliação permanece o último critério.</div>
+              <label className="sf-field-label">Penalidade por goleiro improvisado (pontos de força)</label>
+              <input type="number" min="0" max="30" step="1" className="sf-input" value={improvisedGoalkeeperPenaltyDraft} onChange={(e) => setImprovisedGoalkeeperPenaltyDraft(e.target.value)} />
+              <div className="sf-muted-sm">Se um time não tiver goleiro, esse valor é descontado da força do elenco. 0 desativa a penalidade. O valor é aplicado ao sorteio, à simulação e ao índice exibido.</div>
             </div>
             <label className="sf-field-label">Organizador padrão das partidas</label>
             <select className="sf-input" value={organizerDraft} onChange={(e) => { const id = e.target.value; setOrganizerDraft(id); const p = members.find((m) => m.id === id); if (p?.pix_key) { setPixKeyDraft(p.pix_key); setPixReceiverDraft(p.name || ''); } }}>
@@ -2043,6 +2052,7 @@ function MainApp({ session }) {
         balanceGoalsWeight: group.balanceGoalsWeight,
         balanceAssistsWeight: group.balanceAssistsWeight,
         balanceRatingWeight: group.balanceRatingWeight,
+        improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
       },
     );
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
