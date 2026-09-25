@@ -145,6 +145,13 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
     <div style={{ marginTop: 12, padding: 10, border: '1px solid rgba(255,255,255,.12)', borderRadius: 10 }} aria-label="Indicadores de equilíbrio">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><strong>⚖️ Índice de equilíbrio</strong><strong>{balance.balance.toFixed(0)}/100</strong></div>
       <div style={{ marginTop: 4, fontSize: 10, opacity: .72 }}>O índice combina força técnica, cobertura de posições e fatores físicos (idade e peso).</div>
+      <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10 }}>
+        <span>🧤 Goleiro A: <strong>{balance.goalkeeperStatusA === 'titular' ? 'titular' : 'improvisado'}</strong></span>
+        <span style={{ textAlign: 'right' }}>🧤 Goleiro B: <strong>{balance.goalkeeperStatusB === 'titular' ? 'titular' : 'improvisado'}</strong></span>
+      </div>
+      {(balance.goalkeeperStatusA === 'improvisado' || balance.goalkeeperStatusB === 'improvisado') && (
+        <div style={{ marginTop: 4, fontSize: 10, opacity: .82 }}>⚠️ Goleiro improvisado: -{balance.improvisedGoalkeeperPenalty.toFixed(0)} pontos de força no time sem goleiro.</div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 7, fontSize: 11 }}><span>Força A <strong>{balance.strengthA.toFixed(1)}</strong></span><span style={{ textAlign: 'right' }}>Força B <strong>{balance.strengthB.toFixed(1)}</strong></span></div>
       <div style={{ marginTop: 9, display: 'grid', gap: 5 }}>
         <Metric label="idade total" valueA={metricsA.ageTotal || null} valueB={metricsB.ageTotal || null} unit=" anos" />
