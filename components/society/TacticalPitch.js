@@ -115,7 +115,7 @@ export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam =
   const H = 400;
   const layoutA = assignSlots(teamA, false, playersPerTeam, reservesPerTeam);
   const layoutB = assignSlots(teamB, true, playersPerTeam, reservesPerTeam);
-  const balance = calculateTeamBalance(teamA, teamB);
+  const balance = calculateTeamBalance(teamA, teamB, { improvisedGoalkeeperPenalty });
   const metricsA = teamMetrics(teamA);
   const metricsB = teamMetrics(teamB);
   const gradientId = `tacticalPitchGrass-${useId().replace(/:/g, '')}`;
