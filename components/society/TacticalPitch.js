@@ -110,7 +110,7 @@ function ReserveList({ label, players }) {
   );
 }
 
-export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam = 7, reservesPerTeam = 0 }) {
+export default function TacticalPitch({ teamA = [], teamB = [], playersPerTeam = 7, reservesPerTeam = 0, improvisedGoalkeeperPenalty = 10 }) {
   const W = 280;
   const H = 400;
   const layoutA = assignSlots(teamA, false, playersPerTeam, reservesPerTeam);

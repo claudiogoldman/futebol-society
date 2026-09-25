@@ -9,11 +9,11 @@ import { Component } from 'react';
 export default class SocietyErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
   componentDidCatch(error, info) {
@@ -28,9 +28,6 @@ export default class SocietyErrorBoundary extends Component {
         <section className="sf-card" style={{ maxWidth: 520, textAlign: 'center' }}>
           <h1>Não foi possível carregar o Futebol Society</h1>
           <p>Ocorreu um erro na interface. Recarregue a página para tentar novamente.</p>
-          {this.state.error?.message ? (
-            <pre style={{ marginTop: 12, padding: 10, textAlign: 'left', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11, background: '#f5f5f5', color: '#222', borderRadius: 8 }}>{this.state.error.message}</pre>
-          ) : null}
           <button type="button" onClick={() => window.location.reload()}>
             Recarregar
           </button>
