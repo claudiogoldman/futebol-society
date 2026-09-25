@@ -1836,8 +1836,20 @@ function MainApp({ session }) {
   };
 
   const addGuest = async (gameId, name, email, position) => {
+    const game = games.find((g) => g.id === gameId);
+    if (game?.maxPlayers && game.confirmed.length >= game.maxPlayers) {
+      alert('A partida já está lotada. O convidado não pode ser adicionado além do limite de vagas.');
+      return false;
+    }
     const { error } = await serviceAddGameGuest(gameId, name, email, position);
-    if (error) { alert('Não foi possível adicionar o convidado: ' + error.message); return false; }
+    if (error) {
+      if (error.message === 'PARTIDA_LOTADA') {
+        alert('A partida já está lotada. O convidado não pode ser adicionado além do limite de vagas.');
+      } else {
+        alert('Não foi possível adicionar o convidado: ' + error.message);
+      }
+      return false;
+    }
     await loadAll();
     return true;
   };
