@@ -10,7 +10,7 @@ import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawFor
 
 export default function GameTeamsSection({
   game, roster, activePlayers, canManage, hasTeams, playersPerTeam, reservesPerTeam,
-  editingTeams, teamDraft, setTeamDraft, setEditingTeams, onDraw, onSaveTeams, onGameRefresh, isGoalkeeper,
+  editingTeams, teamDraft, setTeamDraft, setEditingTeams, onDraw, onSaveTeams, onGameRefresh, isGoalkeeper, improvisedGoalkeeperPenalty = 10,
 }) {
   const [drawHistory, setDrawHistory] = useState([]);
   const [teams, setTeams] = useState({ teamA: game.teamA || [], teamB: game.teamB || [] });
@@ -395,7 +395,7 @@ export default function GameTeamsSection({
               })}
               <div className="sf-modal-actions"><button type="button" className="sf-btn-ghost" onClick={() => setEditingTeams(false)}>Cancelar</button><button type="button" className="sf-btn-primary" onClick={handleSaveTeams}>Salvar times</button></div>
             </div>}
-            <TacticalPitch teamA={teams.teamA} teamB={teams.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} />
+            <TacticalPitch teamA={teams.teamA} teamB={teams.teamB} playersPerTeam={playersPerTeam} reservesPerTeam={reservesPerTeam} improvisedGoalkeeperPenalty={improvisedGoalkeeperPenalty} />
             <div className="sf-teams-legend"><div><span className="sf-dot sf-dot-a" /> Time A — {teams.teamA.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div><div><span className="sf-dot sf-dot-b" /> Time B — {teams.teamB.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div></div>
           </>}
         </>

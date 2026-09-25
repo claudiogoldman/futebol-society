@@ -83,6 +83,7 @@ export default function TeamSimulation({
       balanceGoalsWeight: group.balanceGoalsWeight,
       balanceAssistsWeight: group.balanceAssistsWeight,
       balanceRatingWeight: group.balanceRatingWeight,
+      improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
       candidates: 40,
     });
     return result;

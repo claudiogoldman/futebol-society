@@ -48,6 +48,18 @@ const balanced = drawTeams(players(10), () => 0.5, {
 const balance = calculateTeamBalance(balanced.teamAStarters, balanced.teamBStarters);
 assert.ok(balance.balance >= 95, `expected balanced 5x5 squads, got ${balance.balance}`);
 
+// Business rule: when one team has no goalkeeper, the configured
+// improvised-goalkeeper penalty must affect the strength and balance index.
+const noGoalkeeperA = balanced.teamAStarters.filter((player) => !player.positions?.includes('goleiro'));
+const goalkeeperB = balanced.teamBStarters;
+const noGkDefault = calculateTeamBalance(noGoalkeeperA, goalkeeperB);
+const noGkZeroPenalty = calculateTeamBalance(noGoalkeeperA, goalkeeperB, { improvisedGoalkeeperPenalty: 0 });
+assert.equal(noGkDefault.goalkeeperStatusA, 'improvisado');
+assert.equal(noGkDefault.goalkeeperStatusB, 'titular');
+assert.equal(noGkDefault.improvisedGoalkeeperPenalty, 10);
+assert.equal(noGkDefault.strengthA, noGkZeroPenalty.strengthA - 10);
+
+
 // Business rule: promoting a reserve while moving a current starter to reserve
 // within the same team must not alter the balance index.
 const twelve = drawTeams(players(12), () => 0.5, {
