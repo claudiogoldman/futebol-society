@@ -37,8 +37,14 @@ export default function GameTeamsSection({
     const displayDraw = history.find((item) => item.is_valid);
     if (!(game.teamA?.length || game.teamB?.length) && displayDraw) {
       setTeams({
-        teamA: resolvePlayers(displayDraw.team_a_starters),
-        teamB: resolvePlayers(displayDraw.team_b_starters),
+        teamA: [
+          ...resolvePlayers(displayDraw.team_a_starters),
+          ...resolvePlayers(displayDraw.team_a_reserves),
+        ],
+        teamB: [
+          ...resolvePlayers(displayDraw.team_b_starters),
+          ...resolvePlayers(displayDraw.team_b_reserves),
+        ],
       });
     }
   };
@@ -246,7 +252,16 @@ export default function GameTeamsSection({
       return false;
     }
     const selected = drawHistory.find((item) => String(item.id) === String(drawId));
-    if (selected) setTeams({ teamA: resolvePlayers(selected.team_a_starters), teamB: resolvePlayers(selected.team_b_starters) });
+    if (selected) setTeams({
+      teamA: [
+        ...resolvePlayers(selected.team_a_starters),
+        ...resolvePlayers(selected.team_a_reserves),
+      ],
+      teamB: [
+        ...resolvePlayers(selected.team_b_starters),
+        ...resolvePlayers(selected.team_b_reserves),
+      ],
+    });
     setHistoryError('');
     await onGameRefresh?.();
     await loadHistory();
