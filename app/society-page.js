@@ -1283,7 +1283,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [balanceGoalsDraft, setBalanceGoalsDraft] = useState(Math.round((group.balanceGoalsWeight ?? 0.15) * 100));
   const [balanceAssistsDraft, setBalanceAssistsDraft] = useState(Math.round((group.balanceAssistsWeight ?? 0.10) * 100));
   const [balanceRatingDraft, setBalanceRatingDraft] = useState(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
-  const [improvisedGoalkeeperPenaltyDraft, setImprovisedGoalkeeperPenaltyDraft] = useState(group.improvisedGoalkeeperPenalty ?? 10);
+  const [improvisedGoalkeeperPenaltyDraft, setImprovisedGoalkeeperPenaltyDraft] = useState(group?.improvisedGoalkeeperPenalty ?? 10);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [playersView, setPlayersView] = useState('general');
   const [simulationOpen, setSimulationOpen] = useState(false);
