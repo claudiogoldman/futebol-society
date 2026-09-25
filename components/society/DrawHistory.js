@@ -22,9 +22,18 @@ export default function DrawHistory({ history = [], roster = [], canManage = fal
 
   const resolvePlayers = (value) => drawIds(value).map((id) => playersById.get(id)).filter(Boolean);
   const teamNames = (value) => resolvePlayers(value).map((p) => p.nickname?.trim() || p.name || '?');
+
+  // O índice de equilíbrio deve usar exatamente o mesmo universo do índice
+  // exibido no sorteio: titulares + reservas de cada equipe.
   const balanceFor = (item) => {
-    const a = resolvePlayers(item.team_a_starters);
-    const b = resolvePlayers(item.team_b_starters);
+    const a = [
+      ...resolvePlayers(item.team_a_starters),
+      ...resolvePlayers(item.team_a_reserves),
+    ];
+    const b = [
+      ...resolvePlayers(item.team_b_starters),
+      ...resolvePlayers(item.team_b_reserves),
+    ];
     if (a.length < 1 || b.length < 1) return null;
     return calculateTeamBalance(a, b)?.balance ?? null;
   };
