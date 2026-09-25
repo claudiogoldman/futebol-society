@@ -48,6 +48,24 @@ const balanced = drawTeams(players(10), () => 0.5, {
 const balance = calculateTeamBalance(balanced.teamAStarters, balanced.teamBStarters);
 assert.ok(balance.balance >= 95, `expected balanced 5x5 squads, got ${balance.balance}`);
 
+// Business rule: moving a player between titular/reserva within the same team
+// must not alter the balance index because the full A/B rosters are unchanged.
+const roleA = [...balanced.teamAStarters];
+const roleB = [...balanced.teamBStarters];
+const roleBalanceBefore = calculateTeamBalance(roleA, roleB).balance;
+const roleBalanceAfter = calculateTeamBalance(
+  [...roleA, roleA[0]],
+  roleB,
+).balance;
+assert.equal(roleBalanceAfter, roleBalanceBefore, "titular/reserva remanejamento must not change balance");
+
+// The roster helper must also ignore accidental duplicate role entries.
+assert.equal(
+  calculateTeamBalance([...roleA, roleA[0]], roleB).balance,
+  roleBalanceBefore,
+  "duplicate player entries must not distort the full-roster balance",
+);
+
 const limited = drawTeams(players(10), () => 0.5, {
   playersPerTeam: 6,
   reservesPerTeam: 2,
