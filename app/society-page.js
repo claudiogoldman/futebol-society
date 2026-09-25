@@ -1792,6 +1792,7 @@ function MainApp({ session }) {
       balanceGoalsWeight: Number.isFinite(Number(g.balance_goals_weight)) ? Number(g.balance_goals_weight) : 0.15,
       balanceAssistsWeight: Number.isFinite(Number(g.balance_assists_weight)) ? Number(g.balance_assists_weight) : 0.10,
       balanceRatingWeight: Number.isFinite(Number(g.balance_rating_weight)) ? Number(g.balance_rating_weight) : 0.05,
+      improvisedGoalkeeperPenalty: Number.isFinite(Number(g.default_improvised_goalkeeper_penalty)) ? Number(g.default_improvised_goalkeeper_penalty) : 10,
       defaultPixKey: g.default_pix_key || '',
       defaultPixReceiverName: g.default_pix_receiver_name || '',
       defaultPixCity: g.default_pix_city || '',
