@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Users, CalendarDays, LayoutDashboard } from 'lucide-react';
+import { MapPin, Users, CalendarDays, LayoutDashboard, Settings } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const TABS = [
@@ -9,14 +9,15 @@ const TABS = [
   { id: 'players', label: 'Jogadores', icon: Users },
   { id: 'games', label: 'Partidas', icon: CalendarDays },
   { id: 'locations', label: 'Locais', icon: MapPin },
+  { id: 'settings', label: 'Configurações', icon: Settings },
 ];
 
 function classifySections(root) {
   const sections = Array.from(root.querySelectorAll(':scope > section.sf-card'));
   sections.forEach((section) => {
     const title = section.querySelector('.sf-card-title')?.textContent?.trim() || '';
-    if (title.includes('Padrões do grupo')) section.dataset.groupTab = 'overview';
-    else if (title.includes('Locais cadastrados')) section.dataset.groupTab = 'locations';
+    if (title.includes('Padrões do grupo')) section.dataset.groupTab = 'settings';
+    else if (title.includes('Locais cadastrados')) section.dataset.groupTab = 'settings';
     else if ((title.includes('Membros') || title.includes('Jogadores'))) section.dataset.groupTab = 'players';
     else if (title.includes('Partidas do grupo')) section.dataset.groupTab = 'games overview';
   });
@@ -78,9 +79,10 @@ export default function GroupTabs() {
       role="tablist"
       aria-label="Navegação do grupo"
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        display: 'flex',
         gap: 6,
+        overflowX: 'auto',
+        scrollbarWidth: 'thin',
         margin: '10px 0 12px',
         padding: 5,
         background: 'var(--pitch-mid)',
@@ -102,7 +104,8 @@ export default function GroupTabs() {
             className="sf-group-tab"
             onClick={() => setActive(id)}
             style={{
-              minWidth: 0,
+              minWidth: 108,
+              flex: '0 0 108px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
