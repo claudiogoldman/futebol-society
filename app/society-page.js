@@ -1124,7 +1124,7 @@ function seededRandom(seed) {
 
 function buildGroupPrediction(members, games, criterion, group = {}) {
   const completedGames = games.filter((game) => game.result);
-  const ranking = computeRanking(members, completedGames, { wallMaxConcededGoals: group.wallMaxConcededGoals, wallPoints: group.wallPoints });
+  const ranking = computeRanking(members, completedGames, { wallMaxConcededGoals: group.wallMaxConcededGoals, wallPoints: group.wallPoints, penalties: group.participationPenalties || [] });
   const rankingById = Object.fromEntries(ranking.map((item, index) => [item.id, { ...item, position: index + 1 }]));
 
   const ordered = [...members].sort((a, b) => {
@@ -1652,6 +1652,40 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   );
 }
 
+function RankingLedgerModal({ player, games, onClose }) {
+  if (!player) return null;
+  const entries = player.lancamentos || [];
+  return (
+    <div className="sf-modal-backdrop" onClick={onClose}>
+      <div className="sf-modal" role="dialog" aria-modal="true" aria-labelledby="sf-ranking-ledger-title" onClick={(e) => e.stopPropagation()}>
+        <div className="sf-modal-title" id="sf-ranking-ledger-title">Extrato do ranking</div>
+        <div className="sf-h3">{player.name}</div>
+        <div className="sf-muted-sm" style={{ margin: '4px 0 12px' }}>Cada lançamento mostra a origem dos pontos que formam o ranking.</div>
+        <div className="sf-cost-row" style={{ marginBottom: 10 }}><span>Saldo do ranking</span><strong className="sf-mono-value">{player.pontos} pts</strong></div>
+        {entries.length === 0 ? <div className="sf-muted">Nenhum lançamento de pontuação.</div> : (
+          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+            {entries.map((entry, index) => {
+              const game = games.find((g) => String(g.id) === String(entry.gameId));
+              return (
+                <div key={entry.penaltyId || String(entry.gameId) + '-' + entry.tipo + '-' + index} className="sf-cost-row" style={{ alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div><strong>{entry.descricao}</strong></div>
+                    <div className="sf-muted-sm">
+                      {entry.date ? new Date(entry.date).toLocaleDateString('pt-BR') : 'Data não identificada'}
+                      {game ? ' · ' + (game.local || 'Partida') : ''}
+                    </div>
+                  </div>
+                  <span className="sf-mono-value" style={{ minWidth: 42, textAlign: 'right' }}>{entry.pontos > 0 ? '+' : ''}{entry.pontos}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="sf-modal-actions"><button type="button" className="sf-btn-primary" onClick={onClose}>Fechar</button></div>
+      </div>
+    </div>
+  );
+}
 // ---------- main app (authenticated) ----------
 
 function MainApp({ session }) {
@@ -1687,6 +1721,7 @@ function MainApp({ session }) {
   const [inlineLocationOpen, setInlineLocationOpen] = useState(false);
   const [inlineLocationDraft, setInlineLocationDraft] = useState({ name: '', address: '', city: '', state: '', latitude: '', longitude: '', isDefault: false });
   const [rankingGroupFilter, setRankingGroupFilter] = useState('');
+  const [rankingLedgerPlayer, setRankingLedgerPlayer] = useState(null);
   const [newGameCost, setNewGameCost] = useState('');
   const [newGameGoalkeeperPays, setNewGameGoalkeeperPays] = useState(true);
   const [newGamePixKey, setNewGamePixKey] = useState('');
@@ -1713,7 +1748,7 @@ function MainApp({ session }) {
   };
 
   const loadAll = useCallback(async () => {
-    const [profilesRes, gamesRes, confRes, gameGuestsRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes, cashRes] = await Promise.all([
+    const [profilesRes, gamesRes, confRes, gameGuestsRes, waitlistRes, teamsRes, paysRes, goalsRes, ratingsRes, groupsRes, groupMembersRes, groupLocationsRes, cashRes, penaltiesRes] = await Promise.all([
       supabase.from('profiles').select('*').order('name'),
       supabase.from('games').select('*').order('date', { ascending: false }),
       supabase.from('game_confirmations').select('*'),
@@ -1727,6 +1762,7 @@ function MainApp({ session }) {
       supabase.from('group_members').select('*'),
       supabase.from('group_locations').select('*').order('is_default', { ascending: false }).order('name'),
       supabase.from('group_cash_transactions').select('*').order('created_at', { ascending: false }),
+      supabase.from('game_participation_penalties').select('id,group_id,user_id,canceled_game_id,reason,created_at,released_at,released_by').order('created_at', { ascending: false }),
     ]);
     const profs = (profilesRes.data || []).map((p) => ({ ...p, accountName: p.name, name: displayName(p) }));
     const profileMap = Object.fromEntries(profs.map((p) => [p.id, p]));
@@ -1799,6 +1835,7 @@ function MainApp({ session }) {
       defaultOrganizerId: g.default_organizer_id || null,
       avatar: g.avatar || null,
       avatarUrl: g.avatar_url || '',
+      participationPenalties: (penaltiesRes.data || []).filter((p) => String(p.group_id) === String(g.id)),
       cashTransactions: (cashRes.data || []).filter((t) => t.group_id === g.id),
       cashBalance: (cashRes.data || []).filter((t) => t.group_id === g.id).reduce((sum, t) => sum + (t.direction === 'debit' ? -Number(t.amount || 0) : Number(t.amount || 0)), 0),
     })));
@@ -2029,6 +2066,7 @@ function MainApp({ session }) {
     const historicalRanking = computeRanking(groupProfiles, groupGames, {
       wallMaxConcededGoals: group.wallMaxConcededGoals,
       wallPoints: group.wallPoints,
+      penalties: group.participationPenalties || [],
     });
     const statsById = Object.fromEntries(historicalRanking.map((item) => [String(item.id), item]));
     const balancedPlayers = confirmedPlayers.map((player) => {
@@ -2351,6 +2389,7 @@ function MainApp({ session }) {
     return computeRanking(profiles.filter((p) => memberIds.has(String(p.id))), groupGames, {
       wallMaxConcededGoals: group.wallMaxConcededGoals,
       wallPoints: group.wallPoints,
+      penalties: group.participationPenalties || [],
     });
   }, [profiles, games, groupMembers, rankingGroupFilter, groups]);
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -2405,6 +2444,8 @@ function MainApp({ session }) {
           <button className="sf-icon-btn" title="Sair" onClick={() => supabase.auth.signOut()}><LogOut size={18} /></button>
         </div>
       </header>
+
+      {rankingLedgerPlayer && <RankingLedgerModal player={rankingLedgerPlayer} games={games.filter((g) => String(g.groupId) === String(rankingGroupFilter))} onClose={() => setRankingLedgerPlayer(null)} />}
 
       <main className="sf-main">
         {tab === 'partidas' && !selectedGame && (
@@ -2618,7 +2659,7 @@ function MainApp({ session }) {
                     <span className="sf-mono-value">{r.gols}/{r.assistencias}</span>
                     <span className="sf-mono-value">{r.nota != null ? r.nota.toFixed(1) : '—'}</span>
                     <span className="sf-mono-value">{r.presencaPct != null ? `${r.presencaPct}%` : '—'}</span>
-                    <span className="sf-mono-value sf-rk-pts">{r.pontos}</span>
+                    <button type="button" className="sf-mono-value sf-rk-pts" title="Ver extrato de pontuação" onClick={() => setRankingLedgerPlayer(r)}>{r.pontos}</button>
                   </div>
                 ))}
               </div>
