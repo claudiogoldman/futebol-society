@@ -10,7 +10,7 @@ import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawFor
 
 export default function GameTeamsSection({
   game, roster, activePlayers, canManage, hasTeams, playersPerTeam, reservesPerTeam,
-  editingTeams, teamDraft, setTeamDraft, setEditingTeams, onDraw, onSaveTeams, onGameRefresh, isGoalkeeper, improvisedGoalkeeperPenalty = 10,
+  editingTeams, teamDraft, setTeamDraft, setEditingTeams, onDraw, onSaveTeams, onGameRefresh, isGoalkeeper, group, improvisedGoalkeeperPenalty = 10,
 }) {
   const [drawHistory, setDrawHistory] = useState([]);
   const [teams, setTeams] = useState({ teamA: game.teamA || [], teamB: game.teamB || [] });
@@ -401,7 +401,7 @@ export default function GameTeamsSection({
         </>
       )}
 
-      <DrawHistory history={drawHistory} roster={roster} canManage={canManage} onRestore={handleRestoreDraw} onDelete={handleDeleteDraw} />
+      <DrawHistory history={drawHistory} roster={roster} canManage={canManage} includeReserves={group?.balanceIncludeReserves !== false} onRestore={handleRestoreDraw} onDelete={handleDeleteDraw} />
     </section>
   );
 }
