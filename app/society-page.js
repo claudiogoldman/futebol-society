@@ -794,6 +794,7 @@ function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, i
       <section data-game-section="times">
         <GameTeamsSection
           game={game}
+          group={group}
           roster={roster}
           activePlayers={activePlayers}
           canManage={canManage}
