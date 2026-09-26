@@ -11,11 +11,6 @@ const TABS = [
   { id: 'locations', label: 'Locais', icon: MapPin },
 ];
 
-const OVERVIEW_TABS = [
-  { id: 'summary', label: 'Resumo' },
-  { id: 'games', label: 'Partidas' },
-];
-
 function classifySections(root) {
   const sections = Array.from(root.querySelectorAll(':scope > section.sf-card'));
 
@@ -23,21 +18,17 @@ function classifySections(root) {
     const title = section.querySelector('.sf-card-title')?.textContent?.trim() || '';
 
     delete section.dataset.groupTab;
-    delete section.dataset.groupOverviewTab;
 
     if (title.includes('Padrões do grupo')) {
       section.dataset.groupTab = 'overview';
-      section.dataset.groupOverviewTab = 'summary';
     } else if (title.includes('Caixa do grupo')) {
       section.dataset.groupTab = 'overview';
-      section.dataset.groupOverviewTab = 'summary';
     } else if (title.includes('Locais cadastrados')) {
       section.dataset.groupTab = 'locations';
     } else if ((title.includes('Membros') || title.includes('Jogadores'))) {
       section.dataset.groupTab = 'players';
     } else if (title.includes('Partidas do grupo')) {
-      section.dataset.groupTab = 'games overview';
-      section.dataset.groupOverviewTab = 'games';
+      section.dataset.groupTab = 'games';
     }
   });
 
@@ -64,7 +55,6 @@ function findGroupDetail() {
 export default function GroupTabs() {
   const [target, setTarget] = useState(null);
   const [active, setActive] = useState('overview');
-  const [overviewTab, setOverviewTab] = useState('summary');
 
   useEffect(() => {
     let current = null;
@@ -76,7 +66,6 @@ export default function GroupTabs() {
         current = next;
         setTarget(next || null);
         setActive('overview');
-        setOverviewTab('summary');
       }
 
       if (next) classifySections(next);
@@ -102,13 +91,7 @@ export default function GroupTabs() {
       const tabs = (section.dataset.groupTab || '').split(' ');
       const isMainTabVisible = tabs.includes(active);
 
-      let visible = isMainTabVisible;
-
-      if (active === 'overview') {
-        visible =
-          isMainTabVisible &&
-          (section.dataset.groupOverviewTab || 'summary') === overviewTab;
-      }
+      const visible = isMainTabVisible;
 
       section.style.display = visible ? '' : 'none';
     });
@@ -125,7 +108,7 @@ export default function GroupTabs() {
         section.style.display = '';
       });
     };
-  }, [target, sections, active, overviewTab]);
+  }, [target, sections, active]);
 
   if (!target) return null;
 
@@ -188,49 +171,6 @@ export default function GroupTabs() {
         })}
       </div>
 
-      {active === 'overview' && (
-        <div
-          className="sf-group-overview-tabs"
-          role="tablist"
-          aria-label="Seções da visão geral"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 6,
-            margin: '0 0 12px',
-            padding: 4,
-            background: 'var(--pitch-dark)',
-            border: '1px solid var(--line)',
-            borderRadius: 10,
-          }}
-        >
-          {OVERVIEW_TABS.map(({ id, label }) => {
-            const selected = overviewTab === id;
-
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setOverviewTab(id)}
-                style={{
-                  padding: '8px 6px',
-                  borderRadius: 7,
-                  border: selected ? '1px solid var(--floodlight)' : '1px solid transparent',
-                  background: selected ? 'var(--floodlight)' : 'transparent',
-                  color: selected ? 'var(--pitch-dark)' : 'var(--chalk-dim)',
-                  fontSize: 11,
-                  fontWeight: selected ? 700 : 500,
-                  cursor: 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </>,
     target,
     'group-tabs'
