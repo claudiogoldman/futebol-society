@@ -17,7 +17,7 @@ function formatDrawDate(value) {
   }
 }
 
-export default function DrawHistory({ history = [], roster = [], canManage = false, onRestore, onDelete }) {
+export default function DrawHistory({ history = [], roster = [], canManage = false, includeReserves = true, onRestore, onDelete }) {
   const playersById = useMemo(() => new Map(roster.map((p) => [String(p.id), p])), [roster]);
 
   const resolvePlayers = (value) => drawIds(value).map((id) => playersById.get(id)).filter(Boolean);
@@ -28,11 +28,11 @@ export default function DrawHistory({ history = [], roster = [], canManage = fal
   const balanceFor = (item) => {
     const a = [
       ...resolvePlayers(item.team_a_starters),
-      ...resolvePlayers(item.team_a_reserves),
+      ...(includeReserves ? resolvePlayers(item.team_a_reserves) : []),
     ];
     const b = [
       ...resolvePlayers(item.team_b_starters),
-      ...resolvePlayers(item.team_b_reserves),
+      ...(includeReserves ? resolvePlayers(item.team_b_reserves) : []),
     ];
     if (a.length < 1 || b.length < 1) return null;
     return calculateTeamBalance(a, b)?.balance ?? null;
