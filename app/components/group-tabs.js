@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Users, CalendarDays, LayoutDashboard, Settings } from 'lucide-react';
+import { Users, CalendarDays, LayoutDashboard, Settings } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const TABS = [
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'players', label: 'Jogadores', icon: Users },
   { id: 'games', label: 'Partidas', icon: CalendarDays },
-  { id: 'locations', label: 'Locais', icon: MapPin },
   { id: 'settings', label: 'Configurações', icon: Settings },
 ];
 
