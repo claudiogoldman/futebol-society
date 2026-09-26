@@ -1,6 +1,7 @@
 -- Group rules for team balancing and goalkeeper Wall ranking.
 alter table public.groups
   add column if not exists balance_teams_enabled boolean not null default true,
+  add column if not exists balance_include_reserves boolean not null default true,
   add column if not exists wall_max_conceded_goals integer not null default 5,
   add column if not exists wall_points integer not null default 1,
   add column if not exists balance_ranking_weight numeric not null default 0.35,
