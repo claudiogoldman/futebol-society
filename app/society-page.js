@@ -1286,6 +1286,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [balanceRatingDraft, setBalanceRatingDraft] = useState(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
   const [balanceIncludeReservesDraft, setBalanceIncludeReservesDraft] = useState(group.balanceIncludeReserves !== false);
   const [improvisedGoalkeeperPenaltyDraft, setImprovisedGoalkeeperPenaltyDraft] = useState(group?.improvisedGoalkeeperPenalty ?? 10);
+  const [drawMethodsDraft, setDrawMethodsDraft] = useState(Array.isArray(group?.drawMethods) && group.drawMethods.length ? group.drawMethods : ['config', 'random']);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [playersView, setPlayersView] = useState('general');
   const [simulationOpen, setSimulationOpen] = useState(false);
@@ -1323,6 +1324,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
     setBalanceRatingDraft(Math.round((group.balanceRatingWeight ?? 0.05) * 100));
     setBalanceIncludeReservesDraft(group.balanceIncludeReserves !== false);
     setImprovisedGoalkeeperPenaltyDraft(group.improvisedGoalkeeperPenalty ?? 10);
+    setDrawMethodsDraft(Array.isArray(group.drawMethods) && group.drawMethods.length ? group.drawMethods : ['config', 'random']);
     setAvatarDraft(group.avatar || null);
     setAvatarUrlDraft(group.avatarUrl || '');
     setEditing(false);
@@ -1384,6 +1386,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
       balance_rating_weight: Math.max(0, Number(balanceRatingDraft || 0)) / 100,
       balance_include_reserves: balanceIncludeReservesDraft,
       default_improvised_goalkeeper_penalty: Math.max(0, Math.min(30, Number(improvisedGoalkeeperPenaltyDraft) || 0)),
+      draw_methods: drawMethodsDraft,
       avatar: avatarDraft,
       avatar_url: avatarUrlDraft || null,
     });
@@ -1418,6 +1421,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-cost-row"><span className="sf-muted">Goleiro paga?</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultGoalkeeperPays !== false ? 'Sim' : 'Não'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Organizador padrão</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{members.find((m) => m.id === group.defaultOrganizerId)?.name || '—'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">PIX</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.defaultPixKey || '—'}</span></div>
+            <div className="sf-cost-row"><span className="sf-muted">Sorteio disponível</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{(group.drawMethods || ['config', 'random']).length === 2 ? 'Configuração + Tampinha' : (group.drawMethods || ['config'])[0] === 'random' ? 'Tampinha' : 'Configuração'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Balanceamento</span><span className="sf-mono-value" style={{ cursor: 'default' }}>Sempre aplicado</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Reservas no equilíbrio</span><span className="sf-mono-value" style={{ cursor: 'default' }}>{group.balanceIncludeReserves !== false ? 'Sim' : 'Não'}</span></div>
             <div className="sf-cost-row"><span className="sf-muted">Goleiro improvisado</span><span className="sf-mono-value" style={{ cursor: 'default' }}>-{Number(group.improvisedGoalkeeperPenalty ?? 10)} pontos de força</span></div>
@@ -1484,6 +1488,27 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             <div className="sf-gk-toggle" style={{ marginBottom: 12 }}><button type="button" className={goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(true)}>Sim</button><button type="button" className={!goalkeeperPaysDraft ? 'sf-gk-toggle-on' : ''} onClick={() => setGoalkeeperPaysDraft(false)}>Não</button></div>
             <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--pitch-dark)' }}>
               <div className="sf-card-title" style={{ marginBottom: 8 }}><Shuffle size={15} /> Regras de formação dos times</div>
+              <div className="sf-field-label">Modalidades de sorteio</div>
+              <div className="sf-muted-sm" style={{ marginBottom: 8 }}>Escolha quais modalidades ficam disponíveis na Prévia e no Sorteio. Pelo menos uma deve permanecer selecionada.</div>
+              {[
+                ['config', 'Configuração', 'Usa as regras de balanceamento configuradas no grupo.'],
+                ['random', 'Tampinha', 'Distribuição totalmente aleatória, sem critérios de balanceamento.'],
+              ].map(([value, label, description]) => (
+                <label key={value} className="sf-check-row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={drawMethodsDraft.includes(value)}
+                    onChange={(e) => {
+                      setDrawMethodsDraft((current) => {
+                        if (e.target.checked) return Array.from(new Set([...current, value]));
+                        const next = current.filter((item) => item !== value);
+                        return next.length ? next : current;
+                      });
+                    }}
+                  />
+                  <span><strong>{label}</strong><br /><span className="sf-muted-sm">{description}</span></span>
+                </label>
+              ))}
               <label className="sf-check-row"><input type="checkbox" checked={balanceIncludeReservesDraft} onChange={(e) => setBalanceIncludeReservesDraft(e.target.checked)} /> Considerar reservas no índice de equilíbrio</label>
               <div className="sf-muted-sm" style={{ marginBottom: 10 }}>Essa regra vale para o índice exibido no sorteio e no histórico. Padrão: titulares + reservas.</div>
               <div className="sf-muted-sm" style={{ marginBottom: 10 }}>O balanceamento é sempre aplicado. Você pode ajustar os pesos e a regra do Muro. Alterações não recalculam partidas já encerradas.</div>
@@ -1828,6 +1853,7 @@ function MainApp({ session }) {
       participationPenaltyPaymentMode: g.participation_penalty_payment_mode || 'caixa',
       participationPenaltyUnpaidGames: Number(g.participation_penalty_unpaid_games) || 2,
       balanceTeamsEnabled: true,
+      drawMethods: Array.isArray(g.draw_methods) && g.draw_methods.length ? g.draw_methods : ['config', 'random'],
       wallMaxConcededGoals: Number.isFinite(Number(g.wall_max_conceded_goals)) ? Number(g.wall_max_conceded_goals) : 5,
       wallPoints: Number.isFinite(Number(g.wall_points)) ? Number(g.wall_points) : 1,
       balanceRankingWeight: Number.isFinite(Number(g.balance_ranking_weight)) ? Number(g.balance_ranking_weight) : 0.35,
@@ -2264,6 +2290,7 @@ function MainApp({ session }) {
       balance_goals_weight: 0.15,
       balance_assists_weight: 0.10,
       balance_rating_weight: 0.05,
+      draw_methods: ['config', 'random'],
       created_by: myId,
       default_local: newGroupLocal.trim() || null,
       default_day_of_week: newGroupDay !== '' ? parseInt(newGroupDay, 10) : null,
