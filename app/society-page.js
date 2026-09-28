@@ -2382,7 +2382,7 @@ function MainApp({ session }) {
         msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
       }
     }
-    msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌`;
+    msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌🏻 🙌🏿`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
