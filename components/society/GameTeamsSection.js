@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Shuffle, LockKeyhole, Unlock, RefreshCw } from 'lucide-react';
+import { Shuffle, LockKeyhole, Unlock, RefreshCw, Users, Settings, Coins } from 'lucide-react';
 import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
 import { supabase } from '../../lib/supabaseClient';
 import { computeRanking } from '../../lib/domain/ranking';
+import { drawTeams, drawTeamsRandom } from '../../lib/domain/game';
 import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawForPlayerReplacement, promoteDrawReserveToStarter, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
@@ -19,6 +20,10 @@ export default function GameTeamsSection({
   const [penaltyError, setPenaltyError] = useState('');
   const [releasingPenaltyId, setReleasingPenaltyId] = useState(null);
   const [adjustingDraw, setAdjustingDraw] = useState(false);
+  const [viewTab, setViewTab] = useState('confirmed');
+  const [drawOptions, setDrawOptions] = useState(null);
+  const [drawChoiceOpen, setDrawChoiceOpen] = useState(false);
+  const [preparingDraw, setPreparingDraw] = useState(false);
 
   const playersById = useMemo(() => new Map(roster.map((player) => [String(player.id), player])), [roster]);
   const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : []).map((id) => playersById.get(String(id))).filter(Boolean);
@@ -77,7 +82,7 @@ export default function GameTeamsSection({
     const gameIds = gameRows.map((row) => row.id);
     const [teamsRes, goalsRes, ratingsRes] = await Promise.all([
       supabase.from('game_teams').select('game_id,user_id,team,role').in('game_id', gameIds),
-      supabase.from('goals').select('game_id,user_id,goals').in('game_id', gameIds),
+      supabase.from('goals').select('game_id,user_id,goals,assists').in('game_id', gameIds),
       supabase.from('ratings').select('game_id,rater_id,rated_id,score').in('game_id', gameIds),
     ]);
     if (teamsRes.error) return basePlayers;
@@ -89,9 +94,12 @@ export default function GameTeamsSection({
       teamsByGame.get(row.game_id).push(row);
     });
     const scorersByGame = new Map();
+    const assistsByGame = new Map();
     (goalsRes.data || []).forEach((row) => {
       if (!scorersByGame.has(row.game_id)) scorersByGame.set(row.game_id, {});
+      if (!assistsByGame.has(row.game_id)) assistsByGame.set(row.game_id, {});
       scorersByGame.get(row.game_id)[row.user_id] = Number(row.goals) || 0;
+      assistsByGame.get(row.game_id)[row.user_id] = Number(row.assists) || 0;
     });
     const ratingsByGame = new Map();
     (ratingsRes.data || []).forEach((row) => {
@@ -105,14 +113,14 @@ export default function GameTeamsSection({
       const rows = teamsByGame.get(row.id) || [];
       return {
         result: { scoreA: Number(row.score_a), scoreB: Number(row.score_b), scorers: scorersByGame.get(row.id) || {} },
-        assists: {},
+        assists: assistsByGame.get(row.id) || {},
         ratings: ratingsByGame.get(row.id) || {},
         teamA: rows.filter((teamRow) => teamRow.team === 'A' && (teamRow.role === 'starter' || teamRow.role == null)).map((teamRow) => profileById.get(String(teamRow.user_id))).filter(Boolean),
         teamB: rows.filter((teamRow) => teamRow.team === 'B' && (teamRow.role === 'starter' || teamRow.role == null)).map((teamRow) => profileById.get(String(teamRow.user_id))).filter(Boolean),
       };
     });
 
-    const ranking = computeRanking(roster, completedGames);
+    const ranking = computeRanking(roster, completedGames, { wallMaxConcededGoals: group?.wallMaxConcededGoals, wallPoints: group?.wallPoints, penalties: group?.participationPenalties || [] });
     const rankingById = new Map(ranking.map((row) => [String(row.id), row]));
     const conceded = new Map();
     completedGames.forEach((completedGame) => {
@@ -141,23 +149,86 @@ export default function GameTeamsSection({
         ...player,
         _rankingPoints: stat?.pontos || 0,
         _wins: stat?.vit || 0,
+        _goals: stat?.gols || 0,
+        _assists: stat?.assistencias || 0,
+        _rating: stat?.nota || 0,
         _goalsConcededPerGame: keeperStat && keeperStat.games > 0 ? keeperStat.goals / keeperStat.games : null,
       };
     });
   };
 
   const handleDraw = async () => {
-    if (!canDraw) return false;
-    const drawPlayers = await buildDrawPlayers();
-    const result = await onDraw(game.id, drawPlayers);
-    await loadHistory();
-    return result;
+    if (!canDraw || preparingDraw) return false;
+    setPreparingDraw(true);
+    try {
+      const drawPlayers = await buildDrawPlayers();
+      const ppt = Math.max(1, Number(playersPerTeam) || Math.ceil(drawPlayers.length / 2));
+      const config = {
+        playersPerTeam: ppt,
+        reservesPerTeam: drawPlayers.length > ppt * 2 ? Math.max(0, Number(reservesPerTeam) || 0) : 0,
+        balanceRankingWeight: group?.balanceRankingWeight,
+        balanceWinsWeight: group?.balanceWinsWeight,
+        balanceGoalsWeight: group?.balanceGoalsWeight,
+        balanceAssistsWeight: group?.balanceAssistsWeight,
+        balanceRatingWeight: group?.balanceRatingWeight,
+        improvisedGoalkeeperPenalty,
+      };
+      const methods = Array.isArray(group?.drawMethods) && group.drawMethods.length ? group.drawMethods : ['config', 'random'];
+      const options = {};
+      if (methods.includes('config')) options.config = drawTeams(drawPlayers, Math.random, { ...config, candidates: 40 });
+      if (methods.includes('random')) options.random = drawTeamsRandom(drawPlayers, Math.random, config);
+      setDrawOptions({ players: drawPlayers, options });
+      setDrawChoiceOpen(true);
+      return true;
+    } finally {
+      setPreparingDraw(false);
+    }
+  };
+
+  const confirmDrawChoice = async (method) => {
+    const selected = drawOptions?.options?.[method];
+    if (!selected) return false;
+    setPreparingDraw(true);
+    try {
+      const result = await onDraw(game.id, drawOptions.players, method, selected);
+      if (result) {
+        setDrawChoiceOpen(false);
+        setDrawOptions(null);
+        setViewTab('preview');
+        await loadHistory();
+      }
+      return result;
+    } finally {
+      setPreparingDraw(false);
+    }
   };
 
   const handleSaveTeams = async () => {
     const ok = await onSaveTeams(game.id, teamDraft, activePlayers);
     if (ok) { setEditingTeams(false); await loadHistory(); }
     return ok;
+  };
+
+  const renderPreviewOption = (method, title, Icon) => {
+    const draw = drawOptions?.options?.[method];
+    if (!draw) return null;
+    return (
+      <div className="sf-card" style={{ marginBottom: 8 }}>
+        <div className="sf-card-title"><Icon size={15} /> {title}</div>
+        <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
+          {draw.teamAStarters.length} titulares por time{draw.teamAReserves.length + draw.teamBReserves.length ? ' · ' + (draw.teamAReserves.length + draw.teamBReserves.length) + ' reservas' : ''}
+        </div>
+        <div className="sf-draw-preview-teams">
+          {[['A', draw.teamAStarters, draw.teamAReserves], ['B', draw.teamBStarters, draw.teamBReserves]].map(([label, starters, reserves]) => (
+            <div key={label} className="sf-card sf-draw-preview-team" style={{ marginBottom: 0 }}>
+              <div className="sf-card-title">Time {label}</div>
+              {starters.map((p) => <div key={p.id} className="sf-rsvp-row" style={{ padding: '6px 8px', marginBottom: 4 }}>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</div>)}
+              {reserves.length > 0 && <div className="sf-muted-sm" style={{ marginTop: 6 }}>Suplentes: {reserves.map((p) => p.name).join(', ')}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const latestDraw = drawHistory[0] || null;
@@ -281,6 +352,27 @@ export default function GameTeamsSection({
   return (
     <section className="sf-card">
       <div className="sf-card-title"><Shuffle size={16} /> Times</div>
+      <div className="sf-subtabs" style={{ marginBottom: 10 }}>
+        <button type="button" className={'sf-subtab ' + (viewTab === 'confirmed' ? 'sf-subtab-on' : '')} onClick={() => setViewTab('confirmed')}><Users size={14} /> Confirmados ({activePlayers.length})</button>
+        <button type="button" className={'sf-subtab ' + (viewTab === 'preview' ? 'sf-subtab-on' : '')} onClick={() => setViewTab('preview')}><Shuffle size={14} /> Prévia</button>
+      </div>
+
+      {viewTab === 'confirmed' && (
+        <div className="sf-card" style={{ marginBottom: 10, padding: 10, background: 'var(--pitch-dark)' }}>
+          <div className="sf-muted-sm" style={{ marginBottom: 7 }}>{activePlayers.length} jogador{activePlayers.length === 1 ? '' : 'es'} confirmado{activePlayers.length === 1 ? '' : 's'} para esta partida.</div>
+          {activePlayers.length === 0 ? <div className="sf-muted-sm">Nenhum jogador confirmado ainda.</div> : activePlayers.map((p) => <div key={p.id} className="sf-rsvp-row" style={{ padding: '7px 8px', marginBottom: 4 }}>{p.name}{isGoalkeeper(p) ? ' (GOL)' : ''}</div>)}
+        </div>
+      )}
+
+      {viewTab === 'preview' && (
+        <div style={{ marginBottom: 10 }}>
+          <div className="sf-muted-sm" style={{ marginBottom: 8 }}>A Prévia é recalculada com os confirmados atuais. Ela não altera os times oficiais.</div>
+          {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : drawOptions?.options ? <>
+            {renderPreviewOption('config', '⚙️ Configuração', Settings)}
+            {renderPreviewOption('random', '🎲 Tampinha', Coins)}
+          </> : <div className="sf-muted-sm">Clique em “Sortear times” para gerar as opções de Prévia.</div>}
+        </div>
+      )}
 
       {blockedPlayers.length > 0 && (
         <div style={{ marginBottom: 12, padding: 10, border: '1px solid var(--sf-border)', borderRadius: 10, background: 'rgba(255, 193, 7, 0.06)' }}>
@@ -323,7 +415,7 @@ export default function GameTeamsSection({
         <>
           {canManage && canDraw && <div className="sf-muted-sm" role="status" style={{ marginBottom: 8 }}>Sorteio disponível com {activePlayers.length} jogadores. A configuração da partida define o limite de cada time; com menos jogadores, a distribuição fica a mais equilibrada possível.</div>}
           {canManage && <div className="sf-modal-actions">
-            <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw}><Shuffle size={16} /> {displayHasTeams ? 'Sortear novamente' : 'Sortear times'}</button>
+            <button type="button" className="sf-btn-primary" onClick={handleDraw} disabled={!canDraw || preparingDraw}><Shuffle size={16} /> {preparingDraw ? 'Gerando opções...' : (displayHasTeams ? 'Sortear novamente' : 'Sortear times')}</button>
             {displayHasTeams && !editingTeams && !canAdjustSingleReplacement && <button type="button" className="sf-btn-ghost" onClick={() => {
               const draft = {};
               const currentA = new Map((teams.teamA || []).map((p) => [String(p.id), p]));
@@ -399,6 +491,24 @@ export default function GameTeamsSection({
             <div className="sf-teams-legend"><div><span className="sf-dot sf-dot-a" /> Time A — {teams.teamA.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div><div><span className="sf-dot sf-dot-b" /> Time B — {teams.teamB.map((p) => isGoalkeeper(p) ? `${p.name} (GOL)` : p.name).join(', ')}</div></div>
           </>}
         </>
+      )}
+
+      {drawChoiceOpen && drawOptions?.options && (
+        <div className="sf-modal-backdrop" onClick={() => !preparingDraw && setDrawChoiceOpen(false)}>
+          <div className="sf-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sf-modal-title">Escolha o sorteio</div>
+            <div className="sf-muted-sm" style={{ marginBottom: 10 }}>As opções foram geradas com os mesmos jogadores confirmados. Escolha qual será o sorteio oficial.</div>
+            {renderPreviewOption('config', '⚙️ Configuração', Settings)}
+            {renderPreviewOption('random', '🎲 Tampinha', Coins)}
+            <div className="sf-modal-actions">
+              <button type="button" className="sf-btn-ghost" onClick={() => setDrawChoiceOpen(false)} disabled={preparingDraw}>Cancelar</button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {drawOptions.options.config && <button type="button" className="sf-btn-primary" onClick={() => confirmDrawChoice('config')} disabled={preparingDraw}>Usar Configuração</button>}
+                {drawOptions.options.random && <button type="button" className="sf-btn-primary" onClick={() => confirmDrawChoice('random')} disabled={preparingDraw}>Usar Tampinha</button>}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <DrawHistory history={drawHistory} roster={roster} canManage={canManage} includeReserves={group?.balanceIncludeReserves !== false} onRestore={handleRestoreDraw} onDelete={handleDeleteDraw} />
