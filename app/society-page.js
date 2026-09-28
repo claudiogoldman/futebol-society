@@ -30,6 +30,15 @@ function displayName(player) {
   return nickname || player?.name || '?';
 }
 
+function whatsappPlayerLabel(player) {
+  const name = displayName(player);
+  if (isGoleiro(player)) return `${name} 🧤`;
+  const positions = Array.isArray(player?.positions)
+    ? player.positions.filter((pos) => POSITION_LABELS[pos]).map((pos) => POSITION_LABELS[pos])
+    : [];
+  return positions.length ? `${name} (${positions.join(' / ')})` : name;
+}
+
 // combines weight + age deviation from a "typical" player into one number,
 // used only to break near-ties in the rating balance so the draw doesn't
 // accidentally stack every heavy/young player on the same side.
@@ -2367,9 +2376,9 @@ function MainApp({ session }) {
     let msg = `⚽ *Futebol Society* — ${formatDatePtBr(game.date)}\n`;
     if (game.local) msg += `📍 ${game.local}\n`;
     msg += `\n✅ *INSCRITOS* (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
-    msg += activePlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') || '—';
+    msg += activePlayers.map((p, i) => `${i + 1}. ${whatsappPlayerLabel(p)}`).join('\n') || '—';
     msg += `\n\n⏳ *SUPLENTES* (${waitlistPlayers?.length || 0}):\n`;
-    msg += waitlistPlayers?.length ? waitlistPlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') : '—';
+    msg += waitlistPlayers?.length ? waitlistPlayers.map((p, i) => `${i + 1}. ${whatsappPlayerLabel(p)}`).join('\n') : '—';
     const shareGroup = groups.find((g) => String(g.id) === String(game.groupId)) || null;
     if (shareGroup?.participationPenaltyEnabled !== false) {
       const penaltyHours = Math.max(0, Number(shareGroup.participationPenaltyHours ?? 24));
@@ -2401,8 +2410,8 @@ function MainApp({ session }) {
     }
     const teamsDefined = Array.isArray(game.teamA) && game.teamA.length > 0 && Array.isArray(game.teamB) && game.teamB.length > 0;
     if (teamsDefined) {
-      msg += `\n\n⚪ *TIME A*\n${game.teamA.map((p) => p.name).join(', ')}`;
-      msg += `\n\n⚫ *TIME B*\n${game.teamB.map((p) => p.name).join(', ')}`;
+      msg += `\n\n⚪ *TIME A*\n${game.teamA.map((p) => whatsappPlayerLabel(p)).join(', ')}`;
+      msg += `\n\n⚫ *TIME B*\n${game.teamB.map((p) => whatsappPlayerLabel(p)).join(', ')}`;
       if (Number.isFinite(Number(rateio)) && Number(rateio) > 0) {
         msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
       }
