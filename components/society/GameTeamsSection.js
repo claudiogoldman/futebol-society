@@ -398,7 +398,7 @@ export default function GameTeamsSection({
       {viewTab === 'preview' && (
         <div style={{ marginBottom: 10 }}>
           <div className="sf-muted-sm" style={{ marginBottom: 8 }}>A Prévia é recalculada com os confirmados atuais. Ela não altera os times oficiais.</div>
-          {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : drawOptions?.options ? <>
+          {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : livePreviewOptions ? <>
             {renderPreviewOption('config', '⚙️ Configuração', Settings, livePreviewOptions)}
             {renderPreviewOption('random', '🎲 Tampinha', Coins, livePreviewOptions)}
           </> : <div className="sf-muted-sm">Clique em “Sortear times” para gerar as opções de Prévia.</div>}
