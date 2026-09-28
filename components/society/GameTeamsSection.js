@@ -212,6 +212,8 @@ export default function GameTeamsSection({
     const refreshLivePreview = async () => {
       if (activePlayers.length < 2) {
         setLivePreviewOptions(null);
+        setLivePreviewPlayers([]);
+        setPreviewRefreshing(false);
         return;
       }
       setPreviewRefreshing(true);
