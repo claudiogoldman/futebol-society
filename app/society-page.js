@@ -2345,10 +2345,6 @@ function MainApp({ session }) {
     msg += activePlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') || '—';
     msg += `\n\n⏳ *SUPLENTES* (${waitlistPlayers?.length || 0}):\n`;
     msg += waitlistPlayers?.length ? waitlistPlayers.map((p, i) => `${i + 1}. ${p.name}`).join('\n') : '—';
-    if (game.teamA && game.teamA.length > 0) {
-      msg += `\n\n🔴 Time A: ${game.teamA.map((p) => p.name).join(', ')}`;
-      msg += `\n🔵 Time B: ${game.teamB.map((p) => p.name).join(', ')}`;
-    }
     const shareGroup = groups.find((g) => String(g.id) === String(game.groupId)) || null;
     if (shareGroup?.participationPenaltyEnabled !== false) {
       const penaltyHours = Math.max(0, Number(shareGroup.participationPenaltyHours ?? 24));
@@ -2377,6 +2373,14 @@ function MainApp({ session }) {
       if (destaques?.artilheiro) msg += `\n🎯 Artilheiro: ${destaques.artilheiro.name} (${destaques.maxGoals})`;
       if (destaques?.passador) msg += `\n🤝 Passador: ${destaques.passador.name} (${destaques.maxAssists})`;
       if (destaques?.muro) msg += `\n🧤 Muro: ${destaques.muro.name} (${destaques.muroConceded} sofridos)`;
+    }
+    const teamsDefined = Array.isArray(game.teamA) && game.teamA.length > 0 && Array.isArray(game.teamB) && game.teamB.length > 0;
+    if (teamsDefined) {
+      msg += `\n\n⚪ *TIME A*\n${game.teamA.map((p) => p.name).join(', ')}`;
+      msg += `\n\n⚫ *TIME B*\n${game.teamB.map((p) => p.name).join(', ')}`;
+      if (Number.isFinite(Number(rateio)) && Number(rateio) > 0) {
+        msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
+      }
     }
     msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
