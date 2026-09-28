@@ -2082,7 +2082,7 @@ function MainApp({ session }) {
     return true;
   };
 
-  const handleDraw = async (gameId, confirmedPlayers, drawMethod = 'config') => {
+  const handleDraw = async (gameId, confirmedPlayers, drawMethod = 'config', preparedDraw = null) => {
     const game = games.find((g) => g.id === gameId);
     if (!game) { alert('Partida não encontrada.'); return false; }
     const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
@@ -2121,9 +2121,9 @@ function MainApp({ session }) {
       balanceRatingWeight: group.balanceRatingWeight,
       improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
     };
-    const draw = drawMethod === 'random'
+    const draw = preparedDraw || (drawMethod === 'random'
       ? drawTeamsRandom(balancedPlayers, Math.random, drawConfig)
-      : drawTeams(balancedPlayers, Math.random, { ...drawConfig, candidates: 40 });
+      : drawTeams(balancedPlayers, Math.random, { ...drawConfig, candidates: 40 }));
     const { teamAStarters, teamBStarters, teamAReserves, teamBReserves } = draw;
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
