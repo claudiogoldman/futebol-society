@@ -14,7 +14,7 @@ import TacticalPitch from '../components/society/TacticalPitch';
 import TeamSimulation from './components/society/TeamSimulation';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
-import { drawTeams, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
+import { drawTeams, drawTeamsRandom, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
 import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
@@ -2056,11 +2056,9 @@ function MainApp({ session }) {
     return true;
   };
 
-  const handleDraw = async (gameId, confirmedPlayers) => {
+  const handleDraw = async (gameId, confirmedPlayers, drawMethod = 'config') => {
     const game = games.find((g) => g.id === gameId);
     if (!game) { alert('Partida não encontrada.'); return false; }
-    // Com exatamente a capacidade dos dois times não existe reserva.
-    // Reserva só entra quando há jogadores além de playersPerTeam * 2.
     const playersPerTeam = Math.max(1, Number(game.playersPerTeam) || 5);
     const configuredReserves = Math.max(0, Number(game.reservesPerTeam) || 0);
     const effectiveReserves = confirmedPlayers.length > playersPerTeam * 2 ? configuredReserves : 0;
@@ -2087,20 +2085,20 @@ function MainApp({ session }) {
         _rating: stats.nota || 0,
       };
     });
-    const { teamA, teamB, teamAStarters, teamBStarters, teamAReserves, teamBReserves } = drawTeams(
-      balancedPlayers,
-      Math.random,
-      {
-        playersPerTeam,
-        reservesPerTeam: effectiveReserves,
-        balanceRankingWeight: group.balanceRankingWeight,
-        balanceWinsWeight: group.balanceWinsWeight,
-        balanceGoalsWeight: group.balanceGoalsWeight,
-        balanceAssistsWeight: group.balanceAssistsWeight,
-        balanceRatingWeight: group.balanceRatingWeight,
-        improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
-      },
-    );
+    const drawConfig = {
+      playersPerTeam,
+      reservesPerTeam: effectiveReserves,
+      balanceRankingWeight: group.balanceRankingWeight,
+      balanceWinsWeight: group.balanceWinsWeight,
+      balanceGoalsWeight: group.balanceGoalsWeight,
+      balanceAssistsWeight: group.balanceAssistsWeight,
+      balanceRatingWeight: group.balanceRatingWeight,
+      improvisedGoalkeeperPenalty: group.improvisedGoalkeeperPenalty,
+    };
+    const draw = drawMethod === 'random'
+      ? drawTeamsRandom(balancedPlayers, Math.random, drawConfig)
+      : drawTeams(balancedPlayers, Math.random, { ...drawConfig, candidates: 40 });
+    const { teamAStarters, teamBStarters, teamAReserves, teamBReserves } = draw;
     const { error } = await setGameTeams(gameId, teamAStarters.map((p) => p.id), teamBStarters.map((p) => p.id), teamAReserves.map((p) => p.id), teamBReserves.map((p) => p.id));
     if (error) { alert('Não foi possível salvar o novo sorteio: ' + error.message); return false; }
     await loadAll();
