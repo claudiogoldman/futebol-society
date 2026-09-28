@@ -22,6 +22,7 @@ export default function GameTeamsSection({
   const [adjustingDraw, setAdjustingDraw] = useState(false);
   const [viewTab, setViewTab] = useState('confirmed');
   const [drawOptions, setDrawOptions] = useState(null);
+  const [livePreviewOptions, setLivePreviewOptions] = useState(null);
   const [drawChoiceOpen, setDrawChoiceOpen] = useState(false);
   const [preparingDraw, setPreparingDraw] = useState(false);
 
@@ -203,14 +204,44 @@ export default function GameTeamsSection({
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const refreshLivePreview = async () => {
+      if (activePlayers.length < 2) {
+        setLivePreviewOptions(null);
+        return;
+      }
+      const drawPlayers = await buildDrawPlayers();
+      if (cancelled) return;
+      const ppt = Math.max(1, Number(playersPerTeam) || Math.ceil(drawPlayers.length / 2));
+      const config = {
+        playersPerTeam: ppt,
+        reservesPerTeam: drawPlayers.length > ppt * 2 ? Math.max(0, Number(reservesPerTeam) || 0) : 0,
+        balanceRankingWeight: group?.balanceRankingWeight,
+        balanceWinsWeight: group?.balanceWinsWeight,
+        balanceGoalsWeight: group?.balanceGoalsWeight,
+        balanceAssistsWeight: group?.balanceAssistsWeight,
+        balanceRatingWeight: group?.balanceRatingWeight,
+        improvisedGoalkeeperPenalty,
+      };
+      const methods = Array.isArray(group?.drawMethods) && group.drawMethods.length ? group.drawMethods : ['config', 'random'];
+      const options = {};
+      if (methods.includes('config')) options.config = drawTeams(drawPlayers, Math.random, { ...config, candidates: 40 });
+      if (methods.includes('random')) options.random = drawTeamsRandom(drawPlayers, Math.random, config);
+      setLivePreviewOptions(options);
+    };
+    refreshLivePreview();
+    return () => { cancelled = true; };
+  }, [activePlayers, playersPerTeam, reservesPerTeam, group?.drawMethods, group?.balanceRankingWeight, group?.balanceWinsWeight, group?.balanceGoalsWeight, group?.balanceAssistsWeight, group?.balanceRatingWeight, improvisedGoalkeeperPenalty]);
+
   const handleSaveTeams = async () => {
     const ok = await onSaveTeams(game.id, teamDraft, activePlayers);
     if (ok) { setEditingTeams(false); await loadHistory(); }
     return ok;
   };
 
-  const renderPreviewOption = (method, title, Icon) => {
-    const draw = drawOptions?.options?.[method];
+  const renderPreviewOption = (method, title, Icon, sourceOptions = null) => {
+    const draw = (sourceOptions || drawOptions?.options)?.[method];
     if (!draw) return null;
     return (
       <div className="sf-card" style={{ marginBottom: 8 }}>
@@ -368,8 +399,8 @@ export default function GameTeamsSection({
         <div style={{ marginBottom: 10 }}>
           <div className="sf-muted-sm" style={{ marginBottom: 8 }}>A Prévia é recalculada com os confirmados atuais. Ela não altera os times oficiais.</div>
           {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : drawOptions?.options ? <>
-            {renderPreviewOption('config', '⚙️ Configuração', Settings)}
-            {renderPreviewOption('random', '🎲 Tampinha', Coins)}
+            {renderPreviewOption('config', '⚙️ Configuração', Settings, livePreviewOptions)}
+            {renderPreviewOption('random', '🎲 Tampinha', Coins, livePreviewOptions)}
           </> : <div className="sf-muted-sm">Clique em “Sortear times” para gerar as opções de Prévia.</div>}
         </div>
       )}
