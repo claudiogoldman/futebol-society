@@ -6,7 +6,7 @@ import TacticalPitch from './TacticalPitch';
 import DrawHistory from './DrawHistory';
 import { supabase } from '../../lib/supabaseClient';
 import { computeRanking } from '../../lib/domain/ranking';
-import { drawTeams, drawTeamsRandom } from '../../lib/domain/game';
+import { calculateTeamBalance, drawTeams, drawTeamsRandom } from '../../lib/domain/game';
 import { getGameDrawHistory, setValidGameDraw, deleteGameDraw, adjustGameDrawForPlayerReplacement, promoteDrawReserveToStarter, getGameParticipationPenalties, releaseGameParticipationPenalty } from '../../lib/services/society-service';
 
 export default function GameTeamsSection({
@@ -25,6 +25,9 @@ export default function GameTeamsSection({
   const [livePreviewOptions, setLivePreviewOptions] = useState(null);
   const [drawChoiceOpen, setDrawChoiceOpen] = useState(false);
   const [preparingDraw, setPreparingDraw] = useState(false);
+  const [previewRefreshing, setPreviewRefreshing] = useState(false);
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const [livePreviewPlayers, setLivePreviewPlayers] = useState([]);
 
   const playersById = useMemo(() => new Map(roster.map((player) => [String(player.id), player])), [roster]);
   const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : []).map((id) => playersById.get(String(id))).filter(Boolean);
@@ -211,8 +214,10 @@ export default function GameTeamsSection({
         setLivePreviewOptions(null);
         return;
       }
+      setPreviewRefreshing(true);
       const drawPlayers = await buildDrawPlayers();
       if (cancelled) return;
+      setLivePreviewPlayers(drawPlayers);
       const ppt = Math.max(1, Number(playersPerTeam) || Math.ceil(drawPlayers.length / 2));
       const config = {
         playersPerTeam: ppt,
@@ -229,10 +234,11 @@ export default function GameTeamsSection({
       if (methods.includes('config')) options.config = drawTeams(drawPlayers, Math.random, { ...config, candidates: 40 });
       if (methods.includes('random')) options.random = drawTeamsRandom(drawPlayers, Math.random, config);
       setLivePreviewOptions(options);
+      setPreviewRefreshing(false);
     };
     refreshLivePreview();
     return () => { cancelled = true; };
-  }, [activePlayers, playersPerTeam, reservesPerTeam, group?.drawMethods, group?.balanceRankingWeight, group?.balanceWinsWeight, group?.balanceGoalsWeight, group?.balanceAssistsWeight, group?.balanceRatingWeight, improvisedGoalkeeperPenalty]);
+  }, [activePlayers, playersPerTeam, reservesPerTeam, group?.drawMethods, group?.balanceRankingWeight, group?.balanceWinsWeight, group?.balanceGoalsWeight, group?.balanceAssistsWeight, group?.balanceRatingWeight, improvisedGoalkeeperPenalty, previewRefreshKey]);
 
   const handleSaveTeams = async () => {
     const ok = await onSaveTeams(game.id, teamDraft, activePlayers);
@@ -240,14 +246,43 @@ export default function GameTeamsSection({
     return ok;
   };
 
+  const applyLivePreview = async (method) => {
+    const selected = livePreviewOptions?.[method];
+    if (!selected || !livePreviewPlayers.length || preparingDraw) return false;
+    setPreparingDraw(true);
+    try {
+      const result = await onDraw(game.id, livePreviewPlayers, method, selected);
+      if (result) {
+        await onGameRefresh?.();
+        await loadHistory();
+        setViewTab('preview');
+      }
+      return result;
+    } finally {
+      setPreparingDraw(false);
+    }
+  };
+
   const renderPreviewOption = (method, title, Icon, sourceOptions = null) => {
     const draw = (sourceOptions || drawOptions?.options)?.[method];
     if (!draw) return null;
+    const balance = calculateTeamBalance(draw.teamAStarters, draw.teamBStarters, { improvisedGoalkeeperPenalty });
+    const isLive = !!sourceOptions;
     return (
       <div className="sf-card" style={{ marginBottom: 8 }}>
         <div className="sf-card-title"><Icon size={15} /> {title}</div>
         <div className="sf-muted-sm" style={{ marginBottom: 8 }}>
-          {draw.teamAStarters.length} titulares por time{draw.teamAReserves.length + draw.teamBReserves.length ? ' · ' + (draw.teamAReserves.length + draw.teamBReserves.length) + ' reservas' : ''}
+          {draw.teamAStarters.length} titulares no Time A · {draw.teamBStarters.length} no Time B
+          {draw.teamAReserves.length + draw.teamBReserves.length ? ' · ' + (draw.teamAReserves.length + draw.teamBReserves.length) + ' reservas' : ''}
+        </div>
+        <div className="sf-card" style={{ marginBottom: 8, padding: 8, background: 'var(--pitch-dark)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div><strong>Força A:</strong> {balance.strengthA.toFixed(1)}</div>
+            <div><strong>Força B:</strong> {balance.strengthB.toFixed(1)}</div>
+          </div>
+          <div className="sf-muted-sm" style={{ marginTop: 5 }}>
+            Índice de equilíbrio: <strong>{balance.balance.toFixed(0)}/100</strong>
+          </div>
         </div>
         <div className="sf-draw-preview-teams">
           {[['A', draw.teamAStarters, draw.teamAReserves], ['B', draw.teamBStarters, draw.teamBReserves]].map(([label, starters, reserves]) => (
@@ -258,6 +293,11 @@ export default function GameTeamsSection({
             </div>
           ))}
         </div>
+        {isLive && canManage && (
+          <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 8 }} disabled={preparingDraw} onClick={() => applyLivePreview(method)}>
+            <Shuffle size={15} /> {preparingDraw ? 'Aplicando...' : 'Aplicar esta divisão'}
+          </button>
+        )}
       </div>
     );
   };
@@ -398,10 +438,18 @@ export default function GameTeamsSection({
       {viewTab === 'preview' && (
         <div style={{ marginBottom: 10 }}>
           <div className="sf-muted-sm" style={{ marginBottom: 8 }}>A Prévia é recalculada com os confirmados atuais. Ela não altera os times oficiais.</div>
-          {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : livePreviewOptions ? <>
-            {renderPreviewOption('config', '⚙️ Configuração', Settings, livePreviewOptions)}
-            {renderPreviewOption('random', '🎲 Tampinha', Coins, livePreviewOptions)}
-          </> : <div className="sf-muted-sm">Clique em “Sortear times” para gerar as opções de Prévia.</div>}
+          {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div className="sf-muted-sm">Compare os índices e aplique a divisão que fizer sentido. Aplicar usa exatamente esta prévia; não realiza outro sorteio.</div>
+              {canManage && <button type="button" className="sf-btn-ghost" disabled={previewRefreshing || preparingDraw} onClick={() => setPreviewRefreshKey((value) => value + 1)}>
+                <RefreshCw size={15} /> {previewRefreshing ? 'Atualizando...' : 'Atualizar'}
+              </button>}
+            </div>
+            {livePreviewOptions ? <>
+              {renderPreviewOption('config', '⚙️ Configuração', Settings, livePreviewOptions)}
+              {renderPreviewOption('random', '🎲 Tampinha', Coins, livePreviewOptions)}
+            </> : <div className="sf-muted-sm">Gerando prévias...</div>}
+          </>
         </div>
       )}
 
