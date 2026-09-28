@@ -25,9 +25,7 @@ export default function GameTeamsSection({
   const [livePreviewOptions, setLivePreviewOptions] = useState(null);
   const [drawChoiceOpen, setDrawChoiceOpen] = useState(false);
   const [preparingDraw, setPreparingDraw] = useState(false);
-  const [previewRefreshing, setPreviewRefreshing] = useState(false);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
-  const [livePreviewPlayers, setLivePreviewPlayers] = useState([]);
 
   const playersById = useMemo(() => new Map(roster.map((player) => [String(player.id), player])), [roster]);
   const resolvePlayers = (ids) => (Array.isArray(ids) ? ids : []).map((id) => playersById.get(String(id))).filter(Boolean);
@@ -212,14 +210,10 @@ export default function GameTeamsSection({
     const refreshLivePreview = async () => {
       if (activePlayers.length < 2) {
         setLivePreviewOptions(null);
-        setLivePreviewPlayers([]);
-        setPreviewRefreshing(false);
         return;
       }
-      setPreviewRefreshing(true);
       const drawPlayers = await buildDrawPlayers();
       if (cancelled) return;
-      setLivePreviewPlayers(drawPlayers);
       const ppt = Math.max(1, Number(playersPerTeam) || Math.ceil(drawPlayers.length / 2));
       const config = {
         playersPerTeam: ppt,
@@ -236,7 +230,6 @@ export default function GameTeamsSection({
       if (methods.includes('config')) options.config = drawTeams(drawPlayers, Math.random, { ...config, candidates: 40 });
       if (methods.includes('random')) options.random = drawTeamsRandom(drawPlayers, Math.random, config);
       setLivePreviewOptions(options);
-      setPreviewRefreshing(false);
     };
     refreshLivePreview();
     return () => { cancelled = true; };
@@ -250,10 +243,17 @@ export default function GameTeamsSection({
 
   const applyLivePreview = async (method) => {
     const selected = livePreviewOptions?.[method];
-    if (!selected || !livePreviewPlayers.length || preparingDraw) return false;
+    if (!selected || preparingDraw) return false;
+    const previewPlayers = [
+      ...(selected.teamAStarters || []),
+      ...(selected.teamAReserves || []),
+      ...(selected.teamBStarters || []),
+      ...(selected.teamBReserves || []),
+    ];
+    if (previewPlayers.length < 2) return false;
     setPreparingDraw(true);
     try {
-      const result = await onDraw(game.id, livePreviewPlayers, method, selected);
+      const result = await onDraw(game.id, previewPlayers, method, selected);
       if (result) {
         await onGameRefresh?.();
         await loadHistory();
@@ -443,8 +443,8 @@ export default function GameTeamsSection({
           {activePlayers.length < 2 ? <div className="sf-muted-sm">Confirme pelo menos 2 jogadores para montar a Prévia.</div> : <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               <div className="sf-muted-sm">Compare os índices e aplique a divisão que fizer sentido. Aplicar usa exatamente esta prévia; não realiza outro sorteio.</div>
-              {canManage && <button type="button" className="sf-btn-ghost" disabled={previewRefreshing || preparingDraw} onClick={() => setPreviewRefreshKey((value) => value + 1)}>
-                <RefreshCw size={15} /> {previewRefreshing ? 'Atualizando...' : 'Atualizar'}
+              {canManage && <button type="button" className="sf-btn-ghost" disabled={preparingDraw} onClick={() => setPreviewRefreshKey((value) => value + 1)}>
+                <RefreshCw size={15} /> Atualizar
               </button>}
             </div>
             {livePreviewOptions ? <>
