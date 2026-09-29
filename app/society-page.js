@@ -402,7 +402,7 @@ function MyProfileCard({ me, onUpdate }) {
 
 
 
-function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onUpdateGuestProfile, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare }) {
+function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, isAdmin, onBack, onToggleMyRSVP, onAddParticipant, onAddPostgamePlayer, onAddGuest, onUpdateGuestProfile, onOpenGroup, onRemoveParticipant, onSetCost, onSetGkPays, onSetMaxPlayers, onSetTeamConfig, onSetGamePixDetails, onSetGameOrganizer, onSetGameLocation, onDraw, onSaveTeams, onTogglePaid, onSaveResult, onSavePlayerStats, onSaveRatings, onGameRefresh, onDelete, onShare, initialGameTab = 'local' }) {
   const [scoreA, setScoreA] = useState(game.result?.scoreA ?? 0);
   const [scoreB, setScoreB] = useState(game.result?.scoreB ?? 0);
   const [scorers, setScorers] = useState(game.result?.scorers || {});
@@ -430,7 +430,7 @@ function GameDetail({ game, group, roster, groupMembers, groupMemberIds, myId, i
   const [editingTeams, setEditingTeams] = useState(false);
   const [teamDraft, setTeamDraft] = useState({});
   const [participantFilter, setParticipantFilter] = useState('todos');
-  const [activeGameTab, setActiveGameTab] = useState('local');
+  const [activeGameTab, setActiveGameTab] = useState(initialGameTab);
   const [postgamePlayerDraft, setPostgamePlayerDraft] = useState('');
   const [postgameTeamDraft, setPostgameTeamDraft] = useState('A');
 
@@ -1736,6 +1736,7 @@ function MainApp({ session }) {
   const [subTab, setSubTab] = useState('elenco');
   const [partidasFilter, setPartidasFilter] = useState('proximas');
   const [selectedGameId, setSelectedGameId] = useState(null);
+  const [inviteGameTab, setInviteGameTab] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [elencoGroupFilter, setElencoGroupFilter] = useState('all');
   const [showNewGame, setShowNewGame] = useState(false);
@@ -1909,7 +1910,7 @@ function MainApp({ session }) {
         if (token) {
           const { data: gameId } = await serviceJoinGameByToken(token);
           await loadAll();
-          if (gameId) { setTab('partidas'); setSelectedGameId(gameId); }
+          if (gameId) { setInviteGameTab(gameId); setTab('partidas'); setSelectedGameId(gameId); }
         } else if (groupToken) {
           const { data: groupId } = await serviceJoinGroupByToken(groupToken);
           await loadAll();
@@ -2412,7 +2413,7 @@ function MainApp({ session }) {
         msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
       }
     }
-    msg += `\n\nEntre e confirme presença: ${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌🏻 🙌🏿`;
+    msg += `\n\n👉 *Clique no link abaixo para confirmar sua presença.*\nAo clicar, sua presença será confirmada automaticamente e a partida abrirá na aba *Participantes*.\n${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌🏻 🙌🏿`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -2528,6 +2529,7 @@ function MainApp({ session }) {
         {tab === 'partidas' && selectedGame && (
           <GameDetail
             game={selectedGame}
+            initialGameTab={inviteGameTab === selectedGame.id ? 'participantes' : 'local'}
             group={groups.find((g) => String(g.id) === String(selectedGame?.groupId)) || null}
             roster={profiles}
             groupMembers={groupMembers}
