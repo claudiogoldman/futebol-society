@@ -32,11 +32,7 @@ function displayName(player) {
 
 function whatsappPlayerLabel(player) {
   const name = displayName(player);
-  if (isGoleiro(player)) return `${name} 🧤`;
-  const positions = Array.isArray(player?.positions)
-    ? player.positions.filter((pos) => POSITION_LABELS[pos]).map((pos) => POSITION_LABELS[pos])
-    : [];
-  return positions.length ? `${name} (${positions.join(' / ')})` : name;
+  return isGoleiro(player) ? `${name} 🧤` : name;
 }
 
 // combines weight + age deviation from a "typical" player into one number,
