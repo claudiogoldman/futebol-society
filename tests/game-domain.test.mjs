@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { drawTeams, calculateTeamBalance, playerStrength } from '../lib/domain/game.js';
+import { drawTeams, drawTeamsRandom, calculateTeamBalance, playerStrength, isGoalkeeper } from '../lib/domain/game.js';
 
 function players(count, attributes = {}) {
   return Array.from({ length: count }, (_, index) => ({
@@ -152,6 +152,35 @@ for (const [teamName, teamReserves] of [['A', reserveDraw.teamAReserves], ['B', 
   assert.equal(teamReserves.length, 1, `team ${teamName} must have one reserve`);
   const starterOrders = (teamName === 'A' ? reserveDraw.teamAStarters : reserveDraw.teamBStarters).map((p) => p._confirmationOrder);
   assert.ok(teamReserves[0]._confirmationOrder > Math.max(...starterOrders), `team ${teamName} reserve must be the latest confirmed player on that team`);
+}
+
+
+// Business rule: with exactly two goalkeepers, both configured and pure-random
+// draws must place exactly one goalkeeper on each team.
+const twoGoalkeepers = [
+  { id: 'gka', name: 'Goalkeeper A', positions: ['Goleiro'], attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60 },
+  { id: 'gkb', name: 'Goalkeeper B', positions: 'goleiro', attr_ata: 60, attr_def: 60, attr_for: 60, attr_hab: 60 },
+  ...Array.from({ length: 8 }, (_, index) => ({
+    id: `field${index + 1}`,
+    name: `Field ${index + 1}`,
+    positions: ['meio'],
+    attr_ata: 60,
+    attr_def: 60,
+    attr_for: 60,
+    attr_hab: 60,
+  })),
+];
+assert.equal(isGoalkeeper(twoGoalkeepers[0]), true);
+assert.equal(isGoalkeeper(twoGoalkeepers[1]), true);
+
+for (const result of [
+  drawTeams(twoGoalkeepers, () => 0.5, { playersPerTeam: 5, reservesPerTeam: 0, candidates: 20 }),
+  drawTeamsRandom(twoGoalkeepers, () => 0.99, { playersPerTeam: 5, reservesPerTeam: 0 }),
+]) {
+  const gkA = result.teamA.filter(isGoalkeeper).length;
+  const gkB = result.teamB.filter(isGoalkeeper).length;
+  assert.equal(gkA, 1, 'Time A must have exactly one goalkeeper when two are available');
+  assert.equal(gkB, 1, 'Time B must have exactly one goalkeeper when two are available');
 }
 
 // With two goalkeepers, the least-conceded goalkeeper must be on the weaker
