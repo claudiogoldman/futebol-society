@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
+import { encodeInviteToken, decodeInviteToken } from '../lib/domain/invite-token';
 import PositionTags from '../components/players/PositionTags';
 import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
@@ -1908,11 +1909,11 @@ function MainApp({ session }) {
     (async () => {
       try {
         if (token) {
-          const { data: gameId } = await serviceJoinGameByToken(token);
+          const { data: gameId } = await serviceJoinGameByToken(decodeInviteToken(token));
           await loadAll();
           if (gameId) { setInviteGameTab(gameId); setTab('partidas'); setSelectedGameId(gameId); }
         } else if (groupToken) {
-          const { data: groupId } = await serviceJoinGroupByToken(groupToken);
+          const { data: groupId } = await serviceJoinGroupByToken(decodeInviteToken(groupToken));
           await loadAll();
           if (groupId) { setTab('grupos'); setSelectedGroupId(groupId); }
         }
@@ -2413,12 +2414,12 @@ function MainApp({ session }) {
         msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
       }
     }
-    msg += `\n\n👉 *Clique no link abaixo para confirmar sua presença.*\nAo clicar, sua presença será confirmada automaticamente e a partida abrirá na aba *Participantes*.\n${window.location.origin}/?join=${game.inviteToken}\n\nBora! 🙌🏻 🙌🏿`;
+    msg += `\n\n👉 *Clique no link abaixo para confirmar sua presença.*\nAo clicar, sua presença será confirmada automaticamente e a partida abrirá na aba *Participantes*.\n${window.location.origin}/?join=${encodeInviteToken(game.inviteToken)}\n\nBora! 🙌🏻 🙌🏿`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   const shareGroupWhatsApp = (group) => {
-    let msg = `⚽ *${group.name}*\n\nEntra no grupo pra ver e confirmar presença nos jogos:\n${window.location.origin}/?joinGroup=${group.inviteToken}\n\nBora! 🙌`;
+    let msg = `⚽ *${group.name}*\n\nEntra no grupo pra ver e confirmar presença nos jogos:\n${window.location.origin}/?joinGroup=${encodeInviteToken(group.inviteToken)}\n\nBora! 🙌`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import { decodeInviteToken } from '../../lib/domain/invite-token';
 
 export default function GroupInviteNotice() {
   const [info, setInfo] = useState(null);
@@ -16,7 +17,7 @@ export default function GroupInviteNotice() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { data } = await supabase.rpc('get_group_invite_info', { p_token: token });
+      const { data } = await supabase.rpc('get_group_invite_info', { p_token: decodeInviteToken(token) });
       if (!cancelled && data?.[0]) setInfo(data[0]);
       setLoading(false);
     })();
