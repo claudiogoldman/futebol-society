@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
+import { encodeInviteToken, decodeInviteToken } from '../lib/domain/invite-token';
 import PositionTags from '../components/players/PositionTags';
 import GameChat from '../components/chat/GameChat';
 import TacticalPitch from '../components/society/TacticalPitch';
@@ -1908,11 +1909,11 @@ function MainApp({ session }) {
     (async () => {
       try {
         if (token) {
-          const { data: gameId } = await serviceJoinGameByToken(token);
+          const { data: gameId } = await serviceJoinGameByToken(decodeInviteToken(token));
           await loadAll();
           if (gameId) { setInviteGameTab(gameId); setTab('partidas'); setSelectedGameId(gameId); }
         } else if (groupToken) {
-          const { data: groupId } = await serviceJoinGroupByToken(groupToken);
+          const { data: groupId } = await serviceJoinGroupByToken(decodeInviteToken(groupToken));
           await loadAll();
           if (groupId) { setTab('grupos'); setSelectedGroupId(groupId); }
         }
