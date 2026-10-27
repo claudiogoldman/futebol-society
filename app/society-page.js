@@ -2371,9 +2371,11 @@ function MainApp({ session }) {
   };
 
   const shareWhatsApp = (game, activePlayers, waitlistPlayers, rateio) => {
+    const confirmationUrl = `${window.location.origin}/?join=${encodeInviteToken(game.inviteToken)}`;
     let msg = `⚽ *Futebol Society* — ${formatDatePtBr(game.date)}\n`;
-    if (game.local) msg += `📍 ${game.local}\n`;
-    msg += `\n✅ *INSCRITOS* (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
+    if (game.local) msg += `📍 ${game.local}`;
+    msg += `\n\n👉 *Para confirmar sua presença, clique no link abaixo.*\nAo clicar, sua presença será confirmada automaticamente e a partida abrirá na aba *Participantes*.\n⚠️ *Não escreva seu nome nesta mensagem. Confirme pelo link!*\n${confirmationUrl}`;
+    msg += `\n\n✅ *INSCRITOS* (${activePlayers.length}${game.maxPlayers ? `/${game.maxPlayers}` : ''}):\n`;
     msg += activePlayers.map((p, i) => `${i + 1}. ${whatsappPlayerLabel(p)}`).join('\n') || '—';
     msg += `\n\n⏳ *SUPLENTES* (${waitlistPlayers?.length || 0}):\n`;
     msg += waitlistPlayers?.length ? waitlistPlayers.map((p, i) => `${i + 1}. ${whatsappPlayerLabel(p)}`).join('\n') : '—';
@@ -2414,7 +2416,7 @@ function MainApp({ session }) {
         msg += `\n\n💰 *Rateio: ${money(rateio)} por pessoa*`;
       }
     }
-    msg += `\n\n👉 *Clique no link abaixo para confirmar sua presença.*\nAo clicar, sua presença será confirmada automaticamente e a partida abrirá na aba *Participantes*.\n${window.location.origin}/?join=${encodeInviteToken(game.inviteToken)}\n\nBora! 🙌🏻 🙌🏿`;
+    msg += `\n\nBora! 🙌🏻 🙌🏿`;
     window.open(`https://api.whatsapp.com/send/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
