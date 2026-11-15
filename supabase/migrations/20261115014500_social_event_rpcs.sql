@@ -85,7 +85,7 @@ create or replace function public.close_social_event(p_event_id uuid)
 returns boolean language plpgsql security definer
 set search_path = pg_catalog, public, extensions, auth
 as $$
-declare v_group uuid;
+declare v_group uuid; v_closed boolean;
 begin
   select group_id into v_group from public.social_events where id = p_event_id;
   if v_group is null or auth.uid() is null or not public.is_group_admin(v_group) then
@@ -96,10 +96,11 @@ begin
     closed_at=pg_catalog.clock_timestamp(), closed_by=auth.uid(), updated_at=pg_catalog.clock_timestamp()
   where id=p_event_id and status='OPEN'
     and ((event_date + event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp();
+  v_closed := found;
   perform public._social_event_close_if_due(p_event_id);
-  return found;
+  return v_closed;
 end;
-$$;
+$;
 
 create or replace function public.reopen_social_event(p_event_id uuid)
 returns boolean language plpgsql security definer
