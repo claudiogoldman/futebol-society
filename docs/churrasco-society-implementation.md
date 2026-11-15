@@ -77,9 +77,9 @@ Esta branch contém somente preparação versionada. Nenhuma migration foi aplic
 - Nenhuma migration foi aplicada ao banco de produção.
 
 ### Verificação
-- Um build de preview da branch concluiu com estado READY no commit `3a77b229a58c70aa570e369c11b159a51aef9164`.
+- Um build de preview da branch concluiu com estado READY no commit `120c095b92a2aeb59e753d2a526a412d04e55236`.
 - Um build anterior identificou e permitiu corrigir um literal de quebra de linha inválido em `group-tabs.js` e uma exportação duplicada em `social-event-service.js`.
-- As alterações posteriores a esse build ainda aguardam conclusão de novo build.
+- Após esse build, as alterações foram restritas às migrations SQL e à documentação; não houve alteração posterior nos arquivos JavaScript/JSX.
 - Testes automatizados de domínio foram adicionados ao script `npm test`, mas ainda não há execução confirmada nesta etapa.
 
 
