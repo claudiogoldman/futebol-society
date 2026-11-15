@@ -170,13 +170,17 @@ begin
   end if;
   perform public._social_event_close_if_due(v_event);
   update public.social_event_guests set name=pg_catalog.btrim(p_name),status=p_status,updated_at=pg_catalog.clock_timestamp()
-   where id=p_guest_id and exists(select 1 from public.social_events e where e.id=v_event and e.status='OPEN')
+   where id=p_guest_id and exists(select 1 from public.social_events e where e.id=v_event and e.status='OPEN'
+       and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp())
      and nullif(pg_catalog.btrim(p_name),'') is not null
      and p_status in ('PENDING','CONFIRMED','CANCELLED');
-  if not found then raise exception 'Evento encerrado ou dados inválidos.' using errcode='22023'; end if;
+  if not found then
+    perform public._social_event_close_if_due(v_event);
+    raise exception 'Evento encerrado ou dados inválidos.' using errcode='22023';
+  end if;
   return true;
 end;
-$$;
+$;
 
 create or replace function public.delete_social_event_guest(p_guest_id uuid)
 returns boolean language plpgsql security definer
@@ -191,7 +195,8 @@ begin
   end if;
   perform public._social_event_close_if_due(v_event);
   delete from public.social_event_guests g where g.id=p_guest_id
-    and exists(select 1 from public.social_events e where e.id=v_event and e.status='OPEN');
+    and exists(select 1 from public.social_events e where e.id=v_event and e.status='OPEN'
+      and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp());
   return found;
 end;
 $$;
