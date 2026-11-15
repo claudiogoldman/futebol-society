@@ -2,7 +2,10 @@
 -- Every RPC also performs lazy closure checks, so access is blocked at the exact
 -- event start even if this persistence job runs between minute boundaries.
 
-create extension if not exists pg_cron;
+create extension if not exists pg_cron with schema pg_catalog;
+
+grant usage on schema cron to postgres;
+grant all privileges on all tables in schema cron to postgres;
 
 do $$
 declare v_job_id bigint;
