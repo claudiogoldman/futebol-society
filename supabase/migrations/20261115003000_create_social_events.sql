@@ -15,6 +15,8 @@ create table if not exists public.social_events (
   status text not null default 'OPEN'
     check (status in ('OPEN', 'CLOSED', 'CANCELLED')),
   closed_at timestamptz,
+  closure_type text check (closure_type in ('MANUAL', 'AUTOMATIC')),
+  closed_by uuid references auth.users(id),
   cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
