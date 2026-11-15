@@ -66,7 +66,7 @@ export default function PublicSocialEventPage() {
           <form onSubmit={addGuest} style={styles.section}>
             <h2 style={styles.heading}>Incluir meu nome</h2>
             <p style={styles.muted}>Informe seu nome para entrar na lista. Depois, use o link individual para confirmar ou cancelar sua presença.</p>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" style={styles.input} required />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" style={styles.input} maxLength={100} required />
             <button type="submit" disabled={saving} style={styles.button}>{saving ? 'Incluindo...' : 'Adicionar nome'}</button>
           </form>
         )}
