@@ -162,3 +162,20 @@ Também deve ser revisada a migração histórica do projeto: a auditoria anteri
 - Não foi confirmado erro sintático por execução, pois não houve execução em PostgreSQL.
 - Não foi realizada alteração funcional nesta revisão.
 - Permanecem obrigatórios os testes de migrations, Cron e concorrência em ambiente isolado antes de homologação integrada.
+
+
+## 13. Reconciliação com atualizações recentes da main — 2026-11-15
+
+Foram analisados os três commits que avançaram a `main` após a criação da branch:
+- `3293d771`: contabilização de participação em partidas cuja data programada já passou, mesmo sem placar.
+- `c463c7a2`: separação de partidas futuras/passadas pela data local e indicação `Aguardando resultado`.
+- `aeaff80a`: correção do parser da data e do limite de fim do dia, além de impedir pontuação de participação para partidas sem jogadores.
+
+A lógica foi reconciliada diretamente na branch `feat/churrasco-society`, sem substituir o arquivo completo `app/society-page.js` da branch principal:
+- `lib/domain/ranking.js` recebeu a lógica atualizada de participação e o helper `isGamePastEndDate`.
+- `app/society-page.js` passou a usar o helper para separar partidas e exibir `Aguardando resultado`, preservando as alterações da aba Churrasco.
+- `tests/game-domain.test.mjs` recebeu casos para participação sem placar após a data, limite do dia e partidas sem jogadores.
+
+A reconciliação de conteúdo está feita para os três ajustes identificados. O histórico Git ainda pode indicar divergência de ancestrais até que os commits sejam incorporados formalmente; não foi feito merge da branch na `main`.
+
+**Validação:** os testes novos foram adicionados, mas ainda não foram executados neste ambiente. A validação final exige execução de `npm test` e build, além dos testes SQL isolados já descritos.
