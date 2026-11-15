@@ -20,7 +20,7 @@ import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameD
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
-import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken, updateSocialEvent, listSocialEventGuests, addSocialEventGuest, updateSocialEventGuest, deleteSocialEventGuest } from '../lib/services/social-event-service';
+import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken, updateSocialEvent, listSocialEventGuests, addSocialEventGuest, updateSocialEventGuest, deleteSocialEventGuest, regenerateSocialEventGuestConfirmationToken } from '../lib/services/social-event-service';
 
 // ---------- helpers ----------
 
@@ -1774,6 +1774,14 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                   <div key={guest.id} className="sf-cost-row" style={{ gap: 8, alignItems: 'center' }}>
                     <span style={{ flex: 1 }}>{guest.name}</span>
                     <span className="sf-admin-tag">{guest.status === 'CONFIRMED' ? 'CONFIRMADO' : guest.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'}</span>
+                    {event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                      try {
+                        const { data, error } = await regenerateSocialEventGuestConfirmationToken(guest.id);
+                        if (error) throw error;
+                        if (!data) throw new Error('O servidor não retornou um novo link.');
+                        setSocialGuestLink({ token: data, name: guest.name });
+                      } catch (error) { alert('Não foi possível renovar o link individual: ' + error.message); }
+                    }}>Novo link</button>}
                     {event.status === 'OPEN' && <select className="sf-input" style={{ width: 128 }} value={guest.status} onChange={async (e) => {
                       try { const { error } = await updateSocialEventGuest(guest.id, guest.name, e.target.value); if (error) throw error; await loadSocialGuests(event.id); }
                       catch (error) { alert('Não foi possível alterar o convidado: ' + error.message); }
