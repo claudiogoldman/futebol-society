@@ -85,6 +85,7 @@ begin
   if v_group is null or auth.uid() is null or not public.is_group_admin(v_group) then
     raise exception 'Evento não encontrado ou acesso não autorizado.' using errcode = '42501';
   end if;
+  perform public._social_event_close_if_due(p_event_id);
   update public.social_events set status='CLOSED', closure_type='MANUAL',
     closed_at=pg_catalog.now(), closed_by=auth.uid(), updated_at=pg_catalog.now()
   where id=p_event_id and status='OPEN';
