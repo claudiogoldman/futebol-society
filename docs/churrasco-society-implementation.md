@@ -128,3 +128,12 @@ Também deve ser revisada a migração histórica do projeto: a auditoria anteri
 - Nenhum merge para `main` foi realizado.
 - Nenhum deploy de produção foi promovido.
 - Previews automáticos da Vercel não comprovam funcionamento integrado ao banco enquanto as migrations não forem aplicadas em ambiente de teste.
+
+
+## 11. Ambiente de validação — atualização 2026-11-15
+
+- O projeto Supabase de produção foi consultado em modo somente leitura. O histórico registrado termina em `20261003220348`; nenhuma das nove migrations do Churrasco consta como aplicada.
+- PostgreSQL do projeto: 17.11. A extensão `pg_cron` está disponível no catálogo na versão padrão 1.6.4, mas ainda não está instalada.
+- A tentativa de criar uma branch de desenvolvimento Supabase foi recusada pelo serviço porque branching exige plano Pro ou superior. A autorização de custo por hora foi obtida, mas isso não altera a restrição do plano.
+- Portanto, a validação em banco isolado permanece bloqueada. Nenhuma migration foi aplicada em produção e nenhum projeto/branch adicional foi criado.
+- A revisão SQL permanece estática. A compatibilidade da versão disponível do `pg_cron` está indicada pelo catálogo, mas sua instalação e o agendamento ainda não foram testados.
