@@ -10,6 +10,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'supabase/migrations/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
