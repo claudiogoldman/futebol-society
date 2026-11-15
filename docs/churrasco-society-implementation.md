@@ -94,7 +94,7 @@ A migration do Cron instala `pg_cron` e agenda execução a cada segundo. A sint
 5. `20261115030000_social_event_auto_close_cron.sql`
 6. `20261115033000_social_event_list_and_public_grants.sql`
 7. `20261115034500_social_event_restrict_direct_writes.sql`
-8. `20261115040000_social_event_hide_token_hashes.sql`
+8. `20261115040000_social_event_hide_token_hashes.sql`\n9. `20261115043000_social_event_serialize_writes.sql`
 
 As migrations estão versionadas na branch e ainda não foram aplicadas ao banco de produção.
 
@@ -104,7 +104,7 @@ As migrations estão versionadas na branch e ainda não foram aplicadas ao banco
 - Depois desse build, as alterações registradas foram em migrations SQL e documentação, sem alteração posterior nos arquivos JavaScript/JSX.
 - Testes isolados `tests/social-event.test.mjs` e `tests/invite-token.test.mjs` passaram em Node.js 22.16.0.
 - `tests/game-domain.test.mjs` e o comando completo `npm test` ainda não foram executados.
-- A revisão SQL feita até aqui é estática. As migrations ainda precisam ser aplicadas e testadas em ambiente isolado, nunca diretamente em produção sem autorização.
+- A revisão SQL feita até aqui é estática. As migrations ainda precisam ser aplicadas e testadas em ambiente isolado, nunca diretamente em produção sem autorização.\n- A nova migration de serialização foi versionada, mas ainda não foi executada em PostgreSQL.
 
 ## 9. Pendências e riscos não aprovados como regra de negócio
 
@@ -116,7 +116,7 @@ As migrations estão versionadas na branch e ainda não foram aplicadas ao banco
 - **Reabertura após encerramento automático:** não aprovada; a implementação não permite.
 
 ### Revisão técnica pendente
-A leitura estática das RPCs identificou que algumas operações públicas de inclusão/alteração de presença consultam o evento e depois fazem a escrita em instruções separadas, sem bloquear a linha do evento durante toda a transação. Uma operação concorrente de cancelamento ou encerramento pode, em condições de corrida, disputar com a inclusão/alteração. Antes de aplicar migrations, revisar e endurecer a serialização dessas transições com bloqueio transacional da linha do evento e testes concorrentes.
+A primeira revisão estática identificou uma condição de corrida entre inclusão/alteração de presença e cancelamento/encerramento. A migration adicional `20261115043000_social_event_serialize_writes.sql` substitui as RPCs de escrita relevantes para bloquear a linha do evento com `SELECT ... FOR UPDATE` antes de validar o estado e gravar alterações. Assim, as operações concorrentes sobre o mesmo evento são serializadas até o commit.\n\nEssa correção ainda precisa de validação sintática e execução em PostgreSQL isolado, além de testes concorrentes reais. A revisão estática não equivale a validação de execução.
 
 Também deve ser revisada a migração histórica do projeto: a auditoria anterior encontrou diferença entre o número de migrations registradas no banco e os arquivos versionados. Não aplicar esta sequência sem reconciliação do histórico no ambiente de teste.
 
