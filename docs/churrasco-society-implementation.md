@@ -137,3 +137,28 @@ Também deve ser revisada a migração histórica do projeto: a auditoria anteri
 - A tentativa de criar uma branch de desenvolvimento Supabase foi recusada pelo serviço porque branching exige plano Pro ou superior. A autorização de custo por hora foi obtida, mas isso não altera a restrição do plano.
 - Portanto, a validação em banco isolado permanece bloqueada. Nenhuma migration foi aplicada em produção e nenhum projeto/branch adicional foi criado.
 - A revisão SQL permanece estática. A compatibilidade da versão disponível do `pg_cron` está indicada pelo catálogo, mas sua instalação e o agendamento ainda não foram testados.
+
+
+## 12. Revisão estática complementar — 2026-11-15
+
+### Concorrência e transações
+- A migration `20261115043000_social_event_serialize_writes.sql` foi relida integralmente. As RPCs de escrita administrativa e pública bloqueiam a linha de `social_events` antes da validação final e da gravação.
+- Na inclusão pública, o hash do token é validado novamente após a aquisição do bloqueio, protegendo contra renovação concorrente do link.
+- O padrão de bloqueio observado é evento primeiro e, quando necessário, convidado depois. A revisão estática não identificou inversão evidente dessa ordem nas funções examinadas.
+- Isso é uma avaliação de código, não comprovação de ausência de deadlocks ou de concorrência incorreta. Testes simultâneos em PostgreSQL continuam necessários.
+
+### Encerramento lazy e rollback
+- Algumas RPCs executam `_social_event_close_if_due(...)` e, na mesma transação, lançam uma exceção quando a operação solicitada não é permitida por encerramento/horário.
+- Quando a exceção é propagada, o PostgreSQL reverte também a atualização de encerramento lazy feita anteriormente nessa transação. A operação solicitada continua bloqueada, mas o estado persistido pode permanecer `OPEN` até o job Cron ou uma listagem/consulta que efetive o encerramento em outra transação.
+- O comportamento não altera o bloqueio temporal aplicado pelas RPCs; afeta a persistência imediata do estado em algumas tentativas recusadas.
+- **Recomendação técnica:** validar esse comportamento em PostgreSQL e, se necessário, ajustar o fluxo para que a atualização de estado não dependa de uma transação que termina em exceção. Não alterar a regra de negócio de encerramento no horário de início.
+
+### Ambiente local de execução
+- O ambiente de execução disponível nesta revisão não possui `psql`, servidor PostgreSQL ou Docker.
+- A tentativa de obter o repositório por clone Git também não foi possível por indisponibilidade de resolução de rede no ambiente.
+- Portanto, não foi possível executar `npm test` completo nem validar as migrations em PostgreSQL nesta etapa.
+
+### Situação após esta revisão
+- Não foi confirmado erro sintático por execução, pois não houve execução em PostgreSQL.
+- Não foi realizada alteração funcional nesta revisão.
+- Permanecem obrigatórios os testes de migrations, Cron e concorrência em ambiente isolado antes de homologação integrada.
