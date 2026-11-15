@@ -20,7 +20,7 @@ import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameD
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
-import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken, listSocialEventGuests, addSocialEventGuest, updateSocialEventGuest, deleteSocialEventGuest } from '../lib/services/social-event-service';
+import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken, updateSocialEvent, listSocialEventGuests, addSocialEventGuest, updateSocialEventGuest, deleteSocialEventGuest } from '../lib/services/social-event-service';
 
 // ---------- helpers ----------
 
@@ -1309,6 +1309,9 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [socialGuests, setSocialGuests] = useState({});
   const [socialGuestDraft, setSocialGuestDraft] = useState('');
   const [socialGuestLink, setSocialGuestLink] = useState(null);
+  const [socialEventEditId, setSocialEventEditId] = useState(null);
+  const [socialEventEditDraft, setSocialEventEditDraft] = useState({ name: '', description: '', eventDate: '', eventTime: '', location: '' });
+
 
   const loadSocialGuests = async (eventId) => {
     const { data, error } = await listSocialEventGuests(eventId);
@@ -1699,6 +1702,10 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                   setSocialEventLink({ id: event.id, token: data });
                 } catch (error) { alert('Não foi possível gerar o link: ' + error.message); }
               }}>Gerar link público</button>}
+              {canManage && event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={() => {
+                setSocialEventEditId(event.id);
+                setSocialEventEditDraft({ name: event.name || '', description: event.description || '', eventDate: event.event_date, eventTime: String(event.event_time).slice(0,5), location: event.location || '' });
+              }}>Editar evento</button>}
               {canManage && event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={async () => {
                 if (!confirm('Encerrar este evento? As confirmações ficarão bloqueadas.')) return;
                 try { const { error } = await closeSocialEvent(event.id); if (error) throw error; await refreshSocialEvents(); }
@@ -1714,6 +1721,31 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                 catch (error) { alert('Erro ao cancelar: ' + error.message); }
               }}>Cancelar evento</button>}
             </div>
+            {canManage && socialEventEditId === event.id && (
+              <div style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)', borderRadius: 8 }}>
+                <label className="sf-field-label">Nome</label>
+                <input className="sf-input" value={socialEventEditDraft.name} onChange={(e) => setSocialEventEditDraft((v) => ({ ...v, name: e.target.value }))} />
+                <label className="sf-field-label">Descrição</label>
+                <textarea className="sf-input" rows={2} value={socialEventEditDraft.description} onChange={(e) => setSocialEventEditDraft((v) => ({ ...v, description: e.target.value }))} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div><label className="sf-field-label">Data</label><input type="date" className="sf-input" value={socialEventEditDraft.eventDate} onChange={(e) => setSocialEventEditDraft((v) => ({ ...v, eventDate: e.target.value }))} /></div>
+                  <div><label className="sf-field-label">Horário</label><input type="time" className="sf-input" value={socialEventEditDraft.eventTime} onChange={(e) => setSocialEventEditDraft((v) => ({ ...v, eventTime: e.target.value }))} /></div>
+                </div>
+                <label className="sf-field-label">Local</label>
+                <input className="sf-input" value={socialEventEditDraft.location} onChange={(e) => setSocialEventEditDraft((v) => ({ ...v, location: e.target.value }))} />
+                <div className="sf-modal-actions">
+                  <button type="button" className="sf-btn-ghost" onClick={() => setSocialEventEditId(null)}>Cancelar</button>
+                  <button type="button" className="sf-btn-primary" onClick={async () => {
+                    try {
+                      const { error } = await updateSocialEvent(event.id, socialEventEditDraft);
+                      if (error) throw error;
+                      setSocialEventEditId(null);
+                      await refreshSocialEvents();
+                    } catch (error) { alert('Não foi possível salvar o evento: ' + error.message); }
+                  }}>Salvar alterações</button>
+                </div>
+              </div>
+            )}
             {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={async () => {
               const next = expandedSocialEventId === event.id ? null : event.id;
               setExpandedSocialEventId(next);
