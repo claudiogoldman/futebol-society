@@ -21,11 +21,11 @@ begin
       update public.social_events
          set status = 'CLOSED',
              closure_type = 'AUTOMATIC',
-             closed_at = coalesce(closed_at, now()),
+             closed_at = coalesce(closed_at, clock_timestamp()),
              closed_by = null,
-             updated_at = now()
+             updated_at = clock_timestamp()
        where status = 'OPEN'
-         and ((event_date + event_time) at time zone 'America/Sao_Paulo') <= now();
+         and ((event_date + event_time) at time zone 'America/Sao_Paulo') <= clock_timestamp();
     $job$
   );
 end;
