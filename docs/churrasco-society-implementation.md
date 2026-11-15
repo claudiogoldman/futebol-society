@@ -2,89 +2,129 @@
 
 Branch de trabalho: `feat/churrasco-society`
 
-## Escopo aprovado
+## 1. Escopo e decisões aprovadas
 
 - Todo evento pertence a um grupo existente.
 - A administração ocorre no contexto do grupo.
 - Convidados e participantes não têm limite definido.
 - A identificação obrigatória do convidado é somente o nome.
-- Cadastro público por link e cadastro administrativo.
-- Confirmação, cancelamento e reconfirmação por token individual.
-- A página pública exibe somente nomes confirmados e totais; nunca exibe pendentes ou cancelados.
-- Encerramento manual ou automático no instante de início do evento.
-- Após encerramento, a consulta pública permanece disponível e as operações de presença ficam bloqueadas.
-- Reabertura permitida após encerramento manual.
-- Cancelamento preserva evento, convidados e confirmações.
+- O cadastro pode ser feito publicamente pelo link ou administrativamente.
+- A confirmação, o cancelamento e a reconfirmação são feitos por token individual.
+- A página pública exibe somente nomes confirmados e o total de confirmados; não exibe pendentes ou cancelados.
+- O evento encerra automaticamente no instante de início (data/hora local de São Paulo) ou pode ser encerrado manualmente.
+- Após encerramento, a consulta pública permanece disponível, mas operações de presença ficam bloqueadas.
+- A reabertura é permitida somente para evento encerrado manualmente e ainda não iniciado.
+- O cancelamento preserva evento, convidados e confirmações.
 - Não há controle financeiro.
 - O módulo não deve alterar partidas, jogadores, rankings, sorteios, pontos ou penalidades.
 
-## Arquivos adicionados nesta etapa
+## 2. Estados implementados
 
-- `supabase/migrations/20261115003000_create_social_events.sql`: tabelas isoladas, índices, RLS e bloqueio de exclusão do grupo por FK `ON DELETE RESTRICT`.
-- `lib/services/social-event-service.js`: fronteira de serviços para administração e fluxos públicos via RPC.
+### Evento
+- `OPEN`: cadastro de convidados e operações de presença permitidos, respeitadas as validações de horário.
+- `CLOSED`: consulta pública disponível; operações de presença bloqueadas.
+- `CANCELLED`: página pública informa o cancelamento; registros preservados e operações bloqueadas.
 
-## Segurança planejada
+Encerramento manual e automático resultam em `CLOSED`. Reabertura permitida: `CLOSED` com `closure_type = 'MANUAL'` para `OPEN`, desde que o início ainda não tenha ocorrido.
 
-- Tokens públicos e individuais são armazenados como hashes nas tabelas.
-- Clientes públicos não recebem acesso direto às tabelas.
-- Operações públicas devem ocorrer por RPCs específicas, com validação de token e estado do evento.
-- Operações administrativas devem validar `public.is_group_admin(group_id)` no banco.
-- Funções privilegiadas futuras devem fixar `search_path`, revogar execução de `PUBLIC` e conceder somente aos papéis necessários.
-- Nenhuma regra de autorização depende de metadados editáveis pelo usuário.
+### Convidado
+- `PENDING`
+- `CONFIRMED`
+- `CANCELLED`
 
-## Pendências de implementação
+A reconfirmação atualiza o mesmo registro. A implementação não impõe unicidade por nome; nomes iguais são aceitos enquanto não houver decisão de negócio diferente.
 
-1. Implementar RPCs administrativas e públicas; os nomes chamados pelo service são o contrato pretendido, ainda não existem na migration inicial.
-2. Gerar tokens criptograficamente aleatórios no banco, persistindo somente hashes e retornando o token bruto apenas na criação.
-3. Implementar fechamento automático com verificação lazy nas operações e agendamento no Supabase. `pg_cron` estava disponível, mas não instalado na auditoria; sua ativação ainda não foi executada.
-4. Integrar aba e cartão Churrasco em `GroupTabs` e `GroupDetail`.
-5. Criar páginas públicas `/churrasco/[token]` e `/churrasco/confirmar/[token]`.
-6. Testes de autorização, enumeração de tokens, estados, fuso horário, idempotência e regressão do futebol.
-7. Reconciliar o histórico de migrations (145 entradas no banco versus 64 arquivos versionados na auditoria) antes de aplicar qualquer migration no projeto Supabase.
+## 3. Estrutura de dados
 
-## Regras temporais
+### `public.social_events`
+Contém vínculo obrigatório ao grupo, autor, nome, descrição, data/hora, local, hash do token público, estado, tipo e dados de encerramento/cancelamento e timestamps.
 
-Banco em UTC. A data e hora do evento representam horário local de São Paulo; a comparação deve usar:
+A FK de `group_id` usa `ON DELETE RESTRICT`. Esta é uma proteção técnica provisória, não uma decisão de negócio aprovada. A política para exclusão de grupos com eventos vinculados continua pendente.
 
-`((event_date + event_time) AT TIME ZONE 'America/Sao_Paulo') <= now()`
+### `public.social_event_guests`
+Contém vínculo ao evento, nome, estado, hash do token individual e timestamps. Não há unicidade por nome.
 
-A rotina agendada não substitui a validação de horário dentro de cada RPC.
+Tokens brutos não são persistidos. Os hashes são armazenados em colunas inacessíveis diretamente aos papéis `anon` e `authenticated`.
 
-## Estado de publicação
+## 4. Funcionalidades entregues na branch
 
-Esta branch contém somente preparação versionada. Nenhuma migration foi aplicada ao Supabase, nenhuma alteração foi feita na `main`, e não houve deploy.
-
-
-## Progresso da implementação (2026-11-15)
-
-### Entregas versionadas na branch
-- Aba Churrasco adicionada ao componente de navegação do grupo.
-- Cartão administrativo no contexto do grupo para criar, editar, encerrar, reabrir e cancelar eventos.
-- Gestão administrativa de convidados, com inclusão, alteração de situação e exclusão enquanto o evento está aberto.
-- Página pública `/churrasco/[token]` com cadastro público por nome e listagem somente dos confirmados.
+- Aba Churrasco no contexto do grupo.
+- Criação e edição administrativa de eventos.
+- Encerramento, reabertura manual permitida e cancelamento.
+- Geração e renovação do link público; renovar invalida o link anterior.
+- Inclusão, edição de nome/situação e exclusão administrativa de convidados enquanto o evento está aberto.
+- Geração de link individual de confirmação para convidados incluídos administrativamente.
+- Cadastro público de convidado pelo link do evento, com emissão de link individual.
+- Página pública `/churrasco/[token]`.
 - Página individual `/churrasco/confirmar/[token]` para confirmar, cancelar e reconfirmar.
-- RPCs para as operações administrativas e públicas, com tokens aleatórios e hashes SHA-256.
-- RPC de listagem do grupo com encerramento automático lazy e retorno sem hashes.
-- Migração opcional de agendamento via Supabase Cron, com verificação a cada segundo.
-- Escrita direta nas tabelas de eventos/convidados revogada para usuários autenticados; alterações passam pelas RPCs.
+- Consulta pública mantida para eventos encerrados ou cancelados; somente confirmados e totais são exibidos.
+- Verificações de estado e horário também nas RPCs, sem depender exclusivamente do agendamento.
 
-### Observações de segurança e operação
-- O acesso público usa tokens de 256 bits; o token bruto é exibido uma única vez na criação ou renovação.
-- Renovar o link público do evento invalida o link público anterior.
-- O link individual do convidado é apresentado após inclusão; os hashes não são retornados na listagem.
-- A regra temporal é aplicada nas RPCs no instante da operação. O cron persiste o status em rotina recorrente; não é a única proteção.
-- A migração de Cron depende de `pg_cron` disponível/instalável no projeto Supabase.
-- Nenhuma migration foi aplicada ao banco de produção.
+## 5. Segurança e acesso
 
-### Verificação
-- Um build de preview da branch concluiu com estado READY no commit `120c095b92a2aeb59e753d2a526a412d04e55236`.
-- Um build anterior identificou e permitiu corrigir um literal de quebra de linha inválido em `group-tabs.js` e uma exportação duplicada em `social-event-service.js`.
-- Após esse build, as alterações foram restritas às migrations SQL e à documentação; não houve alteração posterior nos arquivos JavaScript/JSX.
-- Os testes isolados `tests/social-event.test.mjs` e `tests/invite-token.test.mjs` passaram em Node.js 22.16.0. `tests/game-domain.test.mjs` e o comando completo `npm test` ainda não foram executados.
+- RLS habilitada nas duas tabelas.
+- A migration final revoga o acesso direto às tabelas para `anon` e `authenticated`; o acesso funcional ocorre por RPCs.
+- RPCs privilegiadas usam `SECURITY DEFINER`, `search_path` fixo e grants explícitos.
+- RPCs administrativas verificam `public.is_group_admin(group_id)`.
+- RPCs públicas exigem token com 64 caracteres hexadecimais e comparam seu SHA-256 ao hash persistido.
+- Tokens são gerados com 32 bytes aleatórios (256 bits).
+- Listagens administrativas e públicas retornam campos explícitos e não retornam hashes.
+- O link público pode ser renovado por administrador; o token anterior deixa de localizar o evento.
 
+## 6. Regra temporal e encerramento automático
 
-### Decisões ainda pendentes — não tratar como requisitos aprovados
-- **Exclusão do grupo:** a FK inicial está configurada como `ON DELETE RESTRICT` para preservar eventos. Isso é uma proteção conservadora provisória, mas a regra de negócio sobre excluir grupos com eventos vinculados ainda precisa de confirmação antes de aplicar a migration.
-- **Nomes duplicados:** a tabela não impõe unicidade por nome; portanto, atualmente aceita nomes iguais. Essa escolha permanece pendente de confirmação.
-- **Proteção contra cadastros automatizados:** mecanismo anti-bot/rate limiting ainda não foi escolhido.
-- **Auditoria/histórico:** tabela de histórico não foi criada; continua sendo recomendação técnica opcional.
+O banco armazena timestamps em UTC. Data e hora do evento representam horário local de São Paulo. A comparação utilizada nas RPCs e no agendamento é:
+
+```sql
+((event_date + event_time) AT TIME ZONE 'America/Sao_Paulo') <= clock_timestamp()
+```
+
+Há duas camadas:
+1. Verificação lazy nas operações e listagens relevantes, para impedir operações após o horário de início.
+2. Job do Supabase Cron para persistir o estado `CLOSED` automaticamente.
+
+A migration do Cron instala `pg_cron` e agenda execução a cada segundo. A disponibilidade/instalação da extensão precisa ser confirmada no ambiente-alvo antes da aplicação.
+
+## 7. Migrations versionadas
+
+1. `20261115003000_create_social_events.sql`
+2. `20261115014500_social_event_rpcs.sql`
+3. `20261115021000_social_event_public_link.sql`
+4. `20261115024500_social_event_member_access.sql`
+5. `20261115030000_social_event_auto_close_cron.sql`
+6. `20261115033000_social_event_list_and_public_grants.sql`
+7. `20261115034500_social_event_restrict_direct_writes.sql`
+8. `20261115040000_social_event_hide_token_hashes.sql`
+
+As migrations estão versionadas na branch e ainda não foram aplicadas ao banco de produção.
+
+## 8. Verificações já realizadas
+
+- Build de preview da aplicação concluído com estado `READY` no commit `120c095b92a2aeb59e753d2a526a412d04e55236`.
+- Depois desse build, as alterações registradas foram em migrations SQL e documentação, sem alteração posterior nos arquivos JavaScript/JSX.
+- Testes isolados `tests/social-event.test.mjs` e `tests/invite-token.test.mjs` passaram em Node.js 22.16.0.
+- `tests/game-domain.test.mjs` e o comando completo `npm test` ainda não foram executados.
+- A revisão SQL feita até aqui é estática. As migrations ainda precisam ser aplicadas e testadas em ambiente isolado, nunca diretamente em produção sem autorização.
+
+## 9. Pendências e riscos não aprovados como regra de negócio
+
+### Decisões de negócio pendentes
+- **Exclusão de grupo:** definir o comportamento quando há eventos vinculados. A FK `ON DELETE RESTRICT` é provisória.
+- **Nomes duplicados:** a implementação aceita nomes iguais; a regra de negócio não foi definida.
+- **Proteção anti-bot/rate limiting:** mecanismo não definido.
+- **Auditoria/histórico:** tabela de histórico não foi criada; permanece recomendação opcional.
+- **Reabertura após encerramento automático:** não aprovada; a implementação não permite.
+
+### Revisão técnica pendente
+A leitura estática das RPCs identificou que algumas operações públicas de inclusão/alteração de presença consultam o evento e depois fazem a escrita em instruções separadas, sem bloquear a linha do evento durante toda a transação. Uma operação concorrente de cancelamento ou encerramento pode, em condições de corrida, disputar com a inclusão/alteração. Antes de aplicar migrations, revisar e endurecer a serialização dessas transições com bloqueio transacional da linha do evento e testes concorrentes.
+
+Também deve ser revisada a migração histórica do projeto: a auditoria anterior encontrou diferença entre o número de migrations registradas no banco e os arquivos versionados. Não aplicar esta sequência sem reconciliação do histórico no ambiente de teste.
+
+## 10. Estado de publicação
+
+- Branch de implementação: `feat/churrasco-society`.
+- A branch `main` permanece preservada no commit original informado na auditoria.
+- Nenhuma migration foi aplicada ao Supabase de produção.
+- Nenhum merge para `main` foi realizado.
+- Nenhum deploy de produção foi promovido.
+- Previews automáticos da Vercel não comprovam funcionamento integrado ao banco enquanto as migrations não forem aplicadas em ambiente de teste.
