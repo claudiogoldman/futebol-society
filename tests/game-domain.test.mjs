@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { drawTeams, drawTeamsRandom, calculateTeamBalance, playerStrength, isGoalkeeper } from '../lib/domain/game.js';
+import { computeRanking, isGamePastEndDate } from '../lib/domain/ranking.js';
 
 function players(count, attributes = {}) {
   return Array.from({ length: count }, (_, index) => ({
@@ -217,3 +218,30 @@ const gk2TeamRanking = gk2InA
 assert.ok(gk1TeamRanking <= gk2TeamRanking, `least-conceded goalkeeper should be on the weaker-ranked team: ${gk1TeamRanking} <= ${gk2TeamRanking}`);
 
 console.log(`Game domain tests passed: ${formats.length} configurable formats + OVR + balance + under-capacity + ranking/wins + reserve order + goalkeeper distribution.`);
+
+
+// Past scheduled date without a recorded score: participation only.
+const pastMatch = {
+  id: 'past-without-score',
+  date: '2020-01-01',
+  teamA: [{ id: 'p1', name: 'Player 1' }],
+  teamB: [{ id: 'p2', name: 'Player 2' }],
+  result: null,
+};
+assert.equal(isGamePastEndDate('2020-01-01', new Date('2020-01-02T00:00:00')), true);
+assert.equal(isGamePastEndDate('2020-01-01', new Date('2020-01-01T23:59:59.999')), false);
+const pastRanking = computeRanking([
+  { id: 'p1', name: 'Player 1' },
+  { id: 'p2', name: 'Player 2' },
+], [pastMatch]);
+assert.equal(pastRanking.find((player) => player.id === 'p1').jogos, 1);
+assert.equal(pastRanking.find((player) => player.id === 'p1').pontos, 1);
+assert.equal(pastRanking.find((player) => player.id === 'p1').vit, 0);
+assert.equal(pastRanking.find((player) => player.id === 'p1').emp, 0);
+assert.equal(pastRanking.find((player) => player.id === 'p1').der, 0);
+
+// A past match without teams must not generate participation.
+const emptyPastRanking = computeRanking([{ id: 'p1', name: 'Player 1' }], [{
+  id: 'empty-past', date: '2020-01-01', teamA: [], teamB: [], result: null,
+}]);
+assert.equal(emptyPastRanking[0].jogos, 0);
