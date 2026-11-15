@@ -83,7 +83,7 @@ Há duas camadas:
 1. Verificação lazy nas operações e listagens relevantes, para impedir operações após o horário de início.
 2. Job do Supabase Cron para persistir o estado `CLOSED` automaticamente.
 
-A migration do Cron instala `pg_cron` e agenda execução a cada segundo. A disponibilidade/instalação da extensão precisa ser confirmada no ambiente-alvo antes da aplicação.
+A migration do Cron instala `pg_cron` e agenda execução a cada segundo. A sintaxe de intervalo em segundos exige `pg_cron` 1.5 ou superior; confirmar a versão efetivamente disponível no ambiente-alvo antes da aplicação. Se a versão for inferior, a migration não deve ser aplicada sem adequar o agendamento.
 
 ## 7. Migrations versionadas
 
