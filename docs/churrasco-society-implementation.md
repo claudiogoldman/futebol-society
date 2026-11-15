@@ -65,7 +65,7 @@ Esta branch contém somente preparação versionada. Nenhuma migration foi aplic
 - Página individual `/churrasco/confirmar/[token]` para confirmar, cancelar e reconfirmar.
 - RPCs para as operações administrativas e públicas, com tokens aleatórios e hashes SHA-256.
 - RPC de listagem do grupo com encerramento automático lazy e retorno sem hashes.
-- Migração opcional de agendamento via Supabase Cron, com verificação a cada minuto.
+- Migração opcional de agendamento via Supabase Cron, com verificação a cada segundo.
 - Escrita direta nas tabelas de eventos/convidados revogada para usuários autenticados; alterações passam pelas RPCs.
 
 ### Observações de segurança e operação
