@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Users, CalendarDays, LayoutDashboard } from 'lucide-react';
+import { MapPin, Users, CalendarDays, LayoutDashboard, Flame } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { id: 'players', label: 'Jogadores', icon: Users },
   { id: 'games', label: 'Partidas', icon: CalendarDays },
   { id: 'locations', label: 'Locais', icon: MapPin },
+  { id: 'social', label: 'Churrasco', icon: Flame },
 ];
 
 function classifySections(root) {
@@ -29,6 +30,8 @@ function classifySections(root) {
       section.dataset.groupTab = 'players';
     } else if (title.includes('Partidas do grupo')) {
       section.dataset.groupTab = 'games';
+    } else if (title.includes('Churrasco do grupo')) {
+      section.dataset.groupTab = 'social';
     }
   });
 
@@ -47,7 +50,8 @@ function findGroupDetail() {
       title.includes('Partidas do grupo') ||
       title.includes('Padrões do grupo') ||
       title.includes('Caixa do grupo') ||
-      title.includes('Locais cadastrados')
+      title.includes('Locais cadastrados') ||
+      title.includes('Churrasco do grupo')
     );
   }) || null;
 }

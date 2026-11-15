@@ -1,5 +1,16 @@
 name: Validate Game Management Changes
 on:
+  push:
+    branches: [feat/churrasco-society]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'supabase/migrations/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:

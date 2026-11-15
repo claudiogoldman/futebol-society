@@ -1,12 +1,13 @@
 name: Game Domain Tests
 on:
   push:
-    branches: [main]
+    branches: [main, feat/churrasco-society]
     paths:
       - 'lib/domain/**'
       - 'tests/game-domain.test.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:

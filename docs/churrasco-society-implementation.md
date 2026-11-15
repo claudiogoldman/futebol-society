@@ -1,0 +1,181 @@
+# Churrasco Society — implementação
+
+Branch de trabalho: `feat/churrasco-society`
+
+## 1. Escopo e decisões aprovadas
+
+- Todo evento pertence a um grupo existente.
+- A administração ocorre no contexto do grupo.
+- Convidados e participantes não têm limite definido.
+- A identificação obrigatória do convidado é somente o nome.
+- O cadastro pode ser feito publicamente pelo link ou administrativamente.
+- A confirmação, o cancelamento e a reconfirmação são feitos por token individual.
+- A página pública exibe somente nomes confirmados e o total de confirmados; não exibe pendentes ou cancelados.
+- O evento encerra automaticamente no instante de início (data/hora local de São Paulo) ou pode ser encerrado manualmente.
+- Após encerramento, a consulta pública permanece disponível, mas operações de presença ficam bloqueadas.
+- A reabertura é permitida somente para evento encerrado manualmente e ainda não iniciado.
+- O cancelamento preserva evento, convidados e confirmações.
+- Não há controle financeiro.
+- O módulo não deve alterar partidas, jogadores, rankings, sorteios, pontos ou penalidades.
+
+## 2. Estados implementados
+
+### Evento
+- `OPEN`: cadastro de convidados e operações de presença permitidos, respeitadas as validações de horário.
+- `CLOSED`: consulta pública disponível; operações de presença bloqueadas.
+- `CANCELLED`: página pública informa o cancelamento; registros preservados e operações bloqueadas.
+
+Encerramento manual e automático resultam em `CLOSED`. Reabertura permitida: `CLOSED` com `closure_type = 'MANUAL'` para `OPEN`, desde que o início ainda não tenha ocorrido.
+
+### Convidado
+- `PENDING`
+- `CONFIRMED`
+- `CANCELLED`
+
+A reconfirmação atualiza o mesmo registro. A implementação não impõe unicidade por nome; nomes iguais são aceitos enquanto não houver decisão de negócio diferente.
+
+## 3. Estrutura de dados
+
+### `public.social_events`
+Contém vínculo obrigatório ao grupo, autor, nome, descrição, data/hora, local, hash do token público, estado, tipo e dados de encerramento/cancelamento e timestamps.
+
+A FK de `group_id` usa `ON DELETE RESTRICT`. Esta é uma proteção técnica provisória, não uma decisão de negócio aprovada. A política para exclusão de grupos com eventos vinculados continua pendente.
+
+### `public.social_event_guests`
+Contém vínculo ao evento, nome, estado, hash do token individual e timestamps. Não há unicidade por nome.
+
+Tokens brutos não são persistidos. Os hashes são armazenados em colunas inacessíveis diretamente aos papéis `anon` e `authenticated`.
+
+## 4. Funcionalidades entregues na branch
+
+- Aba Churrasco no contexto do grupo.
+- Criação e edição administrativa de eventos.
+- Encerramento, reabertura manual permitida e cancelamento.
+- Geração e renovação do link público; renovar invalida o link anterior.
+- Inclusão, edição de nome/situação e exclusão administrativa de convidados enquanto o evento está aberto.
+- Geração de link individual de confirmação para convidados incluídos administrativamente.
+- Cadastro público de convidado pelo link do evento, com emissão de link individual.
+- Página pública `/churrasco/[token]`.
+- Página individual `/churrasco/confirmar/[token]` para confirmar, cancelar e reconfirmar.
+- Consulta pública mantida para eventos encerrados ou cancelados; somente confirmados e totais são exibidos.
+- Verificações de estado e horário também nas RPCs, sem depender exclusivamente do agendamento.
+
+## 5. Segurança e acesso
+
+- RLS habilitada nas duas tabelas.
+- A migration final revoga o acesso direto às tabelas para `anon` e `authenticated`; o acesso funcional ocorre por RPCs.
+- RPCs privilegiadas usam `SECURITY DEFINER`, `search_path` fixo e grants explícitos.
+- RPCs administrativas verificam `public.is_group_admin(group_id)`.
+- RPCs públicas exigem token com 64 caracteres hexadecimais e comparam seu SHA-256 ao hash persistido.
+- Tokens são gerados com 32 bytes aleatórios (256 bits).
+- Listagens administrativas e públicas retornam campos explícitos e não retornam hashes.
+- O link público pode ser renovado por administrador; o token anterior deixa de localizar o evento.
+
+## 6. Regra temporal e encerramento automático
+
+O banco armazena timestamps em UTC. Data e hora do evento representam horário local de São Paulo. A comparação utilizada nas RPCs e no agendamento é:
+
+```sql
+((event_date + event_time) AT TIME ZONE 'America/Sao_Paulo') <= clock_timestamp()
+```
+
+Há duas camadas:
+1. Verificação lazy nas operações e listagens relevantes, para impedir operações após o horário de início.
+2. Job do Supabase Cron para persistir o estado `CLOSED` automaticamente.
+
+A migration do Cron instala `pg_cron` e agenda execução a cada segundo. A sintaxe de intervalo em segundos exige `pg_cron` 1.5 ou superior; confirmar a versão efetivamente disponível no ambiente-alvo antes da aplicação. Se a versão for inferior, a migration não deve ser aplicada sem adequar o agendamento.
+
+## 7. Migrations versionadas
+
+1. `20261115003000_create_social_events.sql`
+2. `20261115014500_social_event_rpcs.sql`
+3. `20261115021000_social_event_public_link.sql`
+4. `20261115024500_social_event_member_access.sql`
+5. `20261115030000_social_event_auto_close_cron.sql`
+6. `20261115033000_social_event_list_and_public_grants.sql`
+7. `20261115034500_social_event_restrict_direct_writes.sql`
+8. `20261115040000_social_event_hide_token_hashes.sql`\n9. `20261115043000_social_event_serialize_writes.sql`
+
+As migrations estão versionadas na branch e ainda não foram aplicadas ao banco de produção.
+
+## 8. Verificações já realizadas
+
+- Build de preview da aplicação concluído com estado `READY` no commit `120c095b92a2aeb59e753d2a526a412d04e55236`.
+- Depois desse build, as alterações registradas foram em migrations SQL e documentação, sem alteração posterior nos arquivos JavaScript/JSX.
+- Testes isolados `tests/social-event.test.mjs` e `tests/invite-token.test.mjs` passaram em Node.js 22.16.0.
+- `tests/game-domain.test.mjs` e o comando completo `npm test` ainda não foram executados.
+- A revisão SQL feita até aqui é estática. As migrations ainda precisam ser aplicadas e testadas em ambiente isolado, nunca diretamente em produção sem autorização.\n- A nova migration de serialização foi versionada, mas ainda não foi executada em PostgreSQL.
+
+## 9. Pendências e riscos não aprovados como regra de negócio
+
+### Decisões de negócio pendentes
+- **Exclusão de grupo:** definir o comportamento quando há eventos vinculados. A FK `ON DELETE RESTRICT` é provisória.
+- **Nomes duplicados:** a implementação aceita nomes iguais; a regra de negócio não foi definida.
+- **Proteção anti-bot/rate limiting:** mecanismo não definido.
+- **Auditoria/histórico:** tabela de histórico não foi criada; permanece recomendação opcional.
+- **Reabertura após encerramento automático:** não aprovada; a implementação não permite.
+
+### Revisão técnica pendente
+A primeira revisão estática identificou uma condição de corrida entre inclusão/alteração de presença e cancelamento/encerramento. A migration adicional `20261115043000_social_event_serialize_writes.sql` substitui as RPCs de escrita relevantes para bloquear a linha do evento com `SELECT ... FOR UPDATE` antes de validar o estado e gravar alterações. Assim, as operações concorrentes sobre o mesmo evento são serializadas até o commit.\n\nEssa correção ainda precisa de validação sintática e execução em PostgreSQL isolado, além de testes concorrentes reais. A revisão estática não equivale a validação de execução.
+
+Também deve ser revisada a migração histórica do projeto: a auditoria anterior encontrou diferença entre o número de migrations registradas no banco e os arquivos versionados. Não aplicar esta sequência sem reconciliação do histórico no ambiente de teste.
+
+## 10. Estado de publicação
+
+- Branch de implementação: `feat/churrasco-society`.
+- A branch `main` permanece preservada no commit original informado na auditoria.
+- Nenhuma migration foi aplicada ao Supabase de produção.
+- Nenhum merge para `main` foi realizado.
+- Nenhum deploy de produção foi promovido.
+- Previews automáticos da Vercel não comprovam funcionamento integrado ao banco enquanto as migrations não forem aplicadas em ambiente de teste.
+
+
+## 11. Ambiente de validação — atualização 2026-11-15
+
+- O projeto Supabase de produção foi consultado em modo somente leitura. O histórico registrado termina em `20261003220348`; nenhuma das nove migrations do Churrasco consta como aplicada.
+- PostgreSQL do projeto: 17.11. A extensão `pg_cron` está disponível no catálogo na versão padrão 1.6.4, mas ainda não está instalada.
+- A tentativa de criar uma branch de desenvolvimento Supabase foi recusada pelo serviço porque branching exige plano Pro ou superior. A autorização de custo por hora foi obtida, mas isso não altera a restrição do plano.
+- Portanto, a validação em banco isolado permanece bloqueada. Nenhuma migration foi aplicada em produção e nenhum projeto/branch adicional foi criado.
+- A revisão SQL permanece estática. A compatibilidade da versão disponível do `pg_cron` está indicada pelo catálogo, mas sua instalação e o agendamento ainda não foram testados.
+
+
+## 12. Revisão estática complementar — 2026-11-15
+
+### Concorrência e transações
+- A migration `20261115043000_social_event_serialize_writes.sql` foi relida integralmente. As RPCs de escrita administrativa e pública bloqueiam a linha de `social_events` antes da validação final e da gravação.
+- Na inclusão pública, o hash do token é validado novamente após a aquisição do bloqueio, protegendo contra renovação concorrente do link.
+- O padrão de bloqueio observado é evento primeiro e, quando necessário, convidado depois. A revisão estática não identificou inversão evidente dessa ordem nas funções examinadas.
+- Isso é uma avaliação de código, não comprovação de ausência de deadlocks ou de concorrência incorreta. Testes simultâneos em PostgreSQL continuam necessários.
+
+### Encerramento lazy e rollback
+- Algumas RPCs executam `_social_event_close_if_due(...)` e, na mesma transação, lançam uma exceção quando a operação solicitada não é permitida por encerramento/horário.
+- Quando a exceção é propagada, o PostgreSQL reverte também a atualização de encerramento lazy feita anteriormente nessa transação. A operação solicitada continua bloqueada, mas o estado persistido pode permanecer `OPEN` até o job Cron ou uma listagem/consulta que efetive o encerramento em outra transação.
+- O comportamento não altera o bloqueio temporal aplicado pelas RPCs; afeta a persistência imediata do estado em algumas tentativas recusadas.
+- **Recomendação técnica:** validar esse comportamento em PostgreSQL e, se necessário, ajustar o fluxo para que a atualização de estado não dependa de uma transação que termina em exceção. Não alterar a regra de negócio de encerramento no horário de início.
+
+### Ambiente local de execução
+- O ambiente de execução disponível nesta revisão não possui `psql`, servidor PostgreSQL ou Docker.
+- A tentativa de obter o repositório por clone Git também não foi possível por indisponibilidade de resolução de rede no ambiente.
+- Portanto, não foi possível executar `npm test` completo nem validar as migrations em PostgreSQL nesta etapa.
+
+### Situação após esta revisão
+- Não foi confirmado erro sintático por execução, pois não houve execução em PostgreSQL.
+- Não foi realizada alteração funcional nesta revisão.
+- Permanecem obrigatórios os testes de migrations, Cron e concorrência em ambiente isolado antes de homologação integrada.
+
+
+## 13. Reconciliação com atualizações recentes da main — 2026-11-15
+
+Foram analisados os três commits que avançaram a `main` após a criação da branch:
+- `3293d771`: contabilização de participação em partidas cuja data programada já passou, mesmo sem placar.
+- `c463c7a2`: separação de partidas futuras/passadas pela data local e indicação `Aguardando resultado`.
+- `aeaff80a`: correção do parser da data e do limite de fim do dia, além de impedir pontuação de participação para partidas sem jogadores.
+
+A lógica foi reconciliada diretamente na branch `feat/churrasco-society`, sem substituir o arquivo completo `app/society-page.js` da branch principal:
+- `lib/domain/ranking.js` recebeu a lógica atualizada de participação e o helper `isGamePastEndDate`.
+- `app/society-page.js` passou a usar o helper para separar partidas e exibir `Aguardando resultado`, preservando as alterações da aba Churrasco.
+- `tests/game-domain.test.mjs` recebeu casos para participação sem placar após a data, limite do dia e partidas sem jogadores.
+
+A reconciliação de conteúdo está feita para os três ajustes identificados. O histórico Git ainda pode indicar divergência de ancestrais até que os commits sejam incorporados formalmente; não foi feito merge da branch na `main`.
+
+**Validação:** os testes novos foram adicionados, mas ainda não foram executados neste ambiente. A validação final exige execução de `npm test` e build, além dos testes SQL isolados já descritos.
