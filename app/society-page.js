@@ -20,6 +20,7 @@ import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameD
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
+import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken } from '../lib/services/social-event-service';
 
 // ---------- helpers ----------
 
@@ -1299,6 +1300,29 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [simulationPlayers, setSimulationPlayers] = useState(null);
   const [simulationGameId, setSimulationGameId] = useState(null);
   const [simulationSourceLabel, setSimulationSourceLabel] = useState('Grupo');
+  const [socialEvents, setSocialEvents] = useState([]);
+  const [socialEventsLoading, setSocialEventsLoading] = useState(false);
+  const [socialEventSaving, setSocialEventSaving] = useState(false);
+  const [socialEventDraft, setSocialEventDraft] = useState({ name: '', description: '', eventDate: '', eventTime: '', location: '' });
+  const [socialEventLink, setSocialEventLink] = useState(null);
+
+  const refreshSocialEvents = async () => {
+    setSocialEventsLoading(true);
+    try {
+      const { data, error } = await listSocialEvents(group.id);
+      if (error) throw error;
+      setSocialEvents(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar eventos de churrasco:', error);
+    } finally {
+      setSocialEventsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshSocialEvents();
+  }, [group.id, canManage]);
+
 
   const isOwner = myId === group.createdBy;
   const myMembership = members.find((m) => m.user_id === myId || m.userId === myId);
@@ -1609,6 +1633,78 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
             )}
           </>
         )}
+      </section>
+
+      <section className="sf-card">
+        <div className="sf-card-title"><Flame size={16} /> Churrasco do grupo</div>
+        <div className="sf-muted-sm" style={{ marginBottom: 12 }}>Eventos de confraternização independentes das partidas e do ranking.</div>
+        {canManage && (
+          <div style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 10, marginBottom: 14 }}>
+            <div className="sf-card-title" style={{ marginBottom: 8 }}>Novo evento</div>
+            <label className="sf-field-label">Nome do evento</label>
+            <input className="sf-input" value={socialEventDraft.name} onChange={(e) => setSocialEventDraft((v) => ({ ...v, name: e.target.value }))} placeholder="Ex.: Churrasco de confraternização" />
+            <label className="sf-field-label">Descrição (opcional)</label>
+            <textarea className="sf-input" rows={2} value={socialEventDraft.description} onChange={(e) => setSocialEventDraft((v) => ({ ...v, description: e.target.value }))} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div><label className="sf-field-label">Data</label><input type="date" className="sf-input" value={socialEventDraft.eventDate} onChange={(e) => setSocialEventDraft((v) => ({ ...v, eventDate: e.target.value }))} /></div>
+              <div><label className="sf-field-label">Horário</label><input type="time" className="sf-input" value={socialEventDraft.eventTime} onChange={(e) => setSocialEventDraft((v) => ({ ...v, eventTime: e.target.value }))} /></div>
+            </div>
+            <label className="sf-field-label">Local (opcional)</label>
+            <input className="sf-input" value={socialEventDraft.location} onChange={(e) => setSocialEventDraft((v) => ({ ...v, location: e.target.value }))} placeholder="Endereço ou nome do local" />
+            <button type="button" className="sf-btn-primary" style={{ width: '100%', marginTop: 10 }} disabled={socialEventSaving} onClick={async () => {
+              if (!socialEventDraft.name.trim() || !socialEventDraft.eventDate || !socialEventDraft.eventTime) return alert('Informe nome, data e horário.');
+              setSocialEventSaving(true);
+              try {
+                const { data, error } = await createSocialEvent({ groupId: group.id, ...socialEventDraft });
+                if (error) throw error;
+                if (data?.public_token) setSocialEventLink({ id: data.id, token: data.public_token });
+                setSocialEventDraft({ name: '', description: '', eventDate: '', eventTime: '', location: '' });
+                await refreshSocialEvents();
+              } catch (error) { alert('Não foi possível criar o evento: ' + error.message); }
+              finally { setSocialEventSaving(false); }
+            }}>{socialEventSaving ? 'Criando...' : 'Criar evento'}</button>
+          </div>
+        )}
+        {socialEventLink && (
+          <div style={{ padding: 10, border: '1px solid var(--floodlight)', borderRadius: 10, marginBottom: 12 }}>
+            <strong>Link público do evento</strong>
+            <div className="sf-muted-sm" style={{ overflowWrap: 'anywhere', margin: '6px 0' }}>{typeof window !== 'undefined' ? window.location.origin : ''}/churrasco/{socialEventLink.token}</div>
+            <button type="button" className="sf-btn-ghost" onClick={() => navigator.clipboard.writeText(window.location.origin + '/churrasco/' + socialEventLink.token)}>Copiar link</button>
+          </div>
+        )}
+        {socialEventsLoading ? <div className="sf-muted-sm">Carregando eventos...</div> : socialEvents.length === 0 ? <div className="sf-muted-sm">Nenhum evento de churrasco cadastrado neste grupo.</div> : socialEvents.map((event) => (
+          <div key={event.id} style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 10, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ flex: 1 }}>{event.name}</strong>
+              <span className="sf-admin-tag">{event.status === 'OPEN' ? 'ABERTO' : event.status === 'CLOSED' ? 'ENCERRADO' : 'CANCELADO'}</span>
+            </div>
+            <div className="sf-muted-sm" style={{ marginTop: 5 }}>{new Date(event.event_date + 'T12:00:00').toLocaleDateString('pt-BR')} · {String(event.event_time).slice(0,5)}{event.location ? ' · ' + event.location : ''}</div>
+            {event.description && <div className="sf-muted-sm" style={{ marginTop: 5 }}>{event.description}</div>}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {canManage && event.status !== 'CANCELLED' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                try {
+                  const { data, error } = await regenerateSocialEventPublicToken(event.id);
+                  if (error) throw error;
+                  setSocialEventLink({ id: event.id, token: data });
+                } catch (error) { alert('Não foi possível gerar o link: ' + error.message); }
+              }}>Gerar link público</button>}
+              {canManage && event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                if (!confirm('Encerrar este evento? As confirmações ficarão bloqueadas.')) return;
+                try { const { error } = await closeSocialEvent(event.id); if (error) throw error; await refreshSocialEvents(); }
+                catch (error) { alert('Erro ao encerrar: ' + error.message); }
+              }}>Encerrar</button>}
+              {canManage && event.status === 'CLOSED' && event.closure_type === 'MANUAL' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                try { const { error } = await reopenSocialEvent(event.id); if (error) throw error; await refreshSocialEvents(); }
+                catch (error) { alert('Erro ao reabrir: ' + error.message); }
+              }}>Reabrir</button>}
+              {canManage && event.status !== 'CANCELLED' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                if (!confirm('Cancelar este evento? Os registros e confirmações serão preservados.')) return;
+                try { const { error } = await cancelSocialEvent(event.id); if (error) throw error; await refreshSocialEvents(); }
+                catch (error) { alert('Erro ao cancelar: ' + error.message); }
+              }}>Cancelar evento</button>}
+            </div>
+          </div>
+        ))}
       </section>
 
       <section className="sf-card">
