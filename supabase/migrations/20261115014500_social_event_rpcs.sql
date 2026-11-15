@@ -69,9 +69,13 @@ begin
          location = nullif(pg_catalog.btrim(p_location), ''),
          updated_at = pg_catalog.clock_timestamp()
    where id = p_event_id and status = 'OPEN'
+     and ((event_date + event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp()
      and nullif(pg_catalog.btrim(p_name), '') is not null
      and p_event_date is not null and p_event_time is not null;
-  if not found then raise exception 'Evento encerrado ou dados inválidos.' using errcode = '22023'; end if;
+  if not found then
+    perform public._social_event_close_if_due(p_event_id);
+    raise exception 'Evento encerrado ou dados inválidos.' using errcode = '22023';
+  end if;
   perform public._social_event_close_if_due(p_event_id);
   return true;
 end;
@@ -90,7 +94,9 @@ begin
   perform public._social_event_close_if_due(p_event_id);
   update public.social_events set status='CLOSED', closure_type='MANUAL',
     closed_at=pg_catalog.clock_timestamp(), closed_by=auth.uid(), updated_at=pg_catalog.clock_timestamp()
-  where id=p_event_id and status='OPEN';
+  where id=p_event_id and status='OPEN'
+    and ((event_date + event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp();
+  perform public._social_event_close_if_due(p_event_id);
   return found;
 end;
 $$;
@@ -230,9 +236,16 @@ begin
   if v_event.status <> 'OPEN' then raise exception 'Este evento não aceita novas inclusões.' using errcode='22023'; end if;
   v_confirmation:=pg_catalog.encode(extensions.gen_random_bytes(32),'hex');
   insert into public.social_event_guests(event_id,name,status,confirmation_token_hash)
-  values(v_event.id,pg_catalog.btrim(p_name),'PENDING',
-    extensions.digest(pg_catalog.convert_to(v_confirmation,'UTF8'),'sha256'))
+  select e.id,pg_catalog.btrim(p_name),'PENDING',
+    extensions.digest(pg_catalog.convert_to(v_confirmation,'UTF8'),'sha256')
+    from public.social_events e
+   where e.id=v_event.id and e.status='OPEN'
+     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp()
   returning id into v_guest;
+  if v_guest is null then
+    perform public._social_event_close_if_due(v_event.id);
+    raise exception 'Este evento não aceita novas inclusões.' using errcode='22023';
+  end if;
   return pg_catalog.jsonb_build_object('guest_id',v_guest,'confirmation_token',v_confirmation);
 end;
 $$;
@@ -253,7 +266,13 @@ begin
   perform public._social_event_close_if_due(v_guest.event_id);
   select * into v_event from public.social_events where id=v_guest.event_id;
   if v_event.status <> 'OPEN' then raise exception 'Este evento não aceita alterações de presença.' using errcode='22023'; end if;
-  update public.social_event_guests set status=p_status,updated_at=pg_catalog.clock_timestamp() where id=v_guest.id;
+  update public.social_event_guests set status=p_status,updated_at=pg_catalog.clock_timestamp() where id=v_guest.id
+    and exists(select 1 from public.social_events e where e.id=v_event.id and e.status='OPEN'
+      and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp());
+  if not found then
+    perform public._social_event_close_if_due(v_event.id);
+    raise exception 'Este evento não aceita alterações de presença.' using errcode='22023';
+  end if;
   return true;
 end;
 $$;
