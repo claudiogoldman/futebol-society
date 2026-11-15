@@ -81,3 +81,10 @@ Esta branch contém somente preparação versionada. Nenhuma migration foi aplic
 - Um build anterior identificou e permitiu corrigir um literal de quebra de linha inválido em `group-tabs.js` e uma exportação duplicada em `social-event-service.js`.
 - As alterações posteriores a esse build ainda aguardam conclusão de novo build.
 - Testes automatizados de domínio foram adicionados ao script `npm test`, mas ainda não há execução confirmada nesta etapa.
+
+
+### Decisões ainda pendentes — não tratar como requisitos aprovados
+- **Exclusão do grupo:** a FK inicial está configurada como `ON DELETE RESTRICT` para preservar eventos. Isso é uma proteção conservadora provisória, mas a regra de negócio sobre excluir grupos com eventos vinculados ainda precisa de confirmação antes de aplicar a migration.
+- **Nomes duplicados:** a tabela não impõe unicidade por nome; portanto, atualmente aceita nomes iguais. Essa escolha permanece pendente de confirmação.
+- **Proteção contra cadastros automatizados:** mecanismo anti-bot/rate limiting ainda não foi escolhido.
+- **Auditoria/histórico:** tabela de histórico não foi criada; continua sendo recomendação técnica opcional.
