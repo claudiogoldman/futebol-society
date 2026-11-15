@@ -80,7 +80,7 @@ Esta branch contém somente preparação versionada. Nenhuma migration foi aplic
 - Um build de preview da branch concluiu com estado READY no commit `120c095b92a2aeb59e753d2a526a412d04e55236`.
 - Um build anterior identificou e permitiu corrigir um literal de quebra de linha inválido em `group-tabs.js` e uma exportação duplicada em `social-event-service.js`.
 - Após esse build, as alterações foram restritas às migrations SQL e à documentação; não houve alteração posterior nos arquivos JavaScript/JSX.
-- Testes automatizados de domínio foram adicionados ao script `npm test`, mas ainda não há execução confirmada nesta etapa.
+- Os testes isolados `tests/social-event.test.mjs` e `tests/invite-token.test.mjs` passaram em Node.js 22.16.0. `tests/game-domain.test.mjs` e o comando completo `npm test` ainda não foram executados.
 
 
 ### Decisões ainda pendentes — não tratar como requisitos aprovados
