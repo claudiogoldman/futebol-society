@@ -53,3 +53,31 @@ A rotina agendada não substitui a validação de horário dentro de cada RPC.
 ## Estado de publicação
 
 Esta branch contém somente preparação versionada. Nenhuma migration foi aplicada ao Supabase, nenhuma alteração foi feita na `main`, e não houve deploy.
+
+
+## Progresso da implementação (2026-11-15)
+
+### Entregas versionadas na branch
+- Aba Churrasco adicionada ao componente de navegação do grupo.
+- Cartão administrativo no contexto do grupo para criar, editar, encerrar, reabrir e cancelar eventos.
+- Gestão administrativa de convidados, com inclusão, alteração de situação e exclusão enquanto o evento está aberto.
+- Página pública `/churrasco/[token]` com cadastro público por nome e listagem somente dos confirmados.
+- Página individual `/churrasco/confirmar/[token]` para confirmar, cancelar e reconfirmar.
+- RPCs para as operações administrativas e públicas, com tokens aleatórios e hashes SHA-256.
+- RPC de listagem do grupo com encerramento automático lazy e retorno sem hashes.
+- Migração opcional de agendamento via Supabase Cron, com verificação a cada minuto.
+- Escrita direta nas tabelas de eventos/convidados revogada para usuários autenticados; alterações passam pelas RPCs.
+
+### Observações de segurança e operação
+- O acesso público usa tokens de 256 bits; o token bruto é exibido uma única vez na criação ou renovação.
+- Renovar o link público do evento invalida o link público anterior.
+- O link individual do convidado é apresentado após inclusão; os hashes não são retornados na listagem.
+- A regra temporal é aplicada nas RPCs no instante da operação. O cron persiste o status em rotina recorrente; não é a única proteção.
+- A migração de Cron depende de `pg_cron` disponível/instalável no projeto Supabase.
+- Nenhuma migration foi aplicada ao banco de produção.
+
+### Verificação
+- Um build de preview da branch concluiu com estado READY no commit `3a77b229a58c70aa570e369c11b159a51aef9164`.
+- Um build anterior identificou e permitiu corrigir um literal de quebra de linha inválido em `group-tabs.js` e uma exportação duplicada em `social-event-service.js`.
+- As alterações posteriores a esse build ainda aguardam conclusão de novo build.
+- Testes automatizados de domínio foram adicionados ao script `npm test`, mas ainda não há execução confirmada nesta etapa.
