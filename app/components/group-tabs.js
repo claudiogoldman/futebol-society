@@ -50,7 +50,8 @@ function findGroupDetail() {
       title.includes('Partidas do grupo') ||
       title.includes('Padrões do grupo') ||
       title.includes('Caixa do grupo') ||
-      title.includes('Locais cadastrados') ||\n      title.includes('Churrasco do grupo')
+      title.includes('Locais cadastrados') ||
+      title.includes('Churrasco do grupo')
     );
   }) || null;
 }
