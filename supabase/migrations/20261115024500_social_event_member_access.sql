@@ -17,13 +17,15 @@ create function public.add_social_event_guest(p_event_id uuid, p_name text)
 returns jsonb language plpgsql security definer
 set search_path = pg_catalog, public, extensions, auth
 as $$
-declare v_group uuid; v_guest uuid; v_confirmation text;
+declare v_group uuid; v_guest uuid; v_confirmation text; v_status text;
 begin
   select group_id into v_group from public.social_events where id=p_event_id;
   if v_group is null or auth.uid() is null or not public.is_group_admin(v_group) then
     raise exception 'Evento não encontrado ou acesso não autorizado.' using errcode='42501';
   end if;
   perform public._social_event_close_if_due(p_event_id);
+  select status into v_status from public.social_events where id=p_event_id;
+  if v_status <> 'OPEN' then raise exception 'Evento encerrado ou cancelado não aceita novos convidados.' using errcode='22023'; end if;
   if nullif(pg_catalog.btrim(p_name),'') is null then
     raise exception 'Informe o nome do convidado.' using errcode='22023';
   end if;
