@@ -100,7 +100,7 @@ begin
   perform public._social_event_close_if_due(p_event_id);
   return v_closed;
 end;
-$;
+$$;
 
 create or replace function public.reopen_social_event(p_event_id uuid)
 returns boolean language plpgsql security definer
@@ -181,7 +181,7 @@ begin
   end if;
   return true;
 end;
-$;
+$$;
 
 create or replace function public.delete_social_event_guest(p_guest_id uuid)
 returns boolean language plpgsql security definer
