@@ -4,6 +4,8 @@ const productionUrl =
   process.env.PLAYWRIGHT_TEST_BASE_URL ||
   'https://futebol-society-app.vercel.app';
 
+const vercelBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+
 module.exports = defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
@@ -19,6 +21,14 @@ module.exports = defineConfig({
   use: {
     baseURL: productionUrl,
     storageState: process.env.PLAYWRIGHT_AUTH_STATE || undefined,
+    ...(vercelBypassSecret
+      ? {
+          extraHTTPHeaders: {
+            'x-vercel-protection-bypass': vercelBypassSecret,
+            'x-vercel-set-bypass-cookie': 'true',
+          },
+        }
+      : {}),
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
