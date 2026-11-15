@@ -1701,7 +1701,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                   if (error) throw error;
                   setSocialEventLink({ id: event.id, token: data });
                 } catch (error) { alert('Não foi possível gerar o link: ' + error.message); }
-              }}>Gerar link público</button>}
+              }}>Gerar novo link (invalida o anterior)</button>}
               {canManage && event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={() => {
                 setSocialEventEditId(event.id);
                 setSocialEventEditDraft({ name: event.name || '', description: event.description || '', eventDate: event.event_date, eventTime: String(event.event_time).slice(0,5), location: event.location || '' });
