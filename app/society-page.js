@@ -16,7 +16,7 @@ import TeamSimulation from './components/society/TeamSimulation';
 import GameTabs from '../components/society/GameTabs';
 import GameTeamsSection from '../components/society/GameTeamsSection';
 import { drawTeams, drawTeamsRandom, isGoalkeeper as isGoleiro, physicalScore } from '../lib/domain/game';
-import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking } from '../lib/domain/ranking';
+import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameDestaques, computeRanking, isGamePastEndDate } from '../lib/domain/ranking';
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
@@ -2437,9 +2437,8 @@ function MainApp({ session }) {
       penalties: group.participationPenalties || [],
     });
   }, [profiles, games, groupMembers, rankingGroupFilter, groups]);
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const upcomingGames = useMemo(() => [...games].filter((g) => g.date >= todayIso).sort((a, b) => (a.date > b.date ? 1 : -1)), [games, todayIso]);
-  const pastGames = useMemo(() => [...games].filter((g) => g.date < todayIso).sort((a, b) => (a.date < b.date ? 1 : -1)), [games, todayIso]);
+  const upcomingGames = useMemo(() => [...games].filter((g) => !isGamePastEndDate(g.date)).sort((a, b) => (a.date > b.date ? 1 : -1)), [games]);
+  const pastGames = useMemo(() => [...games].filter((g) => isGamePastEndDate(g.date)).sort((a, b) => (a.date < b.date ? 1 : -1)), [games]);
   const sortedGames = partidasFilter === 'passadas' ? pastGames : upcomingGames;
   const selectedGame = games.find((g) => g.id === selectedGameId);
   const selectedGroup = groups.find((g) => g.id === selectedGroupId);
@@ -2507,7 +2506,7 @@ function MainApp({ session }) {
             )}
             {sortedGames.map((g) => {
               const gGroup = groups.find((gr) => gr.id === g.groupId);
-              const status = g.result ? 'Finalizada' : (g.teamA?.length ? 'Times prontos' : 'Sorteio pendente');
+              const status = g.result ? 'Finalizada' : (isGamePastEndDate(g.date) ? 'Aguardando resultado' : (g.teamA?.length ? 'Times prontos' : 'Sorteio pendente'));
               return (
                 <button key={g.id} className="sf-game-card" onClick={() => setSelectedGameId(g.id)}>
                   <div className="sf-game-card-date">{formatDatePtBr(g.date)}</div>
