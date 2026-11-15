@@ -126,10 +126,12 @@ const ranked = Array.from({ length: 10 }, (_, index) => ({
   attr_for: 60,
   attr_hab: 60,
   _rankingPoints: 10 - index,
-  _wins: index < 3 ? 5 : 0,
+  _wins: index < 3 ? 1 : 0,
   _confirmationOrder: index,
 }));
-const rankedDraw = drawTeams(ranked, () => 0.5, { playersPerTeam: 5, reservesPerTeam: 0, candidates: 30 });
+let rankedRandomSeed = 0;
+const rankedRandom = () => { rankedRandomSeed += 1; return (rankedRandomSeed * 0.618033988749895) % 1; };
+const rankedDraw = drawTeams(ranked, rankedRandom, { playersPerTeam: 5, reservesPerTeam: 0, candidates: 30 });
 const rankA = rankedDraw.teamAStarters.reduce((sum, p) => sum + p._rankingPoints, 0);
 const rankB = rankedDraw.teamBStarters.reduce((sum, p) => sum + p._rankingPoints, 0);
 const winsA = rankedDraw.teamAStarters.reduce((sum, p) => sum + p._wins, 0);
