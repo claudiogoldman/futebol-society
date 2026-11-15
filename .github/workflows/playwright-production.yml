@@ -34,6 +34,7 @@ jobs:
         env:
           CI: 'true'
           PLAYWRIGHT_TEST_BASE_URL: https://futebol-society-app-git-feat-churrasco-society-cfgoldman.vercel.app
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
