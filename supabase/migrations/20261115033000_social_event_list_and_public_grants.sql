@@ -28,10 +28,10 @@ begin
 
   update public.social_events e
      set status='CLOSED', closure_type='AUTOMATIC',
-         closed_at=coalesce(e.closed_at,pg_catalog.now()),
-         closed_by=null, updated_at=pg_catalog.now()
+         closed_at=coalesce(e.closed_at,pg_catalog.clock_timestamp()),
+         closed_by=null, updated_at=pg_catalog.clock_timestamp()
    where e.group_id=p_group_id and e.status='OPEN'
-     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') <= pg_catalog.now();
+     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') <= pg_catalog.clock_timestamp();
 
   return query
     select e.id,e.group_id,e.created_by,e.name,e.description,e.event_date,e.event_time,
