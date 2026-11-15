@@ -30,6 +30,8 @@ function classifySections(root) {
       section.dataset.groupTab = 'players';
     } else if (title.includes('Partidas do grupo')) {
       section.dataset.groupTab = 'games';
+    } else if (title.includes('Churrasco do grupo')) {
+      section.dataset.groupTab = 'social';
     }
   });
 
