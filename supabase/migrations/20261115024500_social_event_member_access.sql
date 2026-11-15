@@ -31,9 +31,16 @@ begin
   end if;
   v_confirmation:=pg_catalog.encode(extensions.gen_random_bytes(32),'hex');
   insert into public.social_event_guests(event_id,name,status,confirmation_token_hash)
-  values (p_event_id,pg_catalog.btrim(p_name),'PENDING',
-    extensions.digest(pg_catalog.convert_to(v_confirmation,'UTF8'),'sha256'))
+  select e.id,pg_catalog.btrim(p_name),'PENDING',
+    extensions.digest(pg_catalog.convert_to(v_confirmation,'UTF8'),'sha256')
+    from public.social_events e
+   where e.id=p_event_id and e.status='OPEN'
+     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp()
   returning id into v_guest;
+  if v_guest is null then
+    perform public._social_event_close_if_due(p_event_id);
+    raise exception 'Evento encerrado ou cancelado não aceita novos convidados.' using errcode='22023';
+  end if;
   return pg_catalog.jsonb_build_object('guest_id',v_guest,'confirmation_token',v_confirmation);
 end;
 $$;
