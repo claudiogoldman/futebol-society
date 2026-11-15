@@ -1,7 +1,7 @@
 name: Game Domain Tests
 on:
   push:
-    branches: [main]
+    branches: [main, feat/churrasco-society]
     paths:
       - 'lib/domain/**'
       - 'tests/game-domain.test.mjs'
