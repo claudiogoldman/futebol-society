@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Users, CalendarDays, Trophy, Shuffle, Wallet, Share2, Plus, Check,
   Star, ChevronLeft, Trash2, Loader2, Target, Award, LogOut, LogIn, Hand,
-  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy, Settings, X
+  Handshake, Shield, MessageCircle, Camera, UserRound, Layers, Copy, Settings, X, Flame
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { NATIONALITIES, countryFlag } from '../lib/countries';
