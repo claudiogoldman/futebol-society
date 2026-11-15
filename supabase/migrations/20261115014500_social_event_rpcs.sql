@@ -42,6 +42,7 @@ begin
           p_event_date, p_event_time, nullif(pg_catalog.btrim(p_location), ''),
           extensions.digest(pg_catalog.convert_to(v_token, 'UTF8'), 'sha256'))
   returning id into v_id;
+  perform public._social_event_close_if_due(v_id);
   return pg_catalog.jsonb_build_object('id', v_id, 'public_token', v_token);
 end;
 $$;
@@ -71,6 +72,7 @@ begin
      and nullif(pg_catalog.btrim(p_name), '') is not null
      and p_event_date is not null and p_event_time is not null;
   if not found then raise exception 'Evento encerrado ou dados inválidos.' using errcode = '22023'; end if;
+  perform public._social_event_close_if_due(p_event_id);
   return true;
 end;
 $$;
