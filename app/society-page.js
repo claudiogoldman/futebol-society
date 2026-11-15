@@ -20,7 +20,7 @@ import { averageRatingFor as avgRatingFor, computeGameHighlights as computeGameD
 import { formatDatePtBr, WEEKDAY_LABELS, nextDateForWeekday, money, gameLocationQuery, gameMapUrls } from '../lib/ui/society-formatters';
 import { generatePixCode, pixKeyType, pixKeyWarning } from '../lib/domain/pix';
 import { addGameParticipant, removeGameParticipant, toggleGameWaitlist, setGameCost, setGameGoalkeeperPays, setGameTeamConfig, setGamePixDetails as serviceSetGamePixDetails, setGameOrganizer as serviceSetGameOrganizer, setGameLocation as serviceSetGameLocation, setGameMaxPlayers, setGameTeams, setGamePayment, setPlayerStats, setGameResult, setGameGoals, setGameRatings, createGame as serviceCreateGame, deleteGame as serviceDeleteGame, confirmOrganizer as serviceConfirmOrganizer, createGroup as serviceCreateGroup, addGroupMember as serviceAddGroupMember, createGroupLocation as serviceCreateGroupLocation, updateGroupLocation as serviceUpdateGroupLocation, deleteGroupLocation as serviceDeleteGroupLocation, setGroupDefaultLocation as serviceSetGroupDefaultLocation, setGroupDefaults as serviceSetGroupDefaults, leaveGroup as serviceLeaveGroup, removeGroupMember as serviceRemoveGroupMember, deleteGroup as serviceDeleteGroup, adminDeleteGame as serviceAdminDeleteGame, adminAddPostgamePlayer as serviceAdminAddPostgamePlayer, addGameGuest as serviceAddGameGuest, updateGameGuestProfile as serviceUpdateGameGuestProfile, joinGameByToken as serviceJoinGameByToken, joinGroupByToken as serviceJoinGroupByToken, updateMyProfile as serviceUpdateMyProfile, setGroupMemberRole as serviceSetGroupMemberRole, uploadProfileAvatar as serviceUploadProfileAvatar, uploadGroupImage as serviceUploadGroupImage } from '../lib/services/society-service';
-import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken } from '../lib/services/social-event-service';
+import { listSocialEvents, createSocialEvent, closeSocialEvent, reopenSocialEvent, cancelSocialEvent, regenerateSocialEventPublicToken, listSocialEventGuests, addSocialEventGuest, updateSocialEventGuest, deleteSocialEventGuest } from '../lib/services/social-event-service';
 
 // ---------- helpers ----------
 
@@ -1305,6 +1305,17 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
   const [socialEventSaving, setSocialEventSaving] = useState(false);
   const [socialEventDraft, setSocialEventDraft] = useState({ name: '', description: '', eventDate: '', eventTime: '', location: '' });
   const [socialEventLink, setSocialEventLink] = useState(null);
+  const [expandedSocialEventId, setExpandedSocialEventId] = useState(null);
+  const [socialGuests, setSocialGuests] = useState({});
+  const [socialGuestDraft, setSocialGuestDraft] = useState('');
+  const [socialGuestLink, setSocialGuestLink] = useState(null);
+
+  const loadSocialGuests = async (eventId) => {
+    const { data, error } = await listSocialEventGuests(eventId);
+    if (error) { alert('Não foi possível carregar os convidados: ' + error.message); return; }
+    setSocialGuests((current) => ({ ...current, [eventId]: data || [] }));
+  };
+
 
   const refreshSocialEvents = async () => {
     setSocialEventsLoading(true);
@@ -1703,6 +1714,49 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
                 catch (error) { alert('Erro ao cancelar: ' + error.message); }
               }}>Cancelar evento</button>}
             </div>
+            {canManage && <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 8 }} onClick={async () => {
+              const next = expandedSocialEventId === event.id ? null : event.id;
+              setExpandedSocialEventId(next);
+              if (next) await loadSocialGuests(event.id);
+            }}>{expandedSocialEventId === event.id ? 'Fechar convidados' : 'Gerenciar convidados'}</button>}
+            {canManage && expandedSocialEventId === event.id && (
+              <div style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)', borderRadius: 8 }}>
+                <div className="sf-card-title">Convidados ({(socialGuests[event.id] || []).length})</div>
+                {event.status === 'OPEN' && <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                  <input className="sf-input" style={{ flex: 1 }} value={socialGuestDraft} onChange={(e) => setSocialGuestDraft(e.target.value)} placeholder="Nome do convidado" />
+                  <button type="button" className="sf-btn-primary" disabled={!socialGuestDraft.trim()} onClick={async () => {
+                    try {
+                      const { data, error } = await addSocialEventGuest(event.id, socialGuestDraft);
+                      if (error) throw error;
+                      if (data?.confirmation_token) setSocialGuestLink({ token: data.confirmation_token, name: socialGuestDraft.trim() });
+                      setSocialGuestDraft('');
+                      await loadSocialGuests(event.id);
+                    } catch (error) { alert('Não foi possível incluir o convidado: ' + error.message); }
+                  }}>Adicionar</button>
+                </div>}
+                {socialGuestLink && <div className="sf-muted-sm" style={{ marginBottom: 8, overflowWrap: 'anywhere' }}>
+                  Link de confirmação de {socialGuestLink.name}: {typeof window !== 'undefined' ? window.location.origin : ''}/churrasco/confirmar/{socialGuestLink.token}
+                  <button type="button" className="sf-admin-toggle" onClick={() => navigator.clipboard.writeText(window.location.origin + '/churrasco/confirmar/' + socialGuestLink.token)}>Copiar link</button>
+                </div>}
+                {(socialGuests[event.id] || []).map((guest) => (
+                  <div key={guest.id} className="sf-cost-row" style={{ gap: 8, alignItems: 'center' }}>
+                    <span style={{ flex: 1 }}>{guest.name}</span>
+                    <span className="sf-admin-tag">{guest.status === 'CONFIRMED' ? 'CONFIRMADO' : guest.status === 'CANCELLED' ? 'CANCELADO' : 'PENDENTE'}</span>
+                    {event.status === 'OPEN' && <select className="sf-input" style={{ width: 128 }} value={guest.status} onChange={async (e) => {
+                      try { const { error } = await updateSocialEventGuest(guest.id, guest.name, e.target.value); if (error) throw error; await loadSocialGuests(event.id); }
+                      catch (error) { alert('Não foi possível alterar o convidado: ' + error.message); }
+                    }}>
+                      <option value="PENDING">Pendente</option><option value="CONFIRMED">Confirmado</option><option value="CANCELLED">Cancelado</option>
+                    </select>}
+                    {event.status === 'OPEN' && <button type="button" className="sf-admin-toggle" onClick={async () => {
+                      if (!confirm('Excluir este convidado?')) return;
+                      try { const { error } = await deleteSocialEventGuest(guest.id); if (error) throw error; await loadSocialGuests(event.id); }
+                      catch (error) { alert('Não foi possível excluir: ' + error.message); }
+                    }}>Excluir</button>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </section>
