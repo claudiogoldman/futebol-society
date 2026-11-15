@@ -2,7 +2,7 @@ name: Production Smoke Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/churrasco-society]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
         run: npx playwright test
         env:
           CI: 'true'
-          PLAYWRIGHT_TEST_BASE_URL: https://futebol-society-app.vercel.app
+          PLAYWRIGHT_TEST_BASE_URL: https://futebol-society-app-git-feat-churrasco-society-cfgoldman.vercel.app
           E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
