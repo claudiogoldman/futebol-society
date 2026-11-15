@@ -7,6 +7,7 @@ on:
       - 'tests/game-domain.test.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
