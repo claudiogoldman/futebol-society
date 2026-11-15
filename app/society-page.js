@@ -1755,7 +1755,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
               <div style={{ marginTop: 10, padding: 10, background: 'var(--pitch-dark)', borderRadius: 8 }}>
                 <div className="sf-card-title">Convidados ({(socialGuests[event.id] || []).length})</div>
                 {event.status === 'OPEN' && <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-                  <input className="sf-input" style={{ flex: 1 }} value={socialGuestDraft} onChange={(e) => setSocialGuestDraft(e.target.value)} placeholder="Nome do convidado" />
+                  <input className="sf-input" style={{ flex: 1 }} value={socialGuestDraft} onChange={(e) => setSocialGuestDraft(e.target.value)} maxLength={100} placeholder="Nome do convidado" />
                   <button type="button" className="sf-btn-primary" disabled={!socialGuestDraft.trim()} onClick={async () => {
                     try {
                       const { data, error } = await addSocialEventGuest(event.id, socialGuestDraft);
