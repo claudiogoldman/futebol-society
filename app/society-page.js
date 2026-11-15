@@ -1332,7 +1332,7 @@ function GroupDetail({ group, games, members, locations, myId, onBack, onSetDefa
 
   useEffect(() => {
     refreshSocialEvents();
-  }, [group.id, canManage]);
+  }, [group.id]);
 
 
   const isOwner = myId === group.createdBy;
