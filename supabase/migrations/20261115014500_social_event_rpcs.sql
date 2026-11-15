@@ -11,12 +11,12 @@ begin
   update public.social_events e
      set status = 'CLOSED',
          closure_type = 'AUTOMATIC',
-         closed_at = coalesce(e.closed_at, pg_catalog.now()),
+         closed_at = coalesce(e.closed_at, pg_catalog.clock_timestamp()),
          closed_by = null,
-         updated_at = pg_catalog.now()
+         updated_at = pg_catalog.clock_timestamp()
    where e.id = p_event_id
      and e.status = 'OPEN'
-     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') <= pg_catalog.now();
+     and ((e.event_date + e.event_time) at time zone 'America/Sao_Paulo') <= pg_catalog.clock_timestamp();
 end;
 $$;
 revoke all on function public._social_event_close_if_due(uuid) from public, anon, authenticated;
@@ -67,7 +67,7 @@ begin
          event_date = p_event_date,
          event_time = p_event_time,
          location = nullif(pg_catalog.btrim(p_location), ''),
-         updated_at = pg_catalog.now()
+         updated_at = pg_catalog.clock_timestamp()
    where id = p_event_id and status = 'OPEN'
      and nullif(pg_catalog.btrim(p_name), '') is not null
      and p_event_date is not null and p_event_time is not null;
@@ -89,7 +89,7 @@ begin
   end if;
   perform public._social_event_close_if_due(p_event_id);
   update public.social_events set status='CLOSED', closure_type='MANUAL',
-    closed_at=pg_catalog.now(), closed_by=auth.uid(), updated_at=pg_catalog.now()
+    closed_at=pg_catalog.clock_timestamp(), closed_by=auth.uid(), updated_at=pg_catalog.clock_timestamp()
   where id=p_event_id and status='OPEN';
   return found;
 end;
@@ -106,9 +106,9 @@ begin
     raise exception 'Evento não encontrado ou acesso não autorizado.' using errcode = '42501';
   end if;
   update public.social_events set status='OPEN', closure_type=null, closed_at=null,
-    closed_by=null, updated_at=pg_catalog.now()
+    closed_by=null, updated_at=pg_catalog.clock_timestamp()
   where id=p_event_id and status='CLOSED' and closure_type='MANUAL'
-    and ((event_date + event_time) at time zone 'America/Sao_Paulo') > pg_catalog.now();
+    and ((event_date + event_time) at time zone 'America/Sao_Paulo') > pg_catalog.clock_timestamp();
   if not found then raise exception 'Somente eventos encerrados manualmente e ainda não iniciados podem ser reabertos.' using errcode='22023'; end if;
   return true;
 end;
@@ -124,8 +124,8 @@ begin
   if v_group is null or auth.uid() is null or not public.is_group_admin(v_group) then
     raise exception 'Evento não encontrado ou acesso não autorizado.' using errcode = '42501';
   end if;
-  update public.social_events set status='CANCELLED', cancelled_at=pg_catalog.now(),
-    updated_at=pg_catalog.now() where id=p_event_id and status <> 'CANCELLED';
+  update public.social_events set status='CANCELLED', cancelled_at=pg_catalog.clock_timestamp(),
+    updated_at=pg_catalog.clock_timestamp() where id=p_event_id and status <> 'CANCELLED';
   return found;
 end;
 $$;
@@ -163,7 +163,7 @@ begin
     raise exception 'Convidado não encontrado ou acesso não autorizado.' using errcode='42501';
   end if;
   perform public._social_event_close_if_due(v_event);
-  update public.social_event_guests set name=pg_catalog.btrim(p_name),status=p_status,updated_at=pg_catalog.now()
+  update public.social_event_guests set name=pg_catalog.btrim(p_name),status=p_status,updated_at=pg_catalog.clock_timestamp()
    where id=p_guest_id and exists(select 1 from public.social_events e where e.id=v_event and e.status='OPEN')
      and nullif(pg_catalog.btrim(p_name),'') is not null
      and p_status in ('PENDING','CONFIRMED','CANCELLED');
@@ -253,7 +253,7 @@ begin
   perform public._social_event_close_if_due(v_guest.event_id);
   select * into v_event from public.social_events where id=v_guest.event_id;
   if v_event.status <> 'OPEN' then raise exception 'Este evento não aceita alterações de presença.' using errcode='22023'; end if;
-  update public.social_event_guests set status=p_status,updated_at=pg_catalog.now() where id=v_guest.id;
+  update public.social_event_guests set status=p_status,updated_at=pg_catalog.clock_timestamp() where id=v_guest.id;
   return true;
 end;
 $$;
