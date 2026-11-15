@@ -16,7 +16,7 @@ begin
   end if;
   perform cron.schedule(
     'social-events-auto-close',
-    '* * * * *',
+    '1 second',
     $job$
       update public.social_events
          set status = 'CLOSED',
